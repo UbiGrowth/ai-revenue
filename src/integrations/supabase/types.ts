@@ -1,0 +1,754 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
+  public: {
+    Tables: {
+      asset_approvals: {
+        Row: {
+          approved_by: string | null
+          asset_id: string
+          comments: string | null
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["asset_status"]
+        }
+        Insert: {
+          approved_by?: string | null
+          asset_id: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          status: Database["public"]["Enums"]["asset_status"]
+        }
+        Update: {
+          approved_by?: string | null
+          asset_id?: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["asset_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_approvals_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          channel: string | null
+          content: Json | null
+          created_at: string
+          created_by: string | null
+          custom_domain: string | null
+          deployment_status: string | null
+          description: string | null
+          external_id: string | null
+          external_project_url: string | null
+          fal_id: string | null
+          goal: string | null
+          id: string
+          name: string
+          preview_url: string | null
+          segment_id: string | null
+          status: Database["public"]["Enums"]["asset_status"]
+          type: Database["public"]["Enums"]["asset_type"]
+          updated_at: string
+          vapi_id: string | null
+          views: number
+        }
+        Insert: {
+          channel?: string | null
+          content?: Json | null
+          created_at?: string
+          created_by?: string | null
+          custom_domain?: string | null
+          deployment_status?: string | null
+          description?: string | null
+          external_id?: string | null
+          external_project_url?: string | null
+          fal_id?: string | null
+          goal?: string | null
+          id?: string
+          name: string
+          preview_url?: string | null
+          segment_id?: string | null
+          status?: Database["public"]["Enums"]["asset_status"]
+          type: Database["public"]["Enums"]["asset_type"]
+          updated_at?: string
+          vapi_id?: string | null
+          views?: number
+        }
+        Update: {
+          channel?: string | null
+          content?: Json | null
+          created_at?: string
+          created_by?: string | null
+          custom_domain?: string | null
+          deployment_status?: string | null
+          description?: string | null
+          external_id?: string | null
+          external_project_url?: string | null
+          fal_id?: string | null
+          goal?: string | null
+          id?: string
+          name?: string
+          preview_url?: string | null
+          segment_id?: string | null
+          status?: Database["public"]["Enums"]["asset_status"]
+          type?: Database["public"]["Enums"]["asset_type"]
+          updated_at?: string
+          vapi_id?: string | null
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_profiles: {
+        Row: {
+          brand_colors: Json | null
+          brand_fonts: Json | null
+          brand_tone: string | null
+          brand_voice: string | null
+          business_description: string | null
+          business_name: string | null
+          competitive_advantages: string | null
+          content_length: string | null
+          content_tone: string | null
+          created_at: string
+          cta_patterns: string[] | null
+          id: string
+          imagery_style: string | null
+          industry: string | null
+          logo_url: string | null
+          messaging_pillars: string[] | null
+          preferred_channels: string[] | null
+          target_audiences: Json | null
+          unique_selling_points: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_colors?: Json | null
+          brand_fonts?: Json | null
+          brand_tone?: string | null
+          brand_voice?: string | null
+          business_description?: string | null
+          business_name?: string | null
+          competitive_advantages?: string | null
+          content_length?: string | null
+          content_tone?: string | null
+          created_at?: string
+          cta_patterns?: string[] | null
+          id?: string
+          imagery_style?: string | null
+          industry?: string | null
+          logo_url?: string | null
+          messaging_pillars?: string[] | null
+          preferred_channels?: string[] | null
+          target_audiences?: Json | null
+          unique_selling_points?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_colors?: Json | null
+          brand_fonts?: Json | null
+          brand_tone?: string | null
+          brand_voice?: string | null
+          business_description?: string | null
+          business_name?: string | null
+          competitive_advantages?: string | null
+          content_length?: string | null
+          content_tone?: string | null
+          created_at?: string
+          cta_patterns?: string[] | null
+          id?: string
+          imagery_style?: string | null
+          industry?: string | null
+          logo_url?: string | null
+          messaging_pillars?: string[] | null
+          preferred_channels?: string[] | null
+          target_audiences?: Json | null
+          unique_selling_points?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      campaign_metrics: {
+        Row: {
+          bounce_count: number | null
+          campaign_id: string
+          clicks: number | null
+          comments: number | null
+          conversions: number | null
+          cost: number | null
+          created_at: string
+          delivered_count: number | null
+          engagement_rate: number | null
+          id: string
+          impressions: number | null
+          last_synced_at: string | null
+          likes: number | null
+          open_count: number | null
+          revenue: number | null
+          sent_count: number | null
+          shares: number | null
+          unsubscribe_count: number | null
+          updated_at: string
+          video_views: number | null
+        }
+        Insert: {
+          bounce_count?: number | null
+          campaign_id: string
+          clicks?: number | null
+          comments?: number | null
+          conversions?: number | null
+          cost?: number | null
+          created_at?: string
+          delivered_count?: number | null
+          engagement_rate?: number | null
+          id?: string
+          impressions?: number | null
+          last_synced_at?: string | null
+          likes?: number | null
+          open_count?: number | null
+          revenue?: number | null
+          sent_count?: number | null
+          shares?: number | null
+          unsubscribe_count?: number | null
+          updated_at?: string
+          video_views?: number | null
+        }
+        Update: {
+          bounce_count?: number | null
+          campaign_id?: string
+          clicks?: number | null
+          comments?: number | null
+          conversions?: number | null
+          cost?: number | null
+          created_at?: string
+          delivered_count?: number | null
+          engagement_rate?: number | null
+          id?: string
+          impressions?: number | null
+          last_synced_at?: string | null
+          likes?: number | null
+          open_count?: number | null
+          revenue?: number | null
+          sent_count?: number | null
+          shares?: number | null
+          unsubscribe_count?: number | null
+          updated_at?: string
+          video_views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_metrics_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          asset_id: string
+          budget_allocated: number | null
+          channel: string
+          created_at: string
+          deployed_at: string | null
+          external_campaign_id: string | null
+          id: string
+          status: string
+          target_audience: Json | null
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          budget_allocated?: number | null
+          channel: string
+          created_at?: string
+          deployed_at?: string | null
+          external_campaign_id?: string | null
+          id?: string
+          status?: string
+          target_audience?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          budget_allocated?: number | null
+          channel?: string
+          created_at?: string
+          deployed_at?: string | null
+          external_campaign_id?: string | null
+          id?: string
+          status?: string
+          target_audience?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_templates: {
+        Row: {
+          content: string
+          conversion_rate: number | null
+          created_at: string
+          id: string
+          impressions: number | null
+          last_optimized_at: string | null
+          optimization_notes: string | null
+          optimization_version: number | null
+          subject_line: string | null
+          target_audience: string | null
+          template_name: string
+          template_type: string
+          tone: string | null
+          updated_at: string
+          vertical: string
+        }
+        Insert: {
+          content: string
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          impressions?: number | null
+          last_optimized_at?: string | null
+          optimization_notes?: string | null
+          optimization_version?: number | null
+          subject_line?: string | null
+          target_audience?: string | null
+          template_name: string
+          template_type: string
+          tone?: string | null
+          updated_at?: string
+          vertical: string
+        }
+        Update: {
+          content?: string
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          impressions?: number | null
+          last_optimized_at?: string | null
+          optimization_notes?: string | null
+          optimization_version?: number | null
+          subject_line?: string | null
+          target_audience?: string | null
+          template_name?: string
+          template_type?: string
+          tone?: string | null
+          updated_at?: string
+          vertical?: string
+        }
+        Relationships: []
+      }
+      lead_activities: {
+        Row: {
+          activity_type: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          lead_id: string
+          metadata: Json | null
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          lead_id: string
+          metadata?: Json | null
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          lead_id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          campaign_id: string | null
+          company: string | null
+          company_size: string | null
+          created_at: string
+          created_by: string | null
+          custom_fields: Json | null
+          email: string
+          first_name: string
+          id: string
+          industry: string | null
+          job_title: string | null
+          landing_page_url: string | null
+          last_contacted_at: string | null
+          last_name: string
+          next_follow_up_at: string | null
+          notes: string | null
+          phone: string | null
+          score: number | null
+          source: string
+          status: string
+          tags: string[] | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          vertical: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          campaign_id?: string | null
+          company?: string | null
+          company_size?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json | null
+          email: string
+          first_name: string
+          id?: string
+          industry?: string | null
+          job_title?: string | null
+          landing_page_url?: string | null
+          last_contacted_at?: string | null
+          last_name: string
+          next_follow_up_at?: string | null
+          notes?: string | null
+          phone?: string | null
+          score?: number | null
+          source: string
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          vertical?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          campaign_id?: string | null
+          company?: string | null
+          company_size?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json | null
+          email?: string
+          first_name?: string
+          id?: string
+          industry?: string | null
+          job_title?: string | null
+          landing_page_url?: string | null
+          last_contacted_at?: string | null
+          last_name?: string
+          next_follow_up_at?: string | null
+          notes?: string | null
+          phone?: string | null
+          score?: number | null
+          source?: string
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          vertical?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      segments: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          targeting_rules: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          targeting_rules?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          targeting_rules?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      social_integrations: {
+        Row: {
+          access_token: string
+          account_id: string | null
+          account_name: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          platform: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          account_id?: string | null
+          account_name?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          platform: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          account_id?: string | null
+          account_name?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          platform?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      app_role: "admin" | "sales" | "manager"
+      asset_status: "draft" | "review" | "approved" | "live"
+      asset_type: "video" | "email" | "voice" | "landing_page" | "website"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin", "sales", "manager"],
+      asset_status: ["draft", "review", "approved", "live"],
+      asset_type: ["video", "email", "voice", "landing_page", "website"],
+    },
+  },
+} as const

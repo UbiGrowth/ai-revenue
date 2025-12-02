@@ -1,0 +1,257 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      company,
+      jobTitle,
+      vertical,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      landingPageUrl,
+      customFields,
+    } = await req.json();
+
+    // Validate required fields
+    if (!firstName || !lastName || !email) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields: firstName, lastName, email" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email format" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Check if lead already exists
+    const { data: existingLead } = await supabaseClient
+      .from("leads")
+      .select("id")
+      .eq("email", email)
+      .single();
+
+    if (existingLead) {
+      // Update existing lead
+      const { data, error } = await supabaseClient
+        .from("leads")
+        .update({
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || null,
+          company: company || null,
+          job_title: jobTitle || null,
+          vertical: vertical || null,
+          utm_source: utmSource || null,
+          utm_medium: utmMedium || null,
+          utm_campaign: utmCampaign || null,
+          landing_page_url: landingPageUrl || null,
+          custom_fields: customFields || {},
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingLead.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log activity
+      await supabaseClient.from("lead_activities").insert({
+        lead_id: existingLead.id,
+        activity_type: "note",
+        description: `Lead updated via landing page form`,
+        metadata: { landing_page_url: landingPageUrl },
+      });
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          leadId: existingLead.id,
+          message: "Lead updated successfully" 
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Calculate vertical-specific lead score
+    let score = 40; // Base score
+    const companySize = customFields?.companySize || customFields?.company_size || '';
+    
+    // Vertical-specific scoring logic
+    const verticalScoring: Record<string, (l: any) => number> = {
+      'hotels_resorts': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('general manager') || l.jobTitle?.toLowerCase().includes('revenue manager')) s += 25;
+        if (l.companySize === 'large' || l.companySize === 'enterprise') s += 20;
+        if (l.customFields?.rooms && parseInt(l.customFields.rooms) > 100) s += 15;
+        return s;
+      },
+      'multifamily_real_estate': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('property manager') || l.jobTitle?.toLowerCase().includes('leasing director')) s += 25;
+        if (l.customFields?.units && parseInt(l.customFields.units) > 200) s += 20;
+        if (l.companySize === 'large' || l.companySize === 'enterprise') s += 15;
+        return s;
+      },
+      'pickleball_country_clubs': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('club manager') || l.jobTitle?.toLowerCase().includes('membership director')) s += 25;
+        if (l.customFields?.members && parseInt(l.customFields.members) > 500) s += 20;
+        if (l.companySize === 'medium' || l.companySize === 'large') s += 15;
+        return s;
+      },
+      'entertainment_venues': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('venue manager') || l.jobTitle?.toLowerCase().includes('event director')) s += 25;
+        if (l.customFields?.capacity && parseInt(l.customFields.capacity) > 1000) s += 20;
+        if (l.companySize === 'medium' || l.companySize === 'large') s += 15;
+        return s;
+      },
+      'physical_therapy': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('clinic director') || l.jobTitle?.toLowerCase().includes('practice owner')) s += 25;
+        if (l.customFields?.clinics && parseInt(l.customFields.clinics) > 3) s += 20;
+        if (l.companySize === 'medium' || l.companySize === 'large') s += 15;
+        return s;
+      },
+      'corporate_coworking': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('facilities manager') || l.jobTitle?.toLowerCase().includes('operations director')) s += 25;
+        if (l.customFields?.sqft && parseInt(l.customFields.sqft) > 20000) s += 20;
+        if (l.companySize === 'large' || l.companySize === 'enterprise') s += 15;
+        return s;
+      },
+      'education': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('dean') || l.jobTitle?.toLowerCase().includes('director') || l.jobTitle?.toLowerCase().includes('superintendent')) s += 25;
+        if (l.customFields?.students && parseInt(l.customFields.students) > 1000) s += 20;
+        if (l.companySize === 'large' || l.companySize === 'enterprise') s += 15;
+        return s;
+      },
+      'gyms': (l) => {
+        let s = 0;
+        if (l.jobTitle?.toLowerCase().includes('owner') || l.jobTitle?.toLowerCase().includes('general manager')) s += 25;
+        if (l.customFields?.members && parseInt(l.customFields.members) > 500) s += 20;
+        if (l.customFields?.locations && parseInt(l.customFields.locations) > 1) s += 15;
+        return s;
+      }
+    };
+    
+    // Apply vertical-specific scoring
+    if (vertical && verticalScoring[vertical]) {
+      score += verticalScoring[vertical]({ jobTitle, companySize, customFields });
+    }
+    
+    // Universal scoring factors
+    if (jobTitle && (jobTitle.toLowerCase().includes('director') || 
+        jobTitle.toLowerCase().includes('manager') || 
+        jobTitle.toLowerCase().includes('vp') || 
+        jobTitle.toLowerCase().includes('ceo') ||
+        jobTitle.toLowerCase().includes('owner'))) {
+      score += 15;
+    }
+    
+    if (companySize === 'enterprise' || companySize === 'large') {
+      score += 10;
+    }
+    
+    if (phone) {
+      score += 10;
+    }
+    
+    // Cap score at 100
+    score = Math.min(score, 100);
+
+    // Create new lead
+    const { data, error } = await supabaseClient
+      .from("leads")
+      .insert({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone: phone || null,
+        company: company || null,
+        job_title: jobTitle || null,
+        source: "landing_page",
+        status: "new",
+        score,
+        vertical: vertical || null,
+        utm_source: utmSource || null,
+        utm_medium: utmMedium || null,
+        utm_campaign: utmCampaign || null,
+        landing_page_url: landingPageUrl || null,
+        custom_fields: customFields || {},
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Log initial activity
+    await supabaseClient.from("lead_activities").insert({
+      lead_id: data.id,
+      activity_type: "note",
+      description: `New lead captured via landing page form`,
+      metadata: { 
+        landing_page_url: landingPageUrl,
+        initial_score: score 
+      },
+    });
+
+    console.log(`New lead captured: ${email} (Score: ${score})`);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        leadId: data.id,
+        message: "Lead created successfully" 
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  } catch (error) {
+    console.error("Error in lead-capture function:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
