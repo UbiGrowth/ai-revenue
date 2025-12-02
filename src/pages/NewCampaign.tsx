@@ -9,11 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, Mail, Video, MessageSquare, Phone } from "lucide-react";
+import { Loader2, Sparkles, Brain, Zap } from "lucide-react";
 import AIPromptCard from "@/components/AIPromptCard";
 import WorkflowProgress from "@/components/WorkflowProgress";
+import AICampaignPlanner from "@/components/AICampaignPlanner";
+import CampaignOptimizer from "@/components/CampaignOptimizer";
 
 const verticals = [
   "Hotels & Resorts",
@@ -36,6 +39,64 @@ const NewCampaign = () => {
   const [location, setLocation] = useState("");
   const [businessType, setBusinessType] = useState("");
   const [budget, setBudget] = useState("");
+  const [aiPlan, setAiPlan] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState("create");
+
+  const handlePlanGenerated = (plan: any) => {
+    setAiPlan(plan);
+    if (plan.campaignName) {
+      setCampaignName(plan.campaignName);
+    }
+  };
+
+  const handleExecutePlan = async (plan: any) => {
+    if (!vertical || !goal) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please provide vertical and goal first.",
+      });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      toast({
+        title: "Executing AI Strategy",
+        description: "Creating optimized campaign across all channels...",
+      });
+
+      const { data, error } = await supabase.functions.invoke("campaign-orchestrator", {
+        body: {
+          campaignName: plan.campaignName || campaignName,
+          vertical,
+          goal,
+          location: location || undefined,
+          businessType: businessType || undefined,
+          budget: budget ? parseFloat(budget) : undefined,
+          aiPlan: plan, // Pass the AI plan for optimized execution
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Campaign Created",
+        description: `Generated ${data.assetsCreated} assets with AI-optimized strategy.`,
+      });
+
+      navigate("/approvals");
+    } catch (error: any) {
+      console.error("Error executing plan:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to execute campaign plan",
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,152 +174,240 @@ const NewCampaign = () => {
             </p>
           </div>
 
-          <form onSubmit={handleCreateCampaign}>
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardTitle className="text-foreground">Campaign Setup</CardTitle>
-                <CardDescription>
-                  System will generate all content, you approve, then it deploys automatically
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="campaignName">Campaign Name *</Label>
-                  <Input
-                    id="campaignName"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                    placeholder="e.g., Spring 2025 Luxury Resort Campaign"
-                    required
-                  />
-                </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="create" className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Quick Create
+              </TabsTrigger>
+              <TabsTrigger value="ai-planner" className="flex items-center gap-2">
+                <Brain className="h-4 w-4" />
+                AI Strategist
+              </TabsTrigger>
+              <TabsTrigger value="optimize" className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Self-Optimize
+              </TabsTrigger>
+            </TabsList>
 
-                <div className="space-y-2">
-                  <Label htmlFor="vertical">Client Vertical *</Label>
-                  <Select value={vertical} onValueChange={setVertical} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select industry vertical" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {verticals.map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <TabsContent value="create">
+              <form onSubmit={handleCreateCampaign}>
+                <Card className="border-border bg-card">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Campaign Setup</CardTitle>
+                    <CardDescription>
+                      System will generate all content, you approve, then it deploys automatically
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="campaignName">Campaign Name *</Label>
+                      <Input
+                        id="campaignName"
+                        value={campaignName}
+                        onChange={(e) => setCampaignName(e.target.value)}
+                        placeholder="e.g., Spring 2025 Luxury Resort Campaign"
+                        required
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="goal">Marketing Objective *</Label>
-                  <Textarea
-                    id="goal"
-                    value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
-                    placeholder="What should this campaign achieve for your client? (e.g., Drive 100 new member sign-ups, promote luxury resort packages, increase facility bookings by 25%)"
-                    rows={4}
-                    required
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vertical">Client Vertical *</Label>
+                      <Select value={vertical} onValueChange={setVertical} required>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select industry vertical" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {verticals.map((v) => (
+                            <SelectItem key={v} value={v}>
+                              {v}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <AIPromptCard
-                  title="Need help defining the objective?"
-                  description="Get AI-powered suggestions for this vertical"
-                  prompts={[
-                    `Create a marketing objective for ${vertical || 'a client'} to increase brand awareness and drive membership`,
-                    `Generate an objective for ${vertical || 'this vertical'} focused on lead generation and conversions`,
-                    `Suggest campaign objectives for ${vertical || 'a client in this vertical'} to boost customer retention and engagement`,
-                  ]}
-                />
+                    <div className="space-y-2">
+                      <Label htmlFor="goal">Marketing Objective *</Label>
+                      <Textarea
+                        id="goal"
+                        value={goal}
+                        onChange={(e) => setGoal(e.target.value)}
+                        placeholder="What should this campaign achieve for your client? (e.g., Drive 100 new member sign-ups, promote luxury resort packages, increase facility bookings by 25%)"
+                        rows={4}
+                        required
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="budget">Campaign Budget (Optional)</Label>
-                  <Input
-                    id="budget"
-                    type="number"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    placeholder="e.g., 5000"
-                    min="0"
-                    step="100"
-                  />
-                  <p className="text-xs text-muted-foreground">Total budget for this campaign in USD</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Client Location (Optional)</Label>
-                    <Input
-                      id="location"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="e.g., Miami, FL or Dallas, TX"
+                    <AIPromptCard
+                      title="Need help defining the objective?"
+                      description="Get AI-powered suggestions for this vertical"
+                      prompts={[
+                        `Create a marketing objective for ${vertical || 'a client'} to increase brand awareness and drive membership`,
+                        `Generate an objective for ${vertical || 'this vertical'} focused on lead generation and conversions`,
+                        `Suggest campaign objectives for ${vertical || 'a client in this vertical'} to boost customer retention and engagement`,
+                      ]}
                     />
-                    <p className="text-xs text-muted-foreground">For automated lead scraping</p>
-                  </div>
 
+                    <div className="space-y-2">
+                      <Label htmlFor="budget">Campaign Budget (Optional)</Label>
+                      <Input
+                        id="budget"
+                        type="number"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                        placeholder="e.g., 5000"
+                        min="0"
+                        step="100"
+                      />
+                      <p className="text-xs text-muted-foreground">Total budget for this campaign in USD</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Client Location (Optional)</Label>
+                        <Input
+                          id="location"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="e.g., Miami, FL or Dallas, TX"
+                        />
+                        <p className="text-xs text-muted-foreground">For automated lead scraping</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="businessType">Target Business Type (Optional)</Label>
+                        <Input
+                          id="businessType"
+                          value={businessType}
+                          onChange={(e) => setBusinessType(e.target.value)}
+                          placeholder="e.g., luxury resorts, country clubs"
+                        />
+                        <p className="text-xs text-muted-foreground">For automated lead scraping</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20 rounded-lg p-6 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Automated Workflow
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="bg-background/50 rounded-lg p-4 space-y-2">
+                          <div className="text-primary font-medium">1. Generate</div>
+                          <div className="text-muted-foreground text-xs">
+                            AI creates emails, social posts, videos, and call scripts
+                          </div>
+                        </div>
+                        <div className="bg-background/50 rounded-lg p-4 space-y-2">
+                          <div className="text-primary font-medium">2. Approve</div>
+                          <div className="text-muted-foreground text-xs">
+                            Review and approve content in one click
+                          </div>
+                        </div>
+                        <div className="bg-background/50 rounded-lg p-4 space-y-2">
+                          <div className="text-primary font-medium">3. Deploy & Track</div>
+                          <div className="text-muted-foreground text-xs">
+                            Auto-deploys to all channels and tracks ROI live
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      size="lg"
+                      disabled={creating}
+                    >
+                      {creating ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating Campaign...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Create Campaign
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="ai-planner" className="space-y-6">
+              {/* Input fields for AI Planner */}
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="text-foreground flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-primary" />
+                    Campaign Parameters
+                  </CardTitle>
+                  <CardDescription>
+                    Provide your campaign details and let AI create the optimal strategy
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ai-vertical">Client Vertical *</Label>
+                      <Select value={vertical} onValueChange={setVertical}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select industry vertical" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {verticals.map((v) => (
+                            <SelectItem key={v} value={v}>
+                              {v}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ai-budget">Campaign Budget</Label>
+                      <Input
+                        id="ai-budget"
+                        type="number"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                        placeholder="e.g., 5000"
+                        min="0"
+                        step="100"
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    <Label htmlFor="businessType">Target Business Type (Optional)</Label>
-                    <Input
-                      id="businessType"
-                      value={businessType}
-                      onChange={(e) => setBusinessType(e.target.value)}
-                      placeholder="e.g., luxury resorts, country clubs"
+                    <Label htmlFor="ai-goal">Marketing Objective *</Label>
+                    <Textarea
+                      id="ai-goal"
+                      value={goal}
+                      onChange={(e) => setGoal(e.target.value)}
+                      placeholder="Describe your campaign goal in detail..."
+                      rows={3}
                     />
-                    <p className="text-xs text-muted-foreground">For automated lead scraping</p>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20 rounded-lg p-6 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    <p className="text-sm font-semibold text-foreground">
-                      Automated Workflow
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div className="bg-background/50 rounded-lg p-4 space-y-2">
-                      <div className="text-primary font-medium">1. Generate</div>
-                      <div className="text-muted-foreground text-xs">
-                        AI creates emails, social posts, videos, and call scripts
-                      </div>
-                    </div>
-                    <div className="bg-background/50 rounded-lg p-4 space-y-2">
-                      <div className="text-primary font-medium">2. Approve</div>
-                      <div className="text-muted-foreground text-xs">
-                        Review and approve content in one click
-                      </div>
-                    </div>
-                    <div className="bg-background/50 rounded-lg p-4 space-y-2">
-                      <div className="text-primary font-medium">3. Deploy & Track</div>
-                      <div className="text-muted-foreground text-xs">
-                        Auto-deploys to all channels and tracks ROI live
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              {/* AI Campaign Planner */}
+              <AICampaignPlanner
+                goal={goal}
+                vertical={vertical}
+                budget={budget ? parseFloat(budget) : undefined}
+                onPlanGenerated={handlePlanGenerated}
+                onExecutePlan={handleExecutePlan}
+              />
+            </TabsContent>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  size="lg"
-                  disabled={creating}
-                >
-                  {creating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Campaign...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Create Campaign
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </form>
+            <TabsContent value="optimize">
+              <CampaignOptimizer />
+            </TabsContent>
+          </Tabs>
         </main>
         <Footer />
       </div>
