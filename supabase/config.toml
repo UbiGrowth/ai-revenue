@@ -1,1 +1,118 @@
 project_id = "nyzgsizvtqhafoxixyrd"
+
+[functions.ab-test-create]
+verify_jwt = true
+
+[functions.ai-assist]
+verify_jwt = true
+
+[functions.ai-chat]
+verify_jwt = true
+
+[functions.ai-campaign-planner]
+verify_jwt = true
+
+[functions.analyze-leads]
+verify_jwt = true
+
+[functions.auto-score-lead]
+verify_jwt = true
+
+[functions.batch-optimize-videos]
+verify_jwt = true
+
+[functions.campaign-calculate-roi]
+verify_jwt = true
+
+[functions.campaign-optimizer]
+verify_jwt = true
+
+[functions.campaign-orchestrator]
+verify_jwt = true
+
+[functions.capture-screenshot]
+verify_jwt = false
+
+[functions.content-generate]
+verify_jwt = true
+
+[functions.email-deploy]
+verify_jwt = true
+
+[functions.email-sequence]
+verify_jwt = true
+
+[functions.email-tracking-webhook]
+verify_jwt = false
+
+[functions.email-webhook]
+verify_jwt = false
+
+[functions.execute-voice-campaign]
+verify_jwt = true
+
+[functions.extract-brand-guidelines]
+verify_jwt = true
+
+[functions.generate-campaign-thumbnail]
+verify_jwt = true
+
+[functions.generate-hero-image]
+verify_jwt = true
+
+[functions.generate-missing-images]
+verify_jwt = true
+
+[functions.generate-video]
+verify_jwt = true
+
+[functions.lead-capture]
+verify_jwt = false
+
+[functions.optimize-video-prompts]
+verify_jwt = true
+
+[functions.playkout-assets-approve]
+verify_jwt = true
+
+[functions.playkout-assets-get]
+verify_jwt = true
+
+[functions.playkout-assets-update]
+verify_jwt = true
+
+[functions.schedule-campaigns]
+verify_jwt = true
+
+[functions.scrape-google-maps]
+verify_jwt = true
+
+[functions.send-lead-email]
+verify_jwt = true
+
+[functions.social-deploy]
+verify_jwt = true
+
+[functions.social-test-connection]
+verify_jwt = true
+
+[functions.sync-campaign-metrics]
+verify_jwt = true
+
+[functions.vapi-analytics]
+verify_jwt = true
+
+[functions.vapi-list-assistants]
+verify_jwt = true
+
+[functions.vapi-list-calls]
+verify_jwt = true
+
+[functions.vapi-list-phone-numbers]
+verify_jwt = true
+
+[functions.vapi-manage-assistant]
+verify_jwt = true
+
+[functions.vapi-outbound-call]
+verify_jwt = true
