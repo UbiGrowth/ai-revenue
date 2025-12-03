@@ -332,18 +332,16 @@ WHERE id = 'workspace-uuid';
 5. Inserts/updates `leads` row with correct `workspace_id`
 6. Optionally enqueues follow-up automation
 
-### 8.2 Resend Webhook (Email Events)
+### 7.2 Resend Webhook (Resend → Supabase)
 
-```
-Resend → POST /email-tracking-webhook
-  ├─ Headers: svix-id, svix-timestamp, svix-signature
-  ├─ Body: { type: "email.delivered", data: { email_id, ... } }
-  │
-  ├─ 1. Verify Svix signature (verifySvixSignature)
-  ├─ 2. Parse event type
-  ├─ 3. Update email tracking records
-  └─ Response: { received: true }
-```
+1. Resend sends headers:
+   - `svix-id`
+   - `svix-timestamp`
+   - `svix-signature`
+2. Edge function verifies Svix signature with `RESEND_WEBHOOK_SECRET`
+3. On success:
+   - Updates email status, events, and/or `lead_activities`
+   - May update `campaign_metrics`
 
 ### 8.3 Daily Automation (Internal Cron)
 
