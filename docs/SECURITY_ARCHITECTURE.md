@@ -132,24 +132,41 @@ if (!isValid) {
 
 ## 2. Internal Function Security
 
-### 2.1 Internal Secret Header Guard
+### 2.1 Internal Secret Header
 
-| Aspect | Detail |
-|--------|--------|
-| Header Name | `x-internal-secret` |
-| Secret Env Variable | `INTERNAL_FUNCTION_SECRET` |
-| Validation | Constant-time string comparison |
-| Used By | `cron-daily-automation`, `daily-automation`, `capture-screenshot` (fallback) |
+**Pattern:** Shared secret in `x-internal-secret` header
 
-**Pattern:**
+#### Configuration
+
+| Setting | Value |
+|---------|-------|
+| Header | `x-internal-secret` |
+| Secret Env | `INTERNAL_FUNCTION_SECRET` |
+| Response on Failure | 403 Forbidden |
+
+#### Behavior
+
 ```typescript
-const internalSecret = Deno.env.get("INTERNAL_FUNCTION_SECRET");
-const providedSecret = req.headers.get("x-internal-secret");
+const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTION_SECRET');
+const internalSecret = req.headers.get('x-internal-secret');
 
-if (providedSecret !== internalSecret) {
-  return new Response("Unauthorized", { status: 401 });
+if (!internalSecret || internalSecret !== INTERNAL_SECRET) {
+  return new Response(JSON.stringify({ error: 'Forbidden' }), { 
+    status: 403, 
+    headers: corsHeaders 
+  });
 }
 ```
+
+#### Endpoints Using (Service-Role Allowed)
+
+| Endpoint | Notes |
+|----------|-------|
+| `cron-daily-automation` | Called by pg_cron |
+| `daily-automation` | Called by pg_cron |
+| `capture-screenshot` | Fallback to Basic Auth |
+
+> ⚠️ **Security Note:** These endpoints are NOT callable from browser clients. Only trusted backend systems or `pg_cron` may invoke them.
 
 ### 2.2 HTTP Basic Authentication
 
