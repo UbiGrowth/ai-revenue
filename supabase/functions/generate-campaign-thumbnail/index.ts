@@ -50,10 +50,49 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Use anon key + user's JWT for RLS enforcement
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[generate-campaign-thumbnail] User ${user.id} generating thumbnail for asset ${assetId}`);
+
+    // If assetId provided, verify user has access - RLS enforced
+    if (assetId) {
+      const { data: asset, error: assetError } = await supabaseClient
+        .from("assets")
+        .select("id, content, workspace_id")
+        .eq("id", assetId)
+        .single();
+
+      if (assetError || !asset) {
+        console.error('Asset access denied:', assetError);
+        return new Response(
+          JSON.stringify({ error: 'Asset not found or access denied' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     const prompt = getPickleballPrompt(
       assetType || "landing_page",
@@ -90,7 +129,7 @@ serve(async (req) => {
       throw new Error("No image generated");
     }
 
-    // Update asset with generated thumbnail
+    // Update asset with generated thumbnail - RLS enforced
     if (assetId) {
       const { data: asset } = await supabaseClient
         .from("assets")
