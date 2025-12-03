@@ -343,18 +343,19 @@ WHERE id = 'workspace-uuid';
    - Updates email status, events, and/or `lead_activities`
    - May update `campaign_metrics`
 
-### 8.3 Daily Automation (Internal Cron)
+### 7.3 Daily Automation (Cron → Internal)
 
-```
-Supabase Cron → POST /cron-daily-automation
-  ├─ Headers: x-internal-secret
-  ├─ Body: { cron: true }
-  │
-  ├─ 1. Verify internal secret header
-  ├─ 2. Verify cron flag in body
-  ├─ 3. Execute automation tasks (using service role)
-  └─ Response: { success: true, results: [...] }
-```
+1. `pg_cron` triggers `cron-daily-automation` using `pg_net.http_post`
+2. `cron-daily-automation` validates `x-internal-secret` (or cron flag)
+3. Fetches all active workspaces
+4. For each workspace:
+   - Calls `daily-automation` with header `x-internal-secret` set
+5. `daily-automation` performs:
+   - Content publishing
+   - Campaign optimization
+   - Lead sequence processing
+   - Metrics sync
+6. Logs to `automation_jobs`
 
 ### 8.4 Screenshot Capture (Multi-Auth)
 
