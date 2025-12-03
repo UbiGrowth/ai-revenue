@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { verifySvixSignature } from "../_shared/svix-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, svix-id, svix-timestamp, svix-signature",
 };
-
-// Resend webhook signing secret (optional but recommended)
-const RESEND_WEBHOOK_SECRET = Deno.env.get('RESEND_WEBHOOK_SECRET');
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -15,27 +13,28 @@ serve(async (req) => {
   }
 
   try {
-    // Optional: Verify Resend webhook signature if secret is configured
-    if (RESEND_WEBHOOK_SECRET) {
-      const svixId = req.headers.get('svix-id');
-      const svixTimestamp = req.headers.get('svix-timestamp');
-      const svixSignature = req.headers.get('svix-signature');
+    const rawBody = await req.text();
 
-      if (!svixId || !svixTimestamp || !svixSignature) {
-        console.error('[email-webhook] Missing Svix headers for signature verification');
-        return new Response(JSON.stringify({ error: 'Missing webhook signature headers' }), {
+    // Verify Resend/Svix webhook signature
+    const isValid = await verifySvixSignature({
+      req,
+      rawBody,
+      secretEnv: "RESEND_WEBHOOK_SECRET",
+    });
+
+    if (!isValid) {
+      console.error("[email-webhook] Invalid webhook signature");
+      return new Response(
+        JSON.stringify({ error: "Invalid signature" }),
+        {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Note: Full signature verification requires crypto library
-      // For now, we validate that headers are present
-      console.log('[email-webhook] Webhook signature headers present');
+        }
+      );
     }
 
-    const event = await req.json();
-    console.log("Resend webhook received:", event.type);
+    const event = JSON.parse(rawBody);
+    console.log("[email-webhook] Event received:", event.type);
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -48,7 +47,7 @@ serve(async (req) => {
     )?.value;
 
     if (!campaignId) {
-      console.log("No campaign_id found in webhook event");
+      console.log("[email-webhook] No campaign_id found in event");
       return new Response(JSON.stringify({ received: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -62,14 +61,14 @@ serve(async (req) => {
       .single();
 
     if (metricsError || !metrics) {
-      console.error("Metrics not found for campaign:", campaignId);
+      console.error("[email-webhook] Metrics not found for campaign:", campaignId);
       return new Response(JSON.stringify({ received: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Update metrics based on event type
-    let updates: any = {
+    let updates: Record<string, unknown> = {
       last_synced_at: new Date().toISOString(),
     };
 
@@ -81,24 +80,22 @@ serve(async (req) => {
         updates.open_count = (metrics.open_count || 0) + 1;
         break;
       case "email.clicked":
-        updates.click_count = (metrics.click_count || 0) + 1;
         updates.clicks = (metrics.clicks || 0) + 1;
         break;
       case "email.bounced":
         updates.bounce_count = (metrics.bounce_count || 0) + 1;
         break;
       case "email.complained":
-        // Treat complaints as unsubscribes
         updates.unsubscribe_count = (metrics.unsubscribe_count || 0) + 1;
         break;
     }
 
     // Calculate engagement rate
-    if (updates.delivered_count || metrics.delivered_count > 0) {
-      const delivered = updates.delivered_count || metrics.delivered_count;
-      const opened = updates.open_count || metrics.open_count || 0;
-      const clicked = updates.click_count || metrics.click_count || 0;
-      updates.engagement_rate = (((opened + clicked) / delivered) * 100).toFixed(2);
+    const delivered = (updates.delivered_count as number) || metrics.delivered_count || 0;
+    if (delivered > 0) {
+      const opened = (updates.open_count as number) || metrics.open_count || 0;
+      const clicked = (updates.clicks as number) || metrics.clicks || 0;
+      updates.engagement_rate = Number((((opened + clicked) / delivered) * 100).toFixed(2));
     }
 
     // Update metrics
@@ -108,23 +105,19 @@ serve(async (req) => {
       .eq("campaign_id", campaignId);
 
     if (updateError) {
-      console.error("Error updating metrics:", updateError);
+      console.error("[email-webhook] Error updating metrics:", updateError);
     }
 
-    console.log(`Updated metrics for campaign ${campaignId}:`, updates);
+    console.log(`[email-webhook] Updated metrics for campaign ${campaignId}:`, updates);
 
     return new Response(JSON.stringify({ received: true, updated: updates }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error in email-webhook function:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[email-webhook] Error:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

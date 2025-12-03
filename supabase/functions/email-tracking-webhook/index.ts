@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { verifySvixSignature } from "../_shared/svix-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, svix-id, svix-timestamp, svix-signature",
 };
-
-// Resend webhook signing secret (optional but recommended)
-const RESEND_WEBHOOK_SECRET = Deno.env.get('RESEND_WEBHOOK_SECRET');
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -15,25 +13,28 @@ serve(async (req) => {
   }
 
   try {
-    // Optional: Verify Resend webhook signature if secret is configured
-    if (RESEND_WEBHOOK_SECRET) {
-      const svixId = req.headers.get('svix-id');
-      const svixTimestamp = req.headers.get('svix-timestamp');
-      const svixSignature = req.headers.get('svix-signature');
+    const rawBody = await req.text();
 
-      if (!svixId || !svixTimestamp || !svixSignature) {
-        console.error('[email-tracking-webhook] Missing Svix headers for signature verification');
-        return new Response(JSON.stringify({ error: 'Missing webhook signature headers' }), {
+    // Verify Resend/Svix webhook signature
+    const isValid = await verifySvixSignature({
+      req,
+      rawBody,
+      secretEnv: "RESEND_WEBHOOK_SECRET",
+    });
+
+    if (!isValid) {
+      console.error("[email-tracking-webhook] Invalid webhook signature");
+      return new Response(
+        JSON.stringify({ error: "Invalid signature" }),
+        {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      console.log('[email-tracking-webhook] Webhook signature headers present');
+        }
+      );
     }
 
-    const event = await req.json();
-    console.log("Resend tracking webhook received:", event.type);
+    const event = JSON.parse(rawBody);
+    console.log("[email-tracking-webhook] Event received:", event.type);
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -50,7 +51,7 @@ serve(async (req) => {
     )?.value;
 
     if (!leadId) {
-      console.log("No lead_id found in webhook event");
+      console.log("[email-tracking-webhook] No lead_id found in event");
       return new Response(JSON.stringify({ received: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -77,7 +78,7 @@ serve(async (req) => {
         description = "Email bounced - delivery failed";
         break;
       default:
-        console.log("Unhandled event type:", event.type);
+        console.log("[email-tracking-webhook] Unhandled event type:", event.type);
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -95,8 +96,8 @@ serve(async (req) => {
     }
 
     if (!leadWorkspaceId) {
-      console.error("Could not determine workspace_id for lead:", leadId);
-      return new Response(JSON.stringify({ received: true, error: 'Missing workspace_id' }), {
+      console.error("[email-tracking-webhook] Could not determine workspace_id for lead:", leadId);
+      return new Response(JSON.stringify({ received: true, error: "Missing workspace_id" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -117,36 +118,28 @@ serve(async (req) => {
       });
 
     if (activityError) {
-      console.error("Error logging activity:", activityError);
+      console.error("[email-tracking-webhook] Error logging activity:", activityError);
     }
 
     // Trigger automated lead scoring recalculation for engagement events
     if (event.type === "email.opened" || event.type === "email.clicked") {
       try {
-        // Call auto-score-lead - it's a user-facing function that uses RLS
-        // Since this is a webhook context, we need to call it with service auth
-        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-        const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-        
-        // Note: auto-score-lead should be called with proper auth context
-        // For webhook triggers, we use a direct internal call
-        await supabaseClient.functions.invoke('auto-score-lead', {
-          body: { leadId }
+        await supabaseClient.functions.invoke("auto-score-lead", {
+          body: { leadId },
         });
-        
-        console.log(`Triggered auto-scoring for lead ${leadId}`);
+        console.log(`[email-tracking-webhook] Triggered auto-scoring for lead ${leadId}`);
       } catch (scoreError) {
-        console.error("Error triggering auto-score:", scoreError);
+        console.error("[email-tracking-webhook] Error triggering auto-score:", scoreError);
       }
     }
 
-    console.log(`Tracked ${activityType} for lead ${leadId}`);
+    console.log(`[email-tracking-webhook] Tracked ${activityType} for lead ${leadId}`);
 
     return new Response(JSON.stringify({ received: true, tracked: activityType }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error in email-tracking-webhook:", error);
+    console.error("[email-tracking-webhook] Error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
