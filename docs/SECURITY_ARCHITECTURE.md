@@ -512,6 +512,10 @@ if (!allowedDay) {
 // If both checks pass → proceed to insert lead
 ```
 
+> **Tip:** You can adjust limits per plan (Starter, Growth, Enterprise) by:
+> 1. Fetching workspace configuration (`workspace.settings`)
+> 2. Passing plan-specific `_max_count` values into the RPC
+
 ---
 
 ## 10. Revision History
