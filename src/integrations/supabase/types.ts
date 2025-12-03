@@ -1165,6 +1165,10 @@ export type Database = {
         Args: { approval_asset_id: string }
         Returns: boolean
       }
+      check_workspace_form_password: {
+        Args: { _password: string; _workspace_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1178,10 +1182,6 @@ export type Database = {
       }
       user_has_workspace_access: {
         Args: { _workspace_id: string }
-        Returns: boolean
-      }
-      verify_workspace_password: {
-        Args: { password_input: string; workspace_uuid: string }
         Returns: boolean
       }
     }
