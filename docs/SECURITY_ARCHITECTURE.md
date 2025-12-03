@@ -319,126 +319,18 @@ WHERE id = 'workspace-uuid';
 
 ---
 
-## 7. Rate Limiting Primitives
+## 7. Request Flows (Examples)
 
-### 7.1 Overview
+### 7.1 Lead Capture (External → Supabase)
 
-Rate limiting is recommended for all public-facing endpoints to prevent abuse. The following primitives can be implemented:
-
-| Strategy | Use Case | Implementation |
-|----------|----------|----------------|
-| Token Bucket | General API rate limiting | In-memory or Redis-backed |
-| Sliding Window | Request counting per time window | Postgres or Redis |
-| Fixed Window | Simple request counting | Postgres counter table |
-
-### 7.2 Recommended Implementation (Postgres-based)
-
-**Rate Limit Table:**
-```sql
-CREATE TABLE IF NOT EXISTS public.rate_limits (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  identifier TEXT NOT NULL,        -- IP, user_id, workspace_id, etc.
-  endpoint TEXT NOT NULL,          -- Function name
-  window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
-  request_count INTEGER NOT NULL DEFAULT 1,
-  UNIQUE(identifier, endpoint, window_start)
-);
-
-CREATE INDEX idx_rate_limits_lookup 
-ON public.rate_limits(identifier, endpoint, window_start);
-```
-
-**Check Rate Limit Function:**
-```sql
-CREATE OR REPLACE FUNCTION public.check_rate_limit(
-  _identifier TEXT,
-  _endpoint TEXT,
-  _window_seconds INTEGER DEFAULT 60,
-  _max_requests INTEGER DEFAULT 100
-) RETURNS BOOLEAN
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  current_window TIMESTAMPTZ;
-  current_count INTEGER;
-BEGIN
-  current_window := date_trunc('minute', now());
-  
-  INSERT INTO public.rate_limits (identifier, endpoint, window_start, request_count)
-  VALUES (_identifier, _endpoint, current_window, 1)
-  ON CONFLICT (identifier, endpoint, window_start)
-  DO UPDATE SET request_count = rate_limits.request_count + 1
-  RETURNING request_count INTO current_count;
-  
-  RETURN current_count <= _max_requests;
-END;
-$$;
-```
-
-### 7.3 Recommended Limits
-
-| Endpoint | Window | Max Requests | Identifier |
-|----------|--------|--------------|------------|
-| `lead-capture` | 1 minute | 60 | IP + workspace_id |
-| `email-tracking-webhook` | 1 minute | 1000 | IP |
-| `email-webhook` | 1 minute | 1000 | IP |
-| `capture-screenshot` | 1 minute | 10 | user_id |
-| User-facing APIs | 1 minute | 100 | user_id |
-
-### 7.4 Edge Function Integration Pattern
-
-```typescript
-async function checkRateLimit(
-  identifier: string,
-  endpoint: string,
-  windowSeconds = 60,
-  maxRequests = 100
-): Promise<boolean> {
-  const { data, error } = await supabase.rpc('check_rate_limit', {
-    _identifier: identifier,
-    _endpoint: endpoint,
-    _window_seconds: windowSeconds,
-    _max_requests: maxRequests,
-  });
-  
-  if (error) {
-    console.error('Rate limit check failed:', error);
-    return true; // Fail open (or fail closed based on security posture)
-  }
-  
-  return data === true;
-}
-
-// Usage in edge function
-const clientIP = req.headers.get('x-forwarded-for') || 'unknown';
-if (!await checkRateLimit(clientIP, 'lead-capture', 60, 60)) {
-  return new Response('Too Many Requests', { 
-    status: 429,
-    headers: { 'Retry-After': '60', ...corsHeaders }
-  });
-}
-```
-
----
-
-## 8. Request Flow Examples
-
-### 8.1 Lead Capture (External Webhook)
-
-```
-External System → POST /lead-capture
-  ├─ Headers: x-ubigrowth-signature, x-ubigrowth-timestamp
-  ├─ Body: { workspaceId, firstName, lastName, email, formPassword? }
-  │
-  ├─ 1. [Optional] Check rate limit
-  ├─ 2. Verify HMAC signature (verifyHmacSignature)
-  ├─ 3. Check timestamp within tolerance (±5 min)
-  ├─ 4. Verify workspace exists
-  ├─ 5. Check workspace form password (if configured)
-  ├─ 6. Validate required fields
-  ├─ 7. Create/update lead record
-  └─ Response: { success: true, leadId: "..." }
-```
+1. External system computes `HMAC-SHA256(timestamp + "." + rawBody)` with `LEAD_CAPTURE_WEBHOOK_SECRET`
+2. Sends headers:
+   - `X-Ubigrowth-Signature`
+   - `X-Ubigrowth-Timestamp`
+3. `lead-capture` verifies HMAC and timestamp tolerance
+4. Validates workspace and (if present) workspace form password
+5. Inserts/updates `leads` row with correct `workspace_id`
+6. Optionally enqueues follow-up automation
 
 ### 8.2 Resend Webhook (Email Events)
 
