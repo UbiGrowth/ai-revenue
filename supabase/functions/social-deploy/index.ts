@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
-import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limit.ts";
+import { checkRateLimits, rateLimitResponse, getClientIp } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +18,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     // Use anon key + user's JWT for RLS enforcement
     const authHeader = req.headers.get('Authorization');
@@ -41,10 +42,17 @@ serve(async (req) => {
       );
     }
 
-    // Rate limiting per user
-    const rateLimitResult = await checkRateLimit(`social_deploy:${user.id}`, RATE_LIMIT_CONFIG);
+    // Rate limiting per user + IP
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+    const clientIp = getClientIp(req);
+    const rateLimitResult = await checkRateLimits(
+      serviceClient,
+      "social-deploy",
+      user.id,
+      clientIp,
+      RATE_LIMIT_CONFIG
+    );
     if (!rateLimitResult.allowed) {
-      console.warn(`[social-deploy] Rate limit exceeded for user ${user.id}`);
       return rateLimitResponse(rateLimitResult, corsHeaders);
     }
 
