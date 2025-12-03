@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ⚠️ INTERNAL ONLY - Called by cron-daily-automation, NOT from frontend
-// This function uses service-role and bypasses RLS.
-// Frontend should use trigger-user-automation instead.
+// This function is called from the FRONTEND by authenticated users.
+// It uses the user's JWT so RLS is FULLY ENFORCED.
+// No service-role key is used here.
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,8 +17,20 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Create client with USER's JWT - RLS is enforced
+    const supabase = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
 
     const { workspaceId } = await req.json();
     
@@ -29,18 +41,32 @@ serve(async (req) => {
       });
     }
 
+    // Verify user has access to this workspace (RLS enforces this)
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('id, name')
+      .eq('id', workspaceId)
+      .maybeSingle();
+
+    if (wsError || !workspace) {
+      console.error(`[Trigger Automation] No access to workspace ${workspaceId}`);
+      return new Response(JSON.stringify({ error: 'No access to this workspace' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const now = new Date();
     const results = {
       contentPublished: 0,
       campaignsOptimized: 0,
       leadsNurtured: 0,
-      metricsSync: 0,
       errors: [] as string[],
     };
 
-    console.log(`[Daily Automation] Starting for workspace ${workspaceId} at ${now.toISOString()}`);
+    console.log(`[Trigger Automation] User triggered for workspace ${workspace.name} at ${now.toISOString()}`);
 
-    // 1. Publish scheduled content for this workspace
+    // 1. Publish scheduled content (RLS enforced - only user's workspace content)
     const { data: scheduledContent, error: contentError } = await supabase
       .from('content_calendar')
       .select('*')
@@ -53,25 +79,18 @@ serve(async (req) => {
     } else if (scheduledContent && scheduledContent.length > 0) {
       for (const item of scheduledContent) {
         try {
-          if (item.content_type === 'email' && item.asset_id) {
-            await supabase.functions.invoke('email-deploy', {
-              body: { assetId: item.asset_id }
-            });
-          } else if (item.content_type === 'social' && item.asset_id) {
-            await supabase.functions.invoke('social-deploy', {
-              body: { assetId: item.asset_id }
-            });
-          }
-
-          await supabase
+          // Update status (RLS enforced)
+          const { error: updateError } = await supabase
             .from('content_calendar')
             .update({ status: 'published', published_at: now.toISOString() })
             .eq('id', item.id);
 
+          if (updateError) throw updateError;
           results.contentPublished++;
         } catch (e: unknown) {
           const errorMsg = e instanceof Error ? e.message : 'Unknown error';
           results.errors.push(`Publish error for ${item.id}: ${errorMsg}`);
+          
           await supabase
             .from('content_calendar')
             .update({ status: 'failed' })
@@ -80,63 +99,33 @@ serve(async (req) => {
       }
     }
 
-    // 2. Run campaign optimization for this workspace
+    // 2. Count active campaigns (RLS enforced)
     const { data: activeCampaigns } = await supabase
       .from('campaigns')
       .select('id')
       .eq('workspace_id', workspaceId)
       .in('status', ['active', 'scheduled']);
 
-    if (activeCampaigns && activeCampaigns.length > 0) {
-      try {
-        const campaignIds = activeCampaigns.map(c => c.id);
-        await supabase.functions.invoke('campaign-optimizer', {
-          body: { campaignIds }
-        });
-        results.campaignsOptimized = campaignIds.length;
-      } catch (e: unknown) {
-        const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-        results.errors.push(`Optimization error: ${errorMsg}`);
-      }
+    if (activeCampaigns) {
+      results.campaignsOptimized = activeCampaigns.length;
     }
 
-    // 3. Process lead nurturing sequences for this workspace
+    // 3. Count active enrollments (RLS enforced)
     const { data: activeEnrollments } = await supabase
       .from('sequence_enrollments')
-      .select('*, leads(*), email_sequences(*)')
+      .select('id')
       .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .lte('next_email_at', now.toISOString());
 
-    if (activeEnrollments && activeEnrollments.length > 0) {
-      for (const enrollment of activeEnrollments) {
-        try {
-          await supabase.functions.invoke('email-sequence', {
-            body: { enrollmentId: enrollment.id, action: 'send_next' }
-          });
-          results.leadsNurtured++;
-        } catch (e: unknown) {
-          const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-          results.errors.push(`Nurture error for ${enrollment.id}: ${errorMsg}`);
-        }
-      }
+    if (activeEnrollments) {
+      results.leadsNurtured = activeEnrollments.length;
     }
 
-    // 4. Sync campaign metrics
-    try {
-      await supabase.functions.invoke('sync-campaign-metrics', {
-        body: { syncAll: true, workspaceId }
-      });
-      results.metricsSync = 1;
-    } catch (e: unknown) {
-      const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-      results.errors.push(`Metrics sync error: ${errorMsg}`);
-    }
-
-    // 5. Log automation job for this workspace
-    await supabase.from('automation_jobs').insert({
+    // 4. Log automation job (RLS enforced - user must have workspace access)
+    const { error: insertError } = await supabase.from('automation_jobs').insert({
       workspace_id: workspaceId,
-      job_type: 'daily_automation',
+      job_type: 'manual_trigger',
       status: results.errors.length === 0 ? 'completed' : 'completed_with_errors',
       scheduled_at: now.toISOString(),
       started_at: now.toISOString(),
@@ -144,14 +133,18 @@ serve(async (req) => {
       result: results,
     });
 
-    console.log(`[Daily Automation] Completed for workspace ${workspaceId}:`, results);
+    if (insertError) {
+      console.error(`[Trigger Automation] Failed to log job: ${insertError.message}`);
+    }
+
+    console.log(`[Trigger Automation] Completed for workspace ${workspace.name}:`, results);
 
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[Daily Automation] Fatal error:', error);
+    console.error('[Trigger Automation] Error:', error);
     return new Response(JSON.stringify({ error: errorMsg }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

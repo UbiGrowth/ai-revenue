@@ -43,6 +43,9 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.daily-automation]
+verify_jwt = false
+
+[functions.trigger-user-automation]
 verify_jwt = true
 
 [functions.email-deploy]

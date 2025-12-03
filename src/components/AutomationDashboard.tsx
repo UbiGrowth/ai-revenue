@@ -105,12 +105,13 @@ export default function AutomationDashboard({ workspaceId }: AutomationDashboard
   const triggerDailyAutomation = async () => {
     setRunning(true);
     try {
-      const { error } = await supabase.functions.invoke("daily-automation", {
+      // Use trigger-user-automation (RLS enforced) instead of daily-automation (service-role)
+      const { error } = await supabase.functions.invoke("trigger-user-automation", {
         body: { workspaceId }
       });
       
       if (error) throw error;
-      toast.success("Daily automation triggered successfully!");
+      toast.success("Automation triggered successfully!");
       fetchJobs();
     } catch (e) {
       toast.error("Failed to trigger automation");
