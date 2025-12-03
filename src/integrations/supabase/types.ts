@@ -1180,6 +1180,10 @@ export type Database = {
         Args: { _workspace_id: string }
         Returns: boolean
       }
+      verify_workspace_password: {
+        Args: { password_input: string; workspace_uuid: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "sales" | "manager"
