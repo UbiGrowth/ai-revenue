@@ -1,9 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { requireBasicAuth, basicAuthResponse } from "../_shared/basic-auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Internal secret for internal function calls
+const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTION_SECRET');
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,6 +15,17 @@ serve(async (req) => {
   }
 
   try {
+    // Allow access via: 1) Basic Auth, 2) Internal secret header, 3) Valid JWT
+    const internalSecret = req.headers.get('x-internal-secret');
+    const hasValidInternalSecret = internalSecret && internalSecret === INTERNAL_SECRET;
+    const hasBasicAuth = requireBasicAuth(req, "UG_ADMIN_BASIC_USER", "UG_ADMIN_BASIC_PASS");
+    const hasAuthHeader = req.headers.get('Authorization')?.startsWith('Bearer ');
+
+    if (!hasValidInternalSecret && !hasBasicAuth && !hasAuthHeader) {
+      console.log("[capture-screenshot] Unauthorized access attempt");
+      return basicAuthResponse("UbiGrowth Screenshot", corsHeaders);
+    }
+
     const { url } = await req.json();
 
     if (!url) {
@@ -39,14 +54,13 @@ serve(async (req) => {
     screenshotApiUrl.searchParams.set("block_cookie_banners", "true");
     screenshotApiUrl.searchParams.set("cache", "true");
 
-    console.log("Capturing screenshot for:", url);
-    console.log("API URL:", screenshotApiUrl.toString().replace(apiKey, "***"));
+    console.log("[capture-screenshot] Capturing:", url);
 
     const response = await fetch(screenshotApiUrl.toString());
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("ScreenshotOne API error response:", errorText);
+      console.error("[capture-screenshot] API error:", errorText);
       throw new Error(`Screenshot API error: ${response.status} - ${errorText}`);
     }
 
@@ -57,7 +71,7 @@ serve(async (req) => {
     
     const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
-    console.log("Screenshot captured successfully");
+    console.log("[capture-screenshot] Success");
 
     return new Response(
       JSON.stringify({ 
@@ -73,7 +87,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Screenshot error:", error);
+    console.error("[capture-screenshot] Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return new Response(
       JSON.stringify({ 
