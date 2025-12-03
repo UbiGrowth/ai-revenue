@@ -4,14 +4,21 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 /**
  * Workspace-level password protection for public forms (per-tenant gating).
- * Passwords are stored as bcrypt/argon2 hashes in workspaces.public_form_password_hash
+ * Passwords are stored as bcrypt hashes using pgcrypto in workspaces.public_form_password_hash
  * 
- * Usage:
+ * To set a password (run via SQL):
+ * ```sql
+ * UPDATE public.workspaces
+ * SET public_form_password_hash = crypt('MyPassword123', gen_salt('bf'))
+ * WHERE id = '<workspace-uuid>';
+ * ```
+ * 
+ * Usage in edge function:
  * ```typescript
- * import { verifyWorkspacePassword, hashPassword } from "../_shared/workspace-password.ts";
+ * import { verifyWorkspacePassword, extractPasswordFromRequest } from "../_shared/workspace-password.ts";
  * 
- * // In edge function:
- * const result = await verifyWorkspacePassword(workspaceId, providedPassword);
+ * const password = extractPasswordFromRequest(req, body);
+ * const result = await verifyWorkspacePassword(workspaceId, password);
  * if (!result.valid) {
  *   return new Response(JSON.stringify({ error: result.error }), { status: 401 });
  * }
@@ -25,57 +32,7 @@ export interface WorkspacePasswordResult {
 }
 
 /**
- * Hash a password for storage using Web Crypto API (SHA-256 + salt)
- * For production, consider using bcrypt via a Deno module
- */
-export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  const encoder = new TextEncoder();
-  const data = encoder.encode(saltHex + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return `sha256:${saltHex}:${hashHex}`;
-}
-
-/**
- * Verify a password against a stored hash
- */
-export async function verifyPasswordHash(password: string, storedHash: string): Promise<boolean> {
-  if (!storedHash.startsWith('sha256:')) {
-    console.error('[workspace-password] Unknown hash format');
-    return false;
-  }
-
-  const parts = storedHash.split(':');
-  if (parts.length !== 3) {
-    console.error('[workspace-password] Invalid hash format');
-    return false;
-  }
-
-  const [, salt, expectedHash] = parts;
-  
-  const encoder = new TextEncoder();
-  const data = encoder.encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const computedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  // Timing-safe comparison
-  if (computedHash.length !== expectedHash.length) return false;
-  
-  let diff = 0;
-  for (let i = 0; i < computedHash.length; i++) {
-    diff |= computedHash.charCodeAt(i) ^ expectedHash.charCodeAt(i);
-  }
-  return diff === 0;
-}
-
-/**
- * Verify workspace password from request
+ * Verify workspace password using pgcrypto's crypt() function
  */
 export async function verifyWorkspacePassword(
   workspaceId: string,
@@ -91,7 +48,7 @@ export async function verifyWorkspacePassword(
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Fetch workspace password hash
+  // First check if workspace exists and has a password
   const { data: workspace, error } = await supabase
     .from('workspaces')
     .select('public_form_password_hash')
@@ -117,10 +74,22 @@ export async function verifyWorkspacePassword(
     return { valid: false, error: 'Password required', requiresPassword: true };
   }
 
-  // Verify the password
-  const isValid = await verifyPasswordHash(providedPassword, storedHash);
-  
-  if (isValid) {
+  // Verify password using pgcrypto's crypt() function via RPC
+  // crypt(password, hash) = hash if password matches
+  const { data: verifyResult, error: verifyError } = await supabase.rpc(
+    'verify_workspace_password',
+    { 
+      workspace_uuid: workspaceId, 
+      password_input: providedPassword 
+    }
+  );
+
+  if (verifyError) {
+    console.error('[workspace-password] Verification error:', verifyError);
+    return { valid: false, error: 'Verification failed' };
+  }
+
+  if (verifyResult === true) {
     console.log('[workspace-password] Password verified successfully');
     return { valid: true, requiresPassword: true };
   }
