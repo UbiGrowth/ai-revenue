@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.84.0';
-import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limit.ts";
+import { checkRateLimits, rateLimitResponse, getClientIp } from "../_shared/rate-limit.ts";
 
 // Declare EdgeRuntime global for background tasks
 declare const EdgeRuntime: {
@@ -40,6 +40,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     // Use anon key + user's JWT for RLS enforcement
     const authHeader = req.headers.get('Authorization');
@@ -57,10 +58,17 @@ serve(async (req) => {
       );
     }
 
-    // Rate limiting per user
-    const rateLimitResult = await checkRateLimit(`generate_video:${user.id}`, RATE_LIMIT_CONFIG);
+    // Rate limiting per user + IP (use service role client for rate limit checks)
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+    const clientIp = getClientIp(req);
+    const rateLimitResult = await checkRateLimits(
+      serviceClient,
+      "generate-video",
+      user.id,
+      clientIp,
+      RATE_LIMIT_CONFIG
+    );
     if (!rateLimitResult.allowed) {
-      console.warn(`[generate-video] Rate limit exceeded for user ${user.id}`);
       return rateLimitResponse(rateLimitResult, corsHeaders);
     }
 
@@ -192,9 +200,6 @@ serve(async (req) => {
     
     const mimeType = base64Match[1];
     const imageBytes = base64Match[2];
-
-    // Store credentials for background task (service role needed for background updates)
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Start async video generation in background
     const generateVideoInBackground = async () => {

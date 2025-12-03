@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limit.ts";
+import { checkRateLimits, rateLimitResponse, getClientIp } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,20 +24,29 @@ serve(async (req) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
     const authHeader = req.headers.get("Authorization");
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader! } } }
-    );
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader! } }
+    });
 
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    // Rate limiting per user
-    const rateLimitResult = await checkRateLimit(`voice_campaign:${user.id}`, RATE_LIMIT_CONFIG);
+    // Rate limiting per user + IP
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+    const clientIp = getClientIp(req);
+    const rateLimitResult = await checkRateLimits(
+      serviceClient,
+      "execute-voice-campaign",
+      user.id,
+      clientIp,
+      RATE_LIMIT_CONFIG
+    );
     if (!rateLimitResult.allowed) {
-      console.warn(`[execute-voice-campaign] Rate limit exceeded for user ${user.id}`);
       return rateLimitResponse(rateLimitResult, corsHeaders);
     }
 

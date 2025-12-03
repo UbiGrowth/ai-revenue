@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { verifyHmacSignature } from "../_shared/webhook.ts";
-import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limit.ts";
+import { checkRateLimits, rateLimitResponse, getClientIp } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,10 +85,21 @@ serve(async (req) => {
       );
     }
 
-    // Rate limiting per workspace
-    const rateLimitResult = await checkRateLimit(`lead_capture:${workspaceId}`, RATE_LIMIT_CONFIG);
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Rate limiting per workspace + IP
+    const clientIp = getClientIp(req);
+    const rateLimitResult = await checkRateLimits(
+      supabaseClient,
+      "lead-capture",
+      workspaceId,
+      clientIp,
+      RATE_LIMIT_CONFIG
+    );
     if (!rateLimitResult.allowed) {
-      console.warn(`[lead-capture] Rate limit exceeded for workspace ${workspaceId}`);
       return rateLimitResponse(rateLimitResult, corsHeaders);
     }
 
@@ -113,11 +124,6 @@ serve(async (req) => {
         }
       );
     }
-
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
 
     // Verify workspace exists
     const { data: workspace, error: wsError } = await supabaseClient
