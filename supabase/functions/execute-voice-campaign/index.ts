@@ -101,26 +101,20 @@ serve(async (req) => {
           results.push({ leadId: lead.id, success: true, callId: callData.id });
           successCount++;
 
-          // Log activity for the lead
+          // Log activity for the lead - include workspace_id for RLS
           await supabaseClient.from('lead_activities').insert({
             lead_id: lead.id,
             activity_type: 'outbound_call',
             description: `Outbound call initiated via voice campaign: ${asset.name}`,
             created_by: user.id,
+            workspace_id: asset.workspace_id,
             metadata: { callId: callData.id, assetId, assistantId },
           });
 
-          // Trigger auto-scoring for engaged lead
+          // Trigger auto-scoring for engaged lead using user's JWT (RLS enforced)
           try {
-            const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-            const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-            await fetch(`${supabaseUrl}/functions/v1/auto-score-lead`, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${serviceKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ leadId: lead.id }),
+            await supabaseClient.functions.invoke('auto-score-lead', {
+              body: { leadId: lead.id },
             });
           } catch (scoreError) {
             console.error("Error triggering auto-score:", scoreError);
@@ -174,9 +168,10 @@ serve(async (req) => {
         deployed_at: new Date().toISOString(),
       }).eq('id', campaign.id);
 
-      // Create/update campaign metrics
+      // Create/update campaign metrics - include workspace_id
       await supabaseClient.from('campaign_metrics').upsert({
         campaign_id: campaign.id,
+        workspace_id: asset.workspace_id,
         sent_count: targetLeads.length,
         delivered_count: successCount,
         bounce_count: failCount,

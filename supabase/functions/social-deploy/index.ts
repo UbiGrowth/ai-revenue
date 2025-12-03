@@ -13,19 +13,28 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
+    // Use anon key + user's JWT for RLS enforcement
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      throw new Error('Unauthorized');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { assetId, platforms } = await req.json();
@@ -34,9 +43,9 @@ serve(async (req) => {
       throw new Error('Asset ID is required');
     }
 
-    console.log(`Deploying asset ${assetId} to platforms:`, platforms);
+    console.log(`[social-deploy] User ${user.id} deploying asset ${assetId} to platforms:`, platforms);
 
-    // Fetch the asset
+    // Fetch the asset - RLS enforced
     const { data: asset, error: assetError } = await supabase
       .from('assets')
       .select('*')
@@ -44,14 +53,18 @@ serve(async (req) => {
       .single();
 
     if (assetError || !asset) {
-      throw new Error('Asset not found');
+      console.error('Asset fetch error:', assetError);
+      return new Response(
+        JSON.stringify({ error: 'Asset not found or access denied' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     if (asset.status !== 'approved') {
       throw new Error('Only approved assets can be deployed');
     }
 
-    // Get user's social integrations
+    // Get user's social integrations - RLS enforced (user_id = auth.uid())
     const { data: integrations, error: integrationsError } = await supabase
       .from('social_integrations')
       .select('*')
@@ -72,7 +85,6 @@ serve(async (req) => {
 
     // Deploy to each platform
     for (const integration of integrations) {
-      // Skip if specific platforms requested and this isn't one of them
       if (platforms && Array.isArray(platforms) && !platforms.includes(integration.platform)) {
         continue;
       }
@@ -100,7 +112,7 @@ serve(async (req) => {
         if (deployResult.success) {
           successCount++;
           
-          // Find existing campaign or create new one
+          // Find existing campaign or create new one - RLS enforced
           const { data: existingCampaign } = await supabase
             .from('campaigns')
             .select('*')
@@ -110,7 +122,6 @@ serve(async (req) => {
 
           let campaign;
           if (existingCampaign) {
-            // Update existing campaign
             const { data: updatedCampaign } = await supabase
               .from('campaigns')
               .update({
@@ -123,7 +134,6 @@ serve(async (req) => {
               .single();
             campaign = updatedCampaign;
           } else {
-            // Create new campaign if none exists
             const { data: newCampaign } = await supabase
               .from('campaigns')
               .insert({
@@ -132,13 +142,14 @@ serve(async (req) => {
                 status: 'active',
                 deployed_at: new Date().toISOString(),
                 external_campaign_id: (deployResult as any).postId || null,
+                workspace_id: asset.workspace_id,
               })
               .select()
               .single();
             campaign = newCampaign;
           }
 
-          // Update or create metrics
+          // Update or create metrics - RLS enforced
           if (campaign) {
             const { data: existingMetrics } = await supabase
               .from('campaign_metrics')
@@ -161,6 +172,7 @@ serve(async (req) => {
                 .from('campaign_metrics')
                 .insert({
                   campaign_id: campaign.id,
+                  workspace_id: asset.workspace_id,
                   impressions: 0,
                   clicks: 0,
                   engagement_rate: 0,
@@ -194,7 +206,7 @@ serve(async (req) => {
       }
     }
 
-    // Update asset status to live if at least one deployment succeeded
+    // Update asset status to live if at least one deployment succeeded - RLS enforced
     if (successCount > 0) {
       await supabase
         .from('assets')
@@ -218,10 +230,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
-      { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
@@ -231,22 +240,17 @@ async function deployToInstagram(asset: any, accessToken: string) {
     const content = asset.content || {};
     const caption = content.description || content.body || asset.name;
     
-    // For video content
     if (asset.type === 'video' && asset.preview_url) {
-      // Step 1: Create media container
-      const containerResponse = await fetch(
-        `https://graph.instagram.com/me/media`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            media_type: 'VIDEO',
-            video_url: asset.preview_url,
-            caption: caption,
-            access_token: accessToken,
-          }),
-        }
-      );
+      const containerResponse = await fetch(`https://graph.instagram.com/me/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media_type: 'VIDEO',
+          video_url: asset.preview_url,
+          caption: caption,
+          access_token: accessToken,
+        }),
+      });
 
       if (!containerResponse.ok) {
         const error = await containerResponse.json();
@@ -256,18 +260,14 @@ async function deployToInstagram(asset: any, accessToken: string) {
       const containerData = await containerResponse.json();
       const containerId = containerData.id;
 
-      // Step 2: Publish the container
-      const publishResponse = await fetch(
-        `https://graph.instagram.com/me/media_publish`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            creation_id: containerId,
-            access_token: accessToken,
-          }),
-        }
-      );
+      const publishResponse = await fetch(`https://graph.instagram.com/me/media_publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creation_id: containerId,
+          access_token: accessToken,
+        }),
+      });
 
       if (!publishResponse.ok) {
         const error = await publishResponse.json();
@@ -281,7 +281,6 @@ async function deployToInstagram(asset: any, accessToken: string) {
         postUrl: `https://www.instagram.com/p/${publishData.id}/`,
       };
     } else {
-      // For non-video content, just post as caption
       throw new Error('Instagram currently only supports video posts via API');
     }
   } catch (error) {
@@ -295,7 +294,6 @@ async function deployToLinkedIn(asset: any, accessToken: string) {
     const content = asset.content || {};
     const text = content.body || content.description || asset.name;
 
-    // Get user's LinkedIn profile
     const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -310,7 +308,6 @@ async function deployToLinkedIn(asset: any, accessToken: string) {
     const profile = await profileResponse.json();
     const authorUrn = `urn:li:person:${profile.id}`;
 
-    // Create post
     const postResponse = await fetch('https://api.linkedin.com/v2/ugcPosts', {
       method: 'POST',
       headers: {
@@ -323,15 +320,11 @@ async function deployToLinkedIn(asset: any, accessToken: string) {
         lifecycleState: 'PUBLISHED',
         specificContent: {
           'com.linkedin.ugc.ShareContent': {
-            shareCommentary: {
-              text: text,
-            },
+            shareCommentary: { text: text },
             shareMediaCategory: 'NONE',
           },
         },
-        visibility: {
-          'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
-        },
+        visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
       }),
     });
 
@@ -341,12 +334,10 @@ async function deployToLinkedIn(asset: any, accessToken: string) {
     }
 
     const postData = await postResponse.json();
-    const postId = postData.id;
-
     return {
       success: true,
-      postId: postId,
-      postUrl: `https://www.linkedin.com/feed/update/${postId}/`,
+      postId: postData.id,
+      postUrl: `https://www.linkedin.com/feed/update/${postData.id}/`,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -359,18 +350,14 @@ async function deployToFacebook(asset: any, accessToken: string) {
     const content = asset.content || {};
     const message = content.body || content.description || asset.name;
 
-    // Get user's pages or default to posting to feed
-    const response = await fetch(
-      `https://graph.facebook.com/me/feed`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: message,
-          access_token: accessToken,
-        }),
-      }
-    );
+    const response = await fetch(`https://graph.facebook.com/me/feed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        access_token: accessToken,
+      }),
+    });
 
     if (!response.ok) {
       const error = await response.json();
@@ -391,19 +378,9 @@ async function deployToFacebook(asset: any, accessToken: string) {
 
 async function deployToTikTok(asset: any, accessToken: string) {
   try {
-    const content = asset.content || {};
-    const caption = content.description || content.body || asset.name;
-
     if (asset.type !== 'video' || !asset.preview_url) {
       throw new Error('TikTok requires video content with a URL');
     }
-
-    // TikTok video upload is complex - simplified placeholder
-    // In production, this would need to:
-    // 1. Initialize upload
-    // 2. Upload video chunks
-    // 3. Publish video
-    
     throw new Error('TikTok video upload requires additional implementation');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

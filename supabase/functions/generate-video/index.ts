@@ -35,8 +35,42 @@ serve(async (req) => {
     console.log("GEMINI_API_KEY found, generating video with Veo 3.1...");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    // Use anon key + user's JWT for RLS enforcement
+    const authHeader = req.headers.get('Authorization');
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader || '' } }
+    });
+
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[generate-video] User ${user.id} generating video for asset ${assetId}`);
+
+    // If assetId provided, verify user has access (RLS enforced)
+    if (assetId) {
+      const { data: asset, error: assetError } = await supabase
+        .from('assets')
+        .select('id, workspace_id')
+        .eq('id', assetId)
+        .single();
+
+      if (assetError || !asset) {
+        console.error('Asset access denied:', assetError);
+        return new Response(
+          JSON.stringify({ error: 'Asset not found or access denied' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Check for AI-optimized templates first (based on conversion data)
     let optimizedTemplate = null;
@@ -68,14 +102,7 @@ serve(async (req) => {
       contextParts.push(description);
     }
 
-    // PICKLEBALL DEFINITION FOR AI MODELS:
-    // Pickleball is NOT tennis. Key visual differences:
-    // - PADDLES: Solid rectangular paddles (like oversized ping-pong paddles), NOT stringed tennis rackets
-    // - BALL: Perforated plastic wiffle ball with holes, NOT fuzzy yellow tennis ball
-    // - COURT: Smaller court (20x44 feet), NOT large tennis court (78x36 feet)
-    // - NET: Lower net (34 inches), NOT tennis height (36 inches)
-    // - MARKINGS: Has "kitchen" non-volley zone near net
-    
+    // PICKLEBALL DEFINITION FOR AI MODELS
     const pickleballDefinition = `CRITICAL PICKLEBALL EQUIPMENT REQUIREMENTS - THIS IS NOT TENNIS:
     1. PADDLES: Players hold SOLID RECTANGULAR PADDLES (like large ping-pong paddles) - absolutely NO stringed tennis rackets
     2. BALL: Small PERFORATED PLASTIC BALL with visible HOLES (wiffle ball style) - absolutely NO fuzzy yellow tennis balls
@@ -83,7 +110,7 @@ serve(async (req) => {
     4. NET: Lower net at 34 inches - shorter than tennis
     NEGATIVE: Do NOT show tennis rackets, tennis balls, tennis courts, or any tennis equipment.`;
 
-    // Create vertical-specific video prompts with explicit pickleball requirements
+    // Create vertical-specific video prompts
     const verticalPrompts: Record<string, string> = {
       'Hotels & Resorts': `${pickleballDefinition}. SCENE: Luxury resort hotel with dedicated PICKLEBALL courts (small courts with kitchen zones), guests holding SOLID PADDLES playing with PERFORATED PLASTIC BALLS, PlayKout branded facilities, oceanfront clubhouse.`,
       'Multifamily Real Estate': `${pickleballDefinition}. SCENE: Modern apartment complex with community PICKLEBALL courts, residents using SOLID PADDLES and WIFFLE-STYLE BALLS, PlayKout branded court markings, apartment amenity area.`,
@@ -98,19 +125,17 @@ serve(async (req) => {
     // Use optimized template if available, otherwise fall back to vertical prompts
     let verticalPrompt: string;
     if (optimizedTemplate) {
-      // Merge optimized template with pickleball definition and vertical requirements
       verticalPrompt = `${pickleballDefinition}. ${optimizedTemplate.content}. ${verticalPrompts[vertical] || 'Professional PlayKout pickleball facility'}`;
     } else {
       verticalPrompt = verticalPrompts[vertical] || `${pickleballDefinition}. Professional PlayKout pickleball facility`;
     }
     
-    // Construct final prompt with pickleball emphasis
+    // Construct final prompt
     let videoPrompt = verticalPrompt;
     
     if (contextParts.length > 0) {
       videoPrompt = `${videoPrompt}. Additional context: ${contextParts.join('. ')}`;
     }
-    // Add quality requirements and reinforce NOT tennis
     videoPrompt = `${videoPrompt}. Professional cinematic marketing footage. PlayKout branding visible. REMEMBER: SOLID PADDLES and PERFORATED BALLS only - absolutely NO tennis rackets or tennis balls.`;
 
     console.log("Generating video with Veo 3.1 using prompt:", videoPrompt);
@@ -118,7 +143,7 @@ serve(async (req) => {
     const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    // Step 1: Generate starting image with Lovable AI (saves Gemini quota for video only)
+    // Step 1: Generate starting image with Lovable AI
     console.log("Generating starting image with Lovable AI...");
     const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -128,12 +153,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: videoPrompt
-          }
-        ],
+        messages: [{ role: "user", content: videoPrompt }],
         modalities: ["image", "text"]
       })
     });
@@ -162,24 +182,25 @@ serve(async (req) => {
     const mimeType = base64Match[1];
     const imageBytes = base64Match[2];
 
+    // Store credentials for background task (service role needed for background updates)
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
     // Start async video generation in background
     const generateVideoInBackground = async () => {
       console.log("Starting Veo 3.1 video generation in background...");
+      
+      // Use service role for background task since user session won't persist
+      const bgSupabase = createClient(supabaseUrl, serviceRoleKey);
       
       try {
         // Step 2: Generate video with Veo 3.1 using the image
         const videoStartResponse = await fetch(`${BASE_URL}/models/veo-3.1-generate-preview:predictLongRunning?key=${GEMINI_API_KEY}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             instances: [{
               prompt: videoPrompt,
-              image: {
-                bytesBase64Encoded: imageBytes,
-                mimeType: mimeType
-              }
+              image: { bytesBase64Encoded: imageBytes, mimeType: mimeType }
             }]
           })
         });
@@ -193,26 +214,22 @@ serve(async (req) => {
         const startData = await videoStartResponse.json();
         const operationName = startData.name;
         
-        if (!operationName) {
-          throw new Error("No operation name returned");
-        }
+        if (!operationName) throw new Error("No operation name returned");
 
         console.log("Video generation started, operation:", operationName);
 
         // Poll for completion
         let isDone = false;
         let videoUri = null;
-        const maxAttempts = 120; // 20 minutes max (10 second intervals)
+        const maxAttempts = 120;
         let attempts = 0;
 
         while (!isDone && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+          await new Promise(resolve => setTimeout(resolve, 10000));
           attempts++;
 
           const statusResponse = await fetch(`${BASE_URL}/${operationName}?key=${GEMINI_API_KEY}`, {
-            headers: {
-              "Content-Type": "application/json",
-            }
+            headers: { "Content-Type": "application/json" }
           });
 
           if (!statusResponse.ok) {
@@ -239,9 +256,7 @@ serve(async (req) => {
 
         // Download the video
         const videoDownloadResponse = await fetch(videoUri, {
-          headers: {
-            "x-goog-api-key": GEMINI_API_KEY
-          }
+          headers: { "x-goog-api-key": GEMINI_API_KEY }
         });
 
         if (!videoDownloadResponse.ok) {
@@ -255,14 +270,10 @@ serve(async (req) => {
         console.log("Video downloaded successfully");
 
         // Update asset with video URL
-        if (assetId && supabaseUrl && supabaseKey) {
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          const { error: updateError } = await supabase
+        if (assetId) {
+          const { error: updateError } = await bgSupabase
             .from('assets')
-            .update({ 
-              preview_url: videoUrl,
-              updated_at: new Date().toISOString()
-            })
+            .update({ preview_url: videoUrl, updated_at: new Date().toISOString() })
             .eq('id', assetId);
 
           if (updateError) {
@@ -276,14 +287,10 @@ serve(async (req) => {
         console.error("Background video generation failed:", videoError);
         
         // Fallback: Update asset with image only
-        if (assetId && supabaseUrl && supabaseKey) {
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          const { error: updateError } = await supabase
+        if (assetId) {
+          const { error: updateError } = await bgSupabase
             .from('assets')
-            .update({ 
-              preview_url: imageUrl,
-              updated_at: new Date().toISOString()
-            })
+            .update({ preview_url: imageUrl, updated_at: new Date().toISOString() })
             .eq('id', assetId);
 
           if (updateError) {
@@ -309,10 +316,7 @@ serve(async (req) => {
         prompt: videoPrompt,
         message: "Video is processing with Veo 3.1 in the background. This may take 5-15 minutes for high-quality 8-second videos."
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
 
   } catch (error) {
@@ -337,14 +341,8 @@ serve(async (req) => {
     }
     
     return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        retryable: statusCode === 429
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: statusCode,
-      }
+      JSON.stringify({ error: errorMessage, retryable: statusCode === 429 }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: statusCode }
     );
   }
 });

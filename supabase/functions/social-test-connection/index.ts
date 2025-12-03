@@ -13,26 +13,35 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
+    // Use anon key + user's JWT for RLS enforcement
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      throw new Error('Unauthorized');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { platform } = await req.json();
 
-    console.log(`Testing connection for platform: ${platform}`);
+    console.log(`[social-test-connection] User ${user.id} testing connection for platform: ${platform}`);
 
-    // Fetch the integration for this user and platform
+    // Fetch the integration for this user and platform - RLS enforced (user_id = auth.uid())
     const { data: integration, error: fetchError } = await supabase
       .from('social_integrations')
       .select('*')
@@ -77,7 +86,7 @@ serve(async (req) => {
 
     console.log(`Test result for ${platform}:`, testResult);
 
-    // Update the integration with validation status
+    // Update the integration with validation status - RLS enforced
     const { error: updateError } = await supabase
       .from('social_integrations')
       .update({
@@ -105,17 +114,13 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
-      { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
 
 async function testInstagram(accessToken: string) {
   try {
-    // Test Instagram Graph API - get user info
     const response = await fetch(
       `https://graph.instagram.com/me?fields=id,username,account_type&access_token=${accessToken}`
     );
@@ -137,17 +142,12 @@ async function testInstagram(accessToken: string) {
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { 
-      valid: false, 
-      message: `Instagram test failed: ${errorMessage}`,
-      accountInfo: null 
-    };
+    return { valid: false, message: `Instagram test failed: ${errorMessage}`, accountInfo: null };
   }
 }
 
 async function testLinkedIn(accessToken: string) {
   try {
-    // Test LinkedIn API - get user profile
     const response = await fetch('https://api.linkedin.com/v2/me', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -156,65 +156,39 @@ async function testLinkedIn(accessToken: string) {
     });
 
     if (!response.ok) {
-      return { 
-        valid: false, 
-        message: `LinkedIn API error: ${response.statusText}`,
-        accountInfo: null 
-      };
+      return { valid: false, message: `LinkedIn API error: ${response.statusText}`, accountInfo: null };
     }
 
     const data = await response.json();
     const name = `${data.localizedFirstName || ''} ${data.localizedLastName || ''}`.trim();
-    return { 
-      valid: true, 
-      message: 'LinkedIn connected successfully',
-      accountInfo: name || data.id 
-    };
+    return { valid: true, message: 'LinkedIn connected successfully', accountInfo: name || data.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { 
-      valid: false, 
-      message: `LinkedIn test failed: ${errorMessage}`,
-      accountInfo: null 
-    };
+    return { valid: false, message: `LinkedIn test failed: ${errorMessage}`, accountInfo: null };
   }
 }
 
 async function testFacebook(accessToken: string) {
   try {
-    // Test Facebook Graph API - get user/page info
     const response = await fetch(
       `https://graph.facebook.com/me?fields=id,name&access_token=${accessToken}`
     );
 
     if (!response.ok) {
       const error = await response.json();
-      return { 
-        valid: false, 
-        message: `Facebook API error: ${error.error?.message || 'Invalid token'}`,
-        accountInfo: null 
-      };
+      return { valid: false, message: `Facebook API error: ${error.error?.message || 'Invalid token'}`, accountInfo: null };
     }
 
     const data = await response.json();
-    return { 
-      valid: true, 
-      message: 'Facebook connected successfully',
-      accountInfo: data.name || data.id 
-    };
+    return { valid: true, message: 'Facebook connected successfully', accountInfo: data.name || data.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { 
-      valid: false, 
-      message: `Facebook test failed: ${errorMessage}`,
-      accountInfo: null 
-    };
+    return { valid: false, message: `Facebook test failed: ${errorMessage}`, accountInfo: null };
   }
 }
 
 async function testTikTok(accessToken: string) {
   try {
-    // Test TikTok API - get user info
     const response = await fetch('https://open.tiktokapis.com/v2/user/info/', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -223,34 +197,18 @@ async function testTikTok(accessToken: string) {
     });
 
     if (!response.ok) {
-      return { 
-        valid: false, 
-        message: `TikTok API error: ${response.statusText}`,
-        accountInfo: null 
-      };
+      return { valid: false, message: `TikTok API error: ${response.statusText}`, accountInfo: null };
     }
 
     const data = await response.json();
     if (data.error?.code) {
-      return { 
-        valid: false, 
-        message: `TikTok error: ${data.error.message}`,
-        accountInfo: null 
-      };
+      return { valid: false, message: `TikTok error: ${data.error.message}`, accountInfo: null };
     }
 
     const username = data.data?.user?.display_name || data.data?.user?.username;
-    return { 
-      valid: true, 
-      message: 'TikTok connected successfully',
-      accountInfo: username 
-    };
+    return { valid: true, message: 'TikTok connected successfully', accountInfo: username };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { 
-      valid: false, 
-      message: `TikTok test failed: ${errorMessage}`,
-      accountInfo: null 
-    };
+    return { valid: false, message: `TikTok test failed: ${errorMessage}`, accountInfo: null };
   }
 }

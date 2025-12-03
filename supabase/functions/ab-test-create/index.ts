@@ -19,12 +19,34 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Fetch the original asset
+    // Use anon key + user's JWT for RLS enforcement
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[ab-test-create] User ${user.id} creating A/B test for asset ${assetId}`);
+
+    // Fetch the original asset - RLS enforced
     const { data: asset, error: assetError } = await supabaseClient
       .from("assets")
       .select("*")
@@ -32,8 +54,9 @@ serve(async (req) => {
       .single();
 
     if (assetError || !asset) {
+      console.error('Asset fetch error:', assetError);
       return new Response(
-        JSON.stringify({ error: "Asset not found" }),
+        JSON.stringify({ error: "Asset not found or access denied" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -115,11 +138,11 @@ Return JSON with this structure:
 
     const testData = JSON.parse(jsonMatch[0]);
 
-    // Create variation assets
+    // Create variation assets - RLS enforced
     const createdVariations = [];
     for (let i = 0; i < testData.variations.length; i++) {
       const variation = testData.variations[i];
-      const variantLabel = String.fromCharCode(65 + i); // A, B, C...
+      const variantLabel = String.fromCharCode(65 + i);
 
       const { data: newAsset, error: createError } = await supabaseClient
         .from("assets")
@@ -130,6 +153,8 @@ Return JSON with this structure:
           channel: asset.channel,
           goal: asset.goal,
           description: variation.hypothesis,
+          workspace_id: asset.workspace_id,
+          created_by: user.id,
           content: {
             ...content,
             headline: variation.headline,
@@ -153,11 +178,12 @@ Return JSON with this structure:
         continue;
       }
 
-      // Create campaign for variation
+      // Create campaign for variation - RLS enforced
       await supabaseClient.from("campaigns").insert({
         asset_id: newAsset.id,
         channel: asset.channel || "mixed",
         status: "pending",
+        workspace_id: asset.workspace_id,
         target_audience: content?.target_audience,
       });
 
@@ -169,7 +195,7 @@ Return JSON with this structure:
       });
     }
 
-    // Update original asset with A/B test metadata
+    // Update original asset with A/B test metadata - RLS enforced
     await supabaseClient
       .from("assets")
       .update({

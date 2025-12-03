@@ -13,34 +13,39 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
     const { contentId, action, workspaceId } = await req.json();
     const authHeader = req.headers.get('Authorization');
 
-    // Helper to validate workspace access for user-initiated requests
-    const validateWorkspaceAccess = async (wsId: string): Promise<boolean> => {
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        // No auth = service call, allow
-        return true;
-      }
-      
-      const userSupabase = createClient(supabaseUrl, anonKey, {
-        global: { headers: { Authorization: authHeader } }
+    // For user-initiated requests, use anon key + JWT for RLS
+    // For internal/cron requests, use service role
+    const isUserRequest = authHeader && authHeader.startsWith('Bearer ');
+    
+    let supabase;
+    let userId: string | null = null;
+
+    if (isUserRequest) {
+      // User request: use anon key + JWT for RLS enforcement
+      supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader! } }
       });
 
-      const { data: workspace } = await userSupabase
-        .from('workspaces')
-        .select('id')
-        .eq('id', wsId)
-        .maybeSingle();
-
-      return !!workspace;
-    };
-
-    // Use service role for actual operations
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      userId = user.id;
+      console.log(`[publish-scheduled-content] User ${userId} initiated request`);
+    } else {
+      // Internal/cron request: use service role (no user context)
+      supabase = createClient(supabaseUrl, serviceRoleKey);
+      console.log('[publish-scheduled-content] Internal/cron request');
+    }
 
     // Publish a specific content item immediately
     if (action === 'publish_now' && contentId) {
@@ -58,24 +63,24 @@ serve(async (req) => {
         });
       }
 
-      // Validate user has access to the content's workspace
-      if (content.workspace_id && !(await validateWorkspaceAccess(content.workspace_id))) {
-        console.error(`[Publish Content] Unauthorized access attempt to content ${contentId}`);
-        return new Response(JSON.stringify({ error: 'Unauthorized: no access to this workspace' }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      // For user requests, RLS already verified access
+      // For service requests, we trust the caller
+      if (isUserRequest) {
+        console.log(`[publish-scheduled-content] User ${userId} publishing content ${contentId}`);
       }
 
       let deployResult = null;
 
+      // Use service role for calling other functions (they have their own auth)
+      const serviceSupa = createClient(supabaseUrl, serviceRoleKey);
+
       if (content.content_type === 'email' && content.asset_id) {
-        const { data } = await supabase.functions.invoke('email-deploy', {
+        const { data } = await serviceSupa.functions.invoke('email-deploy', {
           body: { assetId: content.asset_id }
         });
         deployResult = data;
       } else if (content.content_type === 'social' && content.asset_id) {
-        const { data } = await supabase.functions.invoke('social-deploy', {
+        const { data } = await serviceSupa.functions.invoke('social-deploy', {
           body: { assetId: content.asset_id }
         });
         deployResult = data;
@@ -89,7 +94,7 @@ serve(async (req) => {
         })
         .eq('id', contentId);
 
-      console.log(`[Publish Content] Published content ${contentId}`);
+      console.log(`[publish-scheduled-content] Published content ${contentId}`);
 
       return new Response(JSON.stringify({ success: true, deployResult }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -104,14 +109,8 @@ serve(async (req) => {
       });
     }
 
-    // Validate workspace access for batch operations
-    if (!(await validateWorkspaceAccess(workspaceId))) {
-      console.error(`[Publish Content] Unauthorized batch access attempt to workspace ${workspaceId}`);
-      return new Response(JSON.stringify({ error: 'Unauthorized: no access to this workspace' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // For user requests, RLS ensures they can only see their workspace content
+    // For service requests, we filter by workspaceId explicitly
 
     // Check and publish all due content for this workspace
     const now = new Date();
@@ -127,14 +126,17 @@ serve(async (req) => {
     const published: string[] = [];
     const failed: { id: string; error: string }[] = [];
 
+    // Use service role for calling other functions
+    const serviceSupa = createClient(supabaseUrl, serviceRoleKey);
+
     for (const item of dueContent || []) {
       try {
         if (item.content_type === 'email' && item.asset_id) {
-          await supabase.functions.invoke('email-deploy', {
+          await serviceSupa.functions.invoke('email-deploy', {
             body: { assetId: item.asset_id }
           });
         } else if (item.content_type === 'social' && item.asset_id) {
-          await supabase.functions.invoke('social-deploy', {
+          await serviceSupa.functions.invoke('social-deploy', {
             body: { assetId: item.asset_id }
           });
         }
@@ -155,7 +157,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[Publish Content] Workspace ${workspaceId}: ${published.length} published, ${failed.length} failed`);
+    console.log(`[publish-scheduled-content] Workspace ${workspaceId}: ${published.length} published, ${failed.length} failed`);
 
     return new Response(JSON.stringify({ published, failed }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
