@@ -39,6 +39,9 @@ verify_jwt = false
 [functions.content-generate]
 verify_jwt = true
 
+[functions.daily-automation]
+verify_jwt = true
+
 [functions.email-deploy]
 verify_jwt = true
 
@@ -82,6 +85,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.playkout-assets-update]
+verify_jwt = true
+
+[functions.publish-scheduled-content]
 verify_jwt = true
 
 [functions.schedule-campaigns]

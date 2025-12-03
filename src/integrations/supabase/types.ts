@@ -71,6 +71,7 @@ export type Database = {
           updated_at: string
           vapi_id: string | null
           views: number
+          workspace_id: string | null
         }
         Insert: {
           channel?: string | null
@@ -93,6 +94,7 @@ export type Database = {
           updated_at?: string
           vapi_id?: string | null
           views?: number
+          workspace_id?: string | null
         }
         Update: {
           channel?: string | null
@@ -115,6 +117,7 @@ export type Database = {
           updated_at?: string
           vapi_id?: string | null
           views?: number
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -122,6 +125,60 @@ export type Database = {
             columns: ["segment_id"]
             isOneToOne: false
             referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          job_type: string
+          result: Json | null
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          workspace_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_type: string
+          result?: Json | null
+          scheduled_at: string
+          started_at?: string | null
+          status?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          result?: Json | null
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_jobs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -287,6 +344,7 @@ export type Database = {
           status: string
           target_audience: Json | null
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           asset_id: string
@@ -299,6 +357,7 @@ export type Database = {
           status?: string
           target_audience?: Json | null
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           asset_id?: string
@@ -311,6 +370,7 @@ export type Database = {
           status?: string
           target_audience?: Json | null
           updated_at?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -318,6 +378,86 @@ export type Database = {
             columns: ["asset_id"]
             isOneToOne: false
             referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_calendar: {
+        Row: {
+          asset_id: string | null
+          campaign_id: string | null
+          channel: string | null
+          content: Json | null
+          content_type: string
+          created_at: string
+          created_by: string | null
+          id: string
+          published_at: string | null
+          scheduled_at: string
+          status: string
+          title: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          asset_id?: string | null
+          campaign_id?: string | null
+          channel?: string | null
+          content?: Json | null
+          content_type: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          published_at?: string | null
+          scheduled_at: string
+          status?: string
+          title: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          asset_id?: string | null
+          campaign_id?: string | null
+          channel?: string | null
+          content?: Json | null
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          published_at?: string | null
+          scheduled_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_calendar_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_calendar_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_calendar_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -582,6 +722,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           vertical: string | null
+          workspace_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -611,6 +752,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           vertical?: string | null
+          workspace_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -640,6 +782,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           vertical?: string | null
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -647,6 +790,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -855,6 +1005,68 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      workspace_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          settings: Json | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          settings?: Json | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          settings?: Json | null
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
