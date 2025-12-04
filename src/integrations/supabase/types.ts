@@ -26,6 +26,7 @@ export type Database = {
           mode: string | null
           output: Json | null
           status: string | null
+          tenant_id: string
           workspace_id: string
         }
         Insert: {
@@ -39,6 +40,7 @@ export type Database = {
           mode?: string | null
           output?: Json | null
           status?: string | null
+          tenant_id: string
           workspace_id: string
         }
         Update: {
@@ -52,6 +54,7 @@ export type Database = {
           mode?: string | null
           output?: Json | null
           status?: string | null
+          tenant_id?: string
           workspace_id?: string
         }
         Relationships: [
@@ -469,6 +472,7 @@ export type Database = {
           messaging_pillars: Json | null
           mission_statement: string | null
           tagline: string | null
+          tenant_id: string
           unique_value_proposition: string | null
           updated_at: string
           website_url: string | null
@@ -493,6 +497,7 @@ export type Database = {
           messaging_pillars?: Json | null
           mission_statement?: string | null
           tagline?: string | null
+          tenant_id: string
           unique_value_proposition?: string | null
           updated_at?: string
           website_url?: string | null
@@ -517,6 +522,7 @@ export type Database = {
           messaging_pillars?: Json | null
           mission_statement?: string | null
           tagline?: string | null
+          tenant_id?: string
           unique_value_proposition?: string | null
           updated_at?: string
           website_url?: string | null
@@ -544,6 +550,7 @@ export type Database = {
           metadata: Json | null
           scheduled_at: string
           status: string | null
+          tenant_id: string
           title: string
           updated_at: string
           workspace_id: string
@@ -559,6 +566,7 @@ export type Database = {
           metadata?: Json | null
           scheduled_at: string
           status?: string | null
+          tenant_id: string
           title: string
           updated_at?: string
           workspace_id: string
@@ -574,6 +582,7 @@ export type Database = {
           metadata?: Json | null
           scheduled_at?: string
           status?: string | null
+          tenant_id?: string
           title?: string
           updated_at?: string
           workspace_id?: string
@@ -676,6 +685,7 @@ export type Database = {
           success_criteria: string | null
           target_icp: string | null
           target_offer: string | null
+          tenant_id: string
           updated_at: string
           workspace_id: string
         }
@@ -699,6 +709,7 @@ export type Database = {
           success_criteria?: string | null
           target_icp?: string | null
           target_offer?: string | null
+          tenant_id: string
           updated_at?: string
           workspace_id: string
         }
@@ -722,6 +733,7 @@ export type Database = {
           success_criteria?: string | null
           target_icp?: string | null
           target_offer?: string | null
+          tenant_id?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -767,6 +779,7 @@ export type Database = {
           status: string | null
           supporting_points: Json | null
           target_icp: string | null
+          tenant_id: string
           title: string
           tone: string | null
           updated_at: string
@@ -789,6 +802,7 @@ export type Database = {
           status?: string | null
           supporting_points?: Json | null
           target_icp?: string | null
+          tenant_id: string
           title: string
           tone?: string | null
           updated_at?: string
@@ -811,6 +825,7 @@ export type Database = {
           status?: string | null
           supporting_points?: Json | null
           target_icp?: string | null
+          tenant_id?: string
           title?: string
           tone?: string | null
           updated_at?: string
@@ -983,6 +998,7 @@ export type Database = {
           status: string
           target_icp_segments: Json | null
           target_offers: Json | null
+          tenant_id: string
           total_budget: number | null
           updated_at: string
           workspace_id: string
@@ -1000,6 +1016,7 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
+          tenant_id: string
           total_budget?: number | null
           updated_at?: string
           workspace_id: string
@@ -1017,6 +1034,7 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
+          tenant_id?: string
           total_budget?: number | null
           updated_at?: string
           workspace_id?: string
@@ -1060,6 +1078,7 @@ export type Database = {
           psychographics: Json | null
           segment_description: string | null
           segment_name: string
+          tenant_id: string
           updated_at: string
           workspace_id: string
         }
@@ -1084,6 +1103,7 @@ export type Database = {
           psychographics?: Json | null
           segment_description?: string | null
           segment_name: string
+          tenant_id: string
           updated_at?: string
           workspace_id: string
         }
@@ -1108,6 +1128,7 @@ export type Database = {
           psychographics?: Json | null
           segment_description?: string | null
           segment_name?: string
+          tenant_id?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -1147,6 +1168,7 @@ export type Database = {
           status: string
           target_icp_segments: Json | null
           target_offers: Json | null
+          tenant_id: string
           updated_at: string
           workspace_id: string
         }
@@ -1175,6 +1197,7 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
+          tenant_id: string
           updated_at?: string
           workspace_id: string
         }
@@ -1203,6 +1226,7 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
+          tenant_id?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -1233,6 +1257,7 @@ export type Database = {
           revenue: number | null
           roi: number | null
           snapshot_date: string
+          tenant_id: string
           workspace_id: string
         }
         Insert: {
@@ -1251,6 +1276,7 @@ export type Database = {
           revenue?: number | null
           roi?: number | null
           snapshot_date: string
+          tenant_id: string
           workspace_id: string
         }
         Update: {
@@ -1269,6 +1295,7 @@ export type Database = {
           revenue?: number | null
           roi?: number | null
           snapshot_date?: string
+          tenant_id?: string
           workspace_id?: string
         }
         Relationships: [
@@ -1316,6 +1343,7 @@ export type Database = {
           status: string | null
           success_metrics: Json | null
           target_segments: Json | null
+          tenant_id: string
           testimonials: Json | null
           updated_at: string
           use_cases: Json | null
@@ -1341,6 +1369,7 @@ export type Database = {
           status?: string | null
           success_metrics?: Json | null
           target_segments?: Json | null
+          tenant_id: string
           testimonials?: Json | null
           updated_at?: string
           use_cases?: Json | null
@@ -1366,6 +1395,7 @@ export type Database = {
           status?: string | null
           success_metrics?: Json | null
           target_segments?: Json | null
+          tenant_id?: string
           testimonials?: Json | null
           updated_at?: string
           use_cases?: Json | null
@@ -1395,6 +1425,7 @@ export type Database = {
           rationale: string | null
           recommendation_type: string
           status: string | null
+          tenant_id: string
           title: string
           updated_at: string
           workspace_id: string
@@ -1412,6 +1443,7 @@ export type Database = {
           rationale?: string | null
           recommendation_type: string
           status?: string | null
+          tenant_id: string
           title: string
           updated_at?: string
           workspace_id: string
@@ -1429,6 +1461,7 @@ export type Database = {
           rationale?: string | null
           recommendation_type?: string
           status?: string | null
+          tenant_id?: string
           title?: string
           updated_at?: string
           workspace_id?: string
@@ -1460,6 +1493,7 @@ export type Database = {
           metrics_summary: Json | null
           next_week_priorities: Json | null
           recommendations: Json | null
+          tenant_id: string
           top_performing_content: Json | null
           updated_at: string
           week_end: string
@@ -1475,6 +1509,7 @@ export type Database = {
           metrics_summary?: Json | null
           next_week_priorities?: Json | null
           recommendations?: Json | null
+          tenant_id: string
           top_performing_content?: Json | null
           updated_at?: string
           week_end: string
@@ -1490,6 +1525,7 @@ export type Database = {
           metrics_summary?: Json | null
           next_week_priorities?: Json | null
           recommendations?: Json | null
+          tenant_id?: string
           top_performing_content?: Json | null
           updated_at?: string
           week_end?: string
@@ -2224,6 +2260,30 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_tenants: {
+        Row: {
+          created_at: string
+          id: string
+          role: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string | null
+          tenant_id?: string
           user_id?: string
         }
         Relationships: []
