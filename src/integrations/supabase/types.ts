@@ -1680,6 +1680,207 @@ export type Database = {
           },
         ]
       }
+      cro_deal_reviews: {
+        Row: {
+          created_at: string | null
+          deal_id: string | null
+          id: string
+          next_steps: string | null
+          risks: string | null
+          score: number | null
+          summary_md: string | null
+          tenant_id: string
+          updated_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          deal_id?: string | null
+          id?: string
+          next_steps?: string | null
+          risks?: string | null
+          score?: number | null
+          summary_md?: string | null
+          tenant_id: string
+          updated_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string | null
+          deal_id?: string | null
+          id?: string
+          next_steps?: string | null
+          risks?: string | null
+          score?: number | null
+          summary_md?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cro_deal_reviews_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cro_forecasts: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          forecast_new_arr: number | null
+          id: string
+          notes: string | null
+          period: string
+          scenario: string
+          tenant_id: string
+          updated_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          forecast_new_arr?: number | null
+          id?: string
+          notes?: string | null
+          period: string
+          scenario: string
+          tenant_id: string
+          updated_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          forecast_new_arr?: number | null
+          id?: string
+          notes?: string | null
+          period?: string
+          scenario?: string
+          tenant_id?: string
+          updated_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cro_forecasts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cro_recommendations: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          severity: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string | null
+          suggested_actions: string | null
+          tenant_id: string
+          title: string
+          updated_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          severity?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          suggested_actions?: string | null
+          tenant_id: string
+          title: string
+          updated_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          severity?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          suggested_actions?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cro_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cro_targets: {
+        Row: {
+          created_at: string | null
+          id: string
+          owner_id: string
+          owner_type: string
+          period: string
+          target_new_arr: number | null
+          target_pipeline: number | null
+          tenant_id: string
+          updated_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          owner_id: string
+          owner_type: string
+          period: string
+          target_new_arr?: number | null
+          target_pipeline?: number | null
+          tenant_id: string
+          updated_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          owner_id?: string
+          owner_type?: string
+          period?: string
+          target_new_arr?: number | null
+          target_pipeline?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cro_targets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deals: {
         Row: {
           actual_close_date: string | null
