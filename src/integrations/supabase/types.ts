@@ -565,6 +565,101 @@ export type Database = {
           },
         ]
       }
+      cmo_marketing_plans: {
+        Row: {
+          budget_allocation: Json | null
+          campaign_themes: Json | null
+          channel_mix: Json | null
+          content_calendar_outline: Json | null
+          created_at: string
+          created_by: string | null
+          dependencies: Json | null
+          end_date: string | null
+          executive_summary: string | null
+          generation_context: Json | null
+          id: string
+          key_metrics: Json | null
+          month_1_plan: Json | null
+          month_2_plan: Json | null
+          month_3_plan: Json | null
+          plan_name: string
+          plan_type: string
+          primary_objectives: Json | null
+          resource_requirements: Json | null
+          risks_mitigations: Json | null
+          start_date: string | null
+          status: string
+          target_icp_segments: Json | null
+          target_offers: Json | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          budget_allocation?: Json | null
+          campaign_themes?: Json | null
+          channel_mix?: Json | null
+          content_calendar_outline?: Json | null
+          created_at?: string
+          created_by?: string | null
+          dependencies?: Json | null
+          end_date?: string | null
+          executive_summary?: string | null
+          generation_context?: Json | null
+          id?: string
+          key_metrics?: Json | null
+          month_1_plan?: Json | null
+          month_2_plan?: Json | null
+          month_3_plan?: Json | null
+          plan_name: string
+          plan_type?: string
+          primary_objectives?: Json | null
+          resource_requirements?: Json | null
+          risks_mitigations?: Json | null
+          start_date?: string | null
+          status?: string
+          target_icp_segments?: Json | null
+          target_offers?: Json | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          budget_allocation?: Json | null
+          campaign_themes?: Json | null
+          channel_mix?: Json | null
+          content_calendar_outline?: Json | null
+          created_at?: string
+          created_by?: string | null
+          dependencies?: Json | null
+          end_date?: string | null
+          executive_summary?: string | null
+          generation_context?: Json | null
+          id?: string
+          key_metrics?: Json | null
+          month_1_plan?: Json | null
+          month_2_plan?: Json | null
+          month_3_plan?: Json | null
+          plan_name?: string
+          plan_type?: string
+          primary_objectives?: Json | null
+          resource_requirements?: Json | null
+          risks_mitigations?: Json | null
+          start_date?: string | null
+          status?: string
+          target_icp_segments?: Json | null
+          target_offers?: Json | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cmo_marketing_plans_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cmo_offers: {
         Row: {
           case_studies: Json | null
