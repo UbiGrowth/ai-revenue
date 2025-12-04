@@ -105,11 +105,14 @@ const Dashboard = () => {
 
   const fetchDashboardMetrics = async () => {
     try {
-      // First, trigger a sync of campaign metrics
-      try {
-        await supabase.functions.invoke("sync-campaign-metrics");
-      } catch (syncError) {
-        console.log("Metrics sync skipped:", syncError);
+      // Only sync metrics if user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        try {
+          await supabase.functions.invoke("sync-campaign-metrics");
+        } catch (syncError) {
+          console.log("Metrics sync skipped:", syncError);
+        }
       }
 
       // Fetch campaigns with metrics
@@ -258,6 +261,15 @@ const Dashboard = () => {
                         <Button
                           onClick={async () => {
                             try {
+                              const { data: { session } } = await supabase.auth.getSession();
+                              if (!session) {
+                                toast({
+                                  variant: "destructive",
+                                  title: "Not authenticated",
+                                  description: "Please log in to refresh metrics",
+                                });
+                                return;
+                              }
                               const { error } = await supabase.functions.invoke("sync-campaign-metrics");
                               if (error) throw error;
                               toast({
