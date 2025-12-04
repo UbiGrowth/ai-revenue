@@ -15,6 +15,7 @@ export * from './types';
 export * from './core';
 export * from './test/tenant-test';
 export * from './launch/module-toggle';
+export * from './health/module-health';
 
 /**
  * Run a kernel request against any exec module
