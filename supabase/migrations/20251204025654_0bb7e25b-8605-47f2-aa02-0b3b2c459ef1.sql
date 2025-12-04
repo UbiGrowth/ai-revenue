@@ -1,0 +1,16 @@
+-- Enable realtime for CMO tables
+ALTER PUBLICATION supabase_realtime ADD TABLE public.agent_runs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_brand_profiles;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_icp_segments;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_offers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_marketing_plans;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_funnels;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_funnel_stages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_campaigns;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_campaign_channels;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_content_assets;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_content_variants;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_metrics_snapshots;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_weekly_summaries;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_recommendations;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cmo_calendar_events;
