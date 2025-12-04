@@ -26,3 +26,6 @@ export * from '../test/tenant-test';
 
 // Re-export launch toggles
 export * from '../launch/module-toggle';
+
+// Re-export health checks
+export * from '../health/module-health';
