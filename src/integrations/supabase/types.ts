@@ -2444,6 +2444,39 @@ export type Database = {
           },
         ]
       }
+      tenant_module_access: {
+        Row: {
+          beta_only: boolean
+          created_at: string
+          enabled: boolean
+          id: string
+          module_id: string
+          rollout_percentage: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          beta_only?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          module_id: string
+          rollout_percentage?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          beta_only?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          module_id?: string
+          rollout_percentage?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

@@ -130,52 +130,98 @@ const result = await runKernel({
 
 **All modules MUST:**
 1. Include `tenant_id` on every table
-2. Use RLS with `tenant_isolation` policy
+2. Use RLS with `user_has_workspace_access()` policy
 3. Validate `tenant_id` in every edge function
 4. Log all agent runs to `agent_runs` table
 
-```sql
--- Standard RLS policy for all exec module tables
-CREATE POLICY "tenant_isolation" ON {prefix}_{table}
-FOR ALL USING (
-  tenant_id = auth.uid() OR 
-  tenant_id IN (SELECT tenant_id FROM user_tenants WHERE user_id = auth.uid())
-);
-```
+## Tenant Testing
 
-## Agent Runs Logging
-
-All agent executions are logged to `agent_runs`:
+Test modules independently under a single tenant:
 
 ```typescript
-await supabase.from('agent_runs').insert({
-  tenant_id,
-  workspace_id,
-  agent: '{role}-{agent-name}',
-  mode: '{mode}',
-  status: 'running',
-  input: payload,
-  created_at: new Date().toISOString()
-});
+import { 
+  testModuleForTenant,
+  testAllModulesForTenant,
+  checkModuleHealth 
+} from '@/kernel';
+
+// Test single module
+const result = await testModuleForTenant('ai_cmo', tenantId, workspaceId);
+
+// Test all modules
+const results = await testAllModulesForTenant(tenantId, workspaceId);
+
+// Quick health check (no execution)
+const health = checkModuleHealth();
+// { ai_cmo: { registered: true, status: 'active' }, ... }
+```
+
+## Launch Toggles
+
+Control module visibility for beta rollout:
+
+```typescript
+import {
+  isModuleEnabledForTenant,
+  getEnabledModulesForTenant,
+  toggleModuleForTenant,
+  enableModulesForBeta,
+  getModuleVisibilitySummary
+} from '@/kernel';
+
+// Check if module enabled for tenant
+const enabled = await isModuleEnabledForTenant('ai_cro', tenantId);
+
+// Get all enabled modules
+const modules = await getEnabledModulesForTenant(tenantId);
+
+// Toggle module (admin)
+await toggleModuleForTenant('ai_cfo', tenantId, true);
+
+// Beta rollout to multiple tenants
+await enableModulesForBeta(['tenant1', 'tenant2'], ['ai_cfo', 'ai_coo']);
+
+// Dashboard summary
+const summary = getModuleVisibilitySummary();
+```
+
+### tenant_module_access Table
+
+```sql
+CREATE TABLE tenant_module_access (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  module_id TEXT NOT NULL,
+  enabled BOOLEAN DEFAULT false,
+  beta_only BOOLEAN DEFAULT false,
+  rollout_percentage INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  UNIQUE(tenant_id, module_id)
+);
 ```
 
 ## Module Lifecycle
 
 1. **Registration**: Module manifest registered via `registerModule()`
 2. **Discovery**: Kernel discovers available modules via `getAllModules()`
-3. **Routing**: Requests routed via `runKernel()` to correct agent
-4. **Execution**: Agent function executes with tenant context
-5. **Logging**: Results logged to `agent_runs`
-6. **Response**: Structured response returned to frontend
+3. **Access Check**: `isModuleEnabledForTenant()` verifies tenant access
+4. **Routing**: Requests routed via `runKernel()` to correct agent
+5. **Execution**: Agent function executes with tenant context
+6. **Logging**: Results logged to `agent_runs`
+7. **Response**: Structured response returned to frontend
 
 ## Adding a New Module
 
 1. Create manifest: `registry/modules/ai_{role}.manifest.json`
 2. Create prompts: `agents/{role}/*.prompt.txt`
-3. Create tables: `{role}_*` with RLS
-4. Create edge functions: `{role}-*`
-5. Register module: Add to `kernel/modules/index.ts`
-6. Create UI: `src/pages/{Role}Dashboard.tsx`
+3. Create documentation: `knowledge/{role}/module.md`
+4. Create tables: `{role}_*` with RLS
+5. Create edge functions: `{role}-*`
+6. Register module: Add to `kernel/modules/index.ts`
+7. Add to types: Update `ExecModule` in `kernel/types.ts`
+8. Create UI: `src/pages/{role}/*.tsx`
+9. Run tenant tests: `testModuleForTenant()` to verify isolation
 
 ## Security Requirements
 
@@ -185,3 +231,4 @@ await supabase.from('agent_runs').insert({
 - ✅ HMAC webhook verification
 - ✅ Service role only for cron/internal
 - ✅ Agent run audit logging
+- ✅ Module access gating via `tenant_module_access`
