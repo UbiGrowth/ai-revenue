@@ -2,53 +2,56 @@
   "id": "ai_cro",
   "name": "AI CRO Module",
   "version": "2.0.0",
-  "description": "AI-powered Conversion Rate Optimization module for experiment design, A/B testing, and conversion analysis.",
+  "description": "AI-powered Chief Revenue Officer module for targets, forecasting, deal reviews, and revenue optimization.",
   "entry_agent": "CRO Orchestrator",
   "orchestrator_prompt": "/agents/cro/orchestrator.system.prompt.txt",
-  "modes": ["setup", "experiments", "analysis", "recommendations"],
+  "modes": ["setup", "targets", "forecasting", "deal_review", "recommendations"],
   "requires": ["supabase", "kernel", "ai_gateway"],
   "docs": [
     "/knowledge/cro/backend_requirements.md",
     "/knowledge/cro/frontend_requirements.md"
   ],
   "schemas": [
-    "cro_experiments",
-    "cro_variants",
-    "cro_hypotheses",
-    "cro_metrics",
-    "cro_segments",
+    "cro_targets",
+    "cro_forecasts",
+    "cro_deal_reviews",
     "cro_recommendations"
   ],
   "ui": {
     "basePath": "/cro",
     "primaryScreens": [
       "Dashboard",
-      "Experiments",
-      "Analysis",
+      "Targets",
+      "Forecasts",
+      "Deal Reviews",
       "Recommendations"
     ]
   },
   "permissions": {
     "tenant": true,
-    "role": ["admin", "analyst"]
+    "role": ["admin", "sales"]
   },
   "agents": {
     "setup": {
       "prompt": "/agents/cro/setup/intake.prompt.txt",
       "function": "cro-setup"
     },
-    "experimentDesigner": {
-      "prompt": "/agents/cro/experiments/designer.prompt.txt",
-      "function": "cro-experiment-designer"
+    "targetSetter": {
+      "prompt": "/agents/cro/targets/setter.prompt.txt",
+      "function": "cro-target-setter"
     },
-    "analyst": {
-      "prompt": "/agents/cro/analysis/analyst.prompt.txt",
-      "function": "cro-analyst"
+    "forecaster": {
+      "prompt": "/agents/cro/forecasting/forecaster.prompt.txt",
+      "function": "cro-forecaster"
+    },
+    "dealReviewer": {
+      "prompt": "/agents/cro/deals/reviewer.prompt.txt",
+      "function": "cro-deal-reviewer"
     },
     "optimizer": {
       "prompt": "/agents/cro/recommendations/optimizer.prompt.txt",
       "function": "cro-optimizer"
     }
   },
-  "_status": "planned"
+  "_status": "active"
 }
