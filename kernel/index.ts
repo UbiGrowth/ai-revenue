@@ -4,16 +4,17 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { getModule, getAgentForMode } from './core';
+import { getModule, getAgentForMode, getAllModules } from './core';
 import type { 
   ExecModule, 
   KernelRequest, 
   KernelResponse,
-  MODULE_FUNCTION_PREFIXES 
 } from './types';
 
 export * from './types';
 export * from './core';
+export * from './test/tenant-test';
+export * from './launch/module-toggle';
 
 /**
  * Run a kernel request against any exec module
@@ -33,6 +34,19 @@ export async function runKernel(request: KernelRequest): Promise<KernelResponse>
       agent: 'unknown',
       run_id: '',
       error: `Module ${module} not registered`,
+    };
+  }
+
+  // Check module status (planned modules cannot be run)
+  const moduleStatus = (manifest as any)._status;
+  if (moduleStatus === 'planned') {
+    return {
+      success: false,
+      module,
+      mode,
+      agent: 'unknown',
+      run_id: '',
+      error: `Module ${module} is planned but not yet active`,
     };
   }
 
@@ -104,9 +118,27 @@ export function getExecModules(): ExecModule[] {
 }
 
 /**
+ * Get only active (non-planned) modules
+ */
+export function getActiveModules(): ExecModule[] {
+  return getExecModules().filter(moduleId => {
+    const manifest = getModule(moduleId);
+    return manifest && (manifest as any)._status !== 'planned';
+  });
+}
+
+/**
  * Check if a module is registered and available
  */
 export function isModuleAvailable(moduleId: ExecModule): boolean {
+  const manifest = getModule(moduleId);
+  return manifest !== undefined && (manifest as any)._status !== 'planned';
+}
+
+/**
+ * Check if a module is registered (regardless of status)
+ */
+export function isModuleRegistered(moduleId: ExecModule): boolean {
   return getModule(moduleId) !== undefined;
 }
 
@@ -115,4 +147,11 @@ export function isModuleAvailable(moduleId: ExecModule): boolean {
  */
 export function getModuleManifest(moduleId: ExecModule) {
   return getModule(moduleId);
+}
+
+/**
+ * Get all module manifests
+ */
+export function getAllModuleManifests() {
+  return getAllModules();
 }

@@ -15,6 +15,14 @@ registerModule(croManifest);
 registerModule(cfoManifest);
 registerModule(cooManifest);
 
-// Re-export manifests
+// Re-export manifests for direct access
 export { cmoManifest, croManifest, cfoManifest, cooManifest };
+
+// Re-export core functionality
 export * from '../core';
+
+// Re-export test utilities
+export * from '../test/tenant-test';
+
+// Re-export launch toggles
+export * from '../launch/module-toggle';
