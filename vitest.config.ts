@@ -5,8 +5,12 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    testTimeout: 60000, // 60s timeout for rate limit tests
+    testTimeout: 60000,
     hookTimeout: 30000,
+    include: [
+      'src/test/**/*.test.ts',
+      'tests/**/*.ts'
+    ],
   },
   resolve: {
     alias: {
