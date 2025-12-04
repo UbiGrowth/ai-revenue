@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { TrendingUp, CheckCircle, Clock, Eye, PlayCircle, Mail, Phone, Layout, DollarSign, Target, AlertCircle, Settings, Plus, BarChart3, LineChart } from "lucide-react";
+import { TrendingUp, CheckCircle, Clock, Eye, PlayCircle, Mail, Phone, Layout, DollarSign, Target, AlertCircle, Settings, Plus, BarChart3, LineChart, HelpCircle } from "lucide-react";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AIQuickActions from "@/components/AIQuickActions";
 import WorkflowProgress from "@/components/WorkflowProgress";
+import ProductTour from "@/components/ProductTour";
 import { LineChart as RechartsLineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface CampaignMetrics {
@@ -52,6 +53,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [hasIntegrations, setHasIntegrations] = useState(false);
   const [showSampleData, setShowSampleData] = useState(true);
+  const [showTour, setShowTour] = useState(false);
 
   // Sample data for demonstration
   const sampleRevenueData = [
@@ -233,10 +235,22 @@ const Dashboard = () => {
                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               </p>
             </div>
-            <Button onClick={() => navigate("/new-campaign")} size="lg">
-              <Plus className="mr-2 h-4 w-4" />
-              New Campaign
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  localStorage.removeItem("playkout-tour-completed");
+                  setShowTour(true);
+                }}
+              >
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Take Tour
+              </Button>
+              <Button onClick={() => navigate("/new-campaign")} size="lg">
+                <Plus className="mr-2 h-4 w-4" />
+                New Campaign
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -578,6 +592,7 @@ const Dashboard = () => {
           )}
         </main>
         <Footer />
+        <ProductTour forceShow={showTour} onComplete={() => setShowTour(false)} />
       </div>
     </ProtectedRoute>
   );
