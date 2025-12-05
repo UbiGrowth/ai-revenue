@@ -326,6 +326,39 @@ const NewCampaign = () => {
                       <p className="text-xs text-muted-foreground">
                         Have your own email content? Paste it here and we'll use it instead of AI-generated content.
                       </p>
+                      
+                      {/* Personalization Tags */}
+                      <div className="bg-background/50 rounded-md p-3 space-y-2">
+                        <Label className="text-xs font-medium text-muted-foreground">Available Personalization Tags</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { tag: "{{first_name}}", label: "First Name" },
+                            { tag: "{{last_name}}", label: "Last Name" },
+                            { tag: "{{full_name}}", label: "Full Name" },
+                            { tag: "{{company}}", label: "Company" },
+                            { tag: "{{email}}", label: "Email" },
+                            { tag: "{{location}}", label: "Location" },
+                            { tag: "{{industry}}", label: "Industry" },
+                            { tag: "{{title}}", label: "Job Title" },
+                          ].map((item) => (
+                            <button
+                              key={item.tag}
+                              type="button"
+                              onClick={() => {
+                                setDraftedEmailContent(prev => prev + item.tag);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors border border-primary/20"
+                            >
+                              <code className="font-mono">{item.tag}</code>
+                              <span className="text-muted-foreground">({item.label})</span>
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Click a tag to insert it, or type directly. Tags will be replaced with lead data when sending.
+                        </p>
+                      </div>
+
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label htmlFor="draftedEmailSubject">Email Subject Line</Label>
@@ -333,7 +366,7 @@ const NewCampaign = () => {
                             id="draftedEmailSubject"
                             value={draftedEmailSubject}
                             onChange={(e) => setDraftedEmailSubject(e.target.value)}
-                            placeholder="e.g., Exclusive Offer: Transform Your Marketing Results"
+                            placeholder="e.g., {{first_name}}, Exclusive Offer Just For You"
                           />
                         </div>
                         <div className="space-y-2">
@@ -342,8 +375,12 @@ const NewCampaign = () => {
                             id="draftedEmailContent"
                             value={draftedEmailContent}
                             onChange={(e) => setDraftedEmailContent(e.target.value)}
-                            placeholder="Paste your email content here... You can include HTML formatting."
-                            rows={6}
+                            placeholder="Hi {{first_name}},
+
+I noticed {{company}} has been growing rapidly in the {{industry}} space...
+
+Paste your email content here. You can include HTML formatting and personalization tags."
+                            rows={8}
                           />
                         </div>
                       </div>
