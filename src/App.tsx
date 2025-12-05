@@ -27,6 +27,7 @@ import VoiceAgents from "./pages/VoiceAgents";
 import UserManagement from "./pages/UserManagement";
 import Automation from "./pages/Automation";
 import OSDashboard from "./pages/OSDashboard";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import CRODashboard from "./pages/cro/CRODashboard";
 import CROForecast from "./pages/cro/CROForecast";
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/cro/deals/:id" element={<CRODealDetail />} />
             <Route path="/cro/recommendations" element={<CRORecommendations />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/profile" element={<Profile />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
