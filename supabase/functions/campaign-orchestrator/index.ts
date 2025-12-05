@@ -61,10 +61,12 @@ serve(async (req) => {
     // Create a default workspace if none exists
     if (!workspaceId) {
       console.log("No workspace found, creating default workspace...");
+      const slug = `workspace-${user.id.substring(0, 8)}-${Date.now()}`;
       const { data: newWorkspace, error: wsError } = await supabaseClient
         .from("workspaces")
         .insert({
           name: "Default Workspace",
+          slug: slug,
           owner_id: user.id,
         })
         .select()
