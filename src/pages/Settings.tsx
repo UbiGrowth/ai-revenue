@@ -16,6 +16,7 @@ import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ModuleToggles from "@/components/ModuleToggles";
 import ChannelToggles from "@/components/ChannelToggles";
+import TeamManagement from "@/components/TeamManagement";
 
 interface SocialIntegration {
   id: string;
@@ -430,14 +431,19 @@ export default function Settings() {
             </div>
 
             <Tabs defaultValue="integrations" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="channels">Channels</TabsTrigger>
             <TabsTrigger value="modules">Modules</TabsTrigger>
+            <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="profile">Business Profile</TabsTrigger>
             <TabsTrigger value="discovery">Brand Discovery</TabsTrigger>
             <TabsTrigger value="brand">Brand Guidelines</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="team" className="space-y-6">
+            <TeamManagement />
+          </TabsContent>
 
           <TabsContent value="channels" className="space-y-6">
             <ChannelToggles />
