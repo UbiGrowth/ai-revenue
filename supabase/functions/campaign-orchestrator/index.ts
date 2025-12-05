@@ -12,7 +12,16 @@ serve(async (req) => {
   }
 
   try {
-    const { campaignName, vertical, goal, location, businessType, budget, draftedEmail } = await req.json();
+    const { campaignName, vertical, goal, location, businessType, budget, draftedEmail, channels } = await req.json();
+    
+    // Default channels if not specified (all enabled)
+    const selectedChannels = channels || {
+      email: true,
+      social: true,
+      voice: true,
+      video: true,
+      landing_page: true,
+    };
 
     const authHeader = req.headers.get("Authorization");
     const supabaseClient = createClient(
@@ -179,10 +188,12 @@ serve(async (req) => {
     const assetsCreated: string[] = [];
     const campaignIds: string[] = [];
     
-    // Calculate budget per channel (split evenly across 4 channels)
-    const budgetPerChannel = budget ? Math.floor(budget / 4) : 1000;
+    // Calculate budget per channel (split evenly across enabled channels)
+    const enabledChannelCount = Object.values(selectedChannels).filter(Boolean).length || 1;
+    const budgetPerChannel = budget ? Math.floor(budget / enabledChannelCount) : 1000;
 
     // Step 2: Generate email campaign - linked to CRM leads with emails
+    if (selectedChannels.email) {
     try {
       console.log("Generating email content...");
       
@@ -273,8 +284,10 @@ serve(async (req) => {
     } catch (error) {
       console.error("Email generation failed:", error);
     }
+    } // end if selectedChannels.email
 
     // Step 3: Generate social media post
+    if (selectedChannels.social) {
     try {
       console.log("Generating social content...");
       const { data: socialContent, error: socialContentError } = await supabaseClient.functions.invoke("content-generate", {
@@ -339,8 +352,10 @@ serve(async (req) => {
     } catch (error) {
       console.error("Social post generation failed:", error);
     }
+    } // end if selectedChannels.social
 
     // Step 4: Generate video
+    if (selectedChannels.video) {
     try {
       console.log("Generating video content...");
       const { data: videoContent, error: videoContentError } = await supabaseClient.functions.invoke("content-generate", {
@@ -404,8 +419,10 @@ serve(async (req) => {
     } catch (error) {
       console.error("Video generation failed:", error);
     }
+    } // end if selectedChannels.video
 
     // Step 5: Generate voice campaign - linked to CRM leads with phone numbers
+    if (selectedChannels.voice) {
     try {
       console.log("Generating voice content...");
       const { data: voiceContent, error: voiceContentError } = await supabaseClient.functions.invoke("content-generate", {
@@ -474,6 +491,7 @@ serve(async (req) => {
     } catch (error) {
       console.error("Voice campaign generation failed:", error);
     }
+    } // end if selectedChannels.voice
 
     console.log(`Campaign created with ${assetsCreated.length} assets and ${campaignIds.length} campaigns`);
     console.log(`Voice campaign linked to ${leadsWithPhone.length} leads with phone numbers`);

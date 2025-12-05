@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
@@ -10,13 +10,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, Brain, Zap } from "lucide-react";
+import { Loader2, Sparkles, Brain, Zap, Mail, Share2, Phone, Video, Layout } from "lucide-react";
 import AIPromptCard from "@/components/AIPromptCard";
 import WorkflowProgress from "@/components/WorkflowProgress";
 import AICampaignPlanner from "@/components/AICampaignPlanner";
 import CampaignOptimizer from "@/components/CampaignOptimizer";
+import { useChannelPreferences } from "@/hooks/useChannelPreferences";
 
 const verticals = [
   "Accounting & Finance",
@@ -56,6 +58,7 @@ const verticals = [
 const NewCampaign = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { preferences: channelPrefs, isLoading: loadingPrefs } = useChannelPreferences();
   const [creating, setCreating] = useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [vertical, setVertical] = useState("");
@@ -68,6 +71,28 @@ const NewCampaign = () => {
   const [draftedEmailSubject, setDraftedEmailSubject] = useState("");
   const [draftedEmailContent, setDraftedEmailContent] = useState("");
   const emailContentRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Channel selection
+  const [selectedChannels, setSelectedChannels] = useState({
+    email: true,
+    social: true,
+    voice: true,
+    video: true,
+    landing_page: true,
+  });
+
+  // Update channel defaults when user preferences load
+  useEffect(() => {
+    if (!loadingPrefs) {
+      setSelectedChannels({
+        email: channelPrefs.email_enabled,
+        social: channelPrefs.social_enabled,
+        voice: channelPrefs.voice_enabled,
+        video: channelPrefs.video_enabled,
+        landing_page: channelPrefs.landing_pages_enabled,
+      });
+    }
+  }, [loadingPrefs, channelPrefs]);
 
   const insertTagAtCursor = (tag: string) => {
     const textarea = emailContentRef.current;
@@ -123,6 +148,7 @@ const NewCampaign = () => {
           businessType: businessType || undefined,
           budget: budget ? parseFloat(budget) : undefined,
           aiPlan: plan, // Pass the AI plan for optimized execution
+          channels: selectedChannels,
         },
       });
 
@@ -175,6 +201,7 @@ const NewCampaign = () => {
           location: location || undefined,
           businessType: businessType || undefined,
           budget: budget ? parseFloat(budget) : undefined,
+          channels: selectedChannels,
           draftedEmail: draftedEmailContent ? {
             subject: draftedEmailSubject || campaignName,
             content: draftedEmailContent,
@@ -336,6 +363,101 @@ const NewCampaign = () => {
                           placeholder="e.g., luxury resorts, country clubs"
                         />
                         <p className="text-xs text-muted-foreground">For automated lead scraping</p>
+                      </div>
+                    </div>
+
+                    {/* Channel Selection */}
+                    <div className="space-y-4">
+                      <Label className="text-base font-medium">Campaign Channels *</Label>
+                      <p className="text-sm text-muted-foreground -mt-2">
+                        Select which channels to include in this campaign
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {channelPrefs.email_enabled && (
+                          <div className="flex items-center space-x-3 rounded-lg border border-border p-3">
+                            <Checkbox
+                              id="channel-email"
+                              checked={selectedChannels.email}
+                              onCheckedChange={(checked) => 
+                                setSelectedChannels(prev => ({ ...prev, email: !!checked }))
+                              }
+                            />
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-4 w-4 text-primary" />
+                              <Label htmlFor="channel-email" className="text-sm font-normal cursor-pointer">
+                                Email
+                              </Label>
+                            </div>
+                          </div>
+                        )}
+                        {channelPrefs.social_enabled && (
+                          <div className="flex items-center space-x-3 rounded-lg border border-border p-3">
+                            <Checkbox
+                              id="channel-social"
+                              checked={selectedChannels.social}
+                              onCheckedChange={(checked) => 
+                                setSelectedChannels(prev => ({ ...prev, social: !!checked }))
+                              }
+                            />
+                            <div className="flex items-center gap-2">
+                              <Share2 className="h-4 w-4 text-primary" />
+                              <Label htmlFor="channel-social" className="text-sm font-normal cursor-pointer">
+                                Social Media
+                              </Label>
+                            </div>
+                          </div>
+                        )}
+                        {channelPrefs.voice_enabled && (
+                          <div className="flex items-center space-x-3 rounded-lg border border-border p-3">
+                            <Checkbox
+                              id="channel-voice"
+                              checked={selectedChannels.voice}
+                              onCheckedChange={(checked) => 
+                                setSelectedChannels(prev => ({ ...prev, voice: !!checked }))
+                              }
+                            />
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-primary" />
+                              <Label htmlFor="channel-voice" className="text-sm font-normal cursor-pointer">
+                                AI Calling
+                              </Label>
+                            </div>
+                          </div>
+                        )}
+                        {channelPrefs.video_enabled && (
+                          <div className="flex items-center space-x-3 rounded-lg border border-border p-3">
+                            <Checkbox
+                              id="channel-video"
+                              checked={selectedChannels.video}
+                              onCheckedChange={(checked) => 
+                                setSelectedChannels(prev => ({ ...prev, video: !!checked }))
+                              }
+                            />
+                            <div className="flex items-center gap-2">
+                              <Video className="h-4 w-4 text-primary" />
+                              <Label htmlFor="channel-video" className="text-sm font-normal cursor-pointer">
+                                Video
+                              </Label>
+                            </div>
+                          </div>
+                        )}
+                        {channelPrefs.landing_pages_enabled && (
+                          <div className="flex items-center space-x-3 rounded-lg border border-border p-3">
+                            <Checkbox
+                              id="channel-landing"
+                              checked={selectedChannels.landing_page}
+                              onCheckedChange={(checked) => 
+                                setSelectedChannels(prev => ({ ...prev, landing_page: !!checked }))
+                              }
+                            />
+                            <div className="flex items-center gap-2">
+                              <Layout className="h-4 w-4 text-primary" />
+                              <Label htmlFor="channel-landing" className="text-sm font-normal cursor-pointer">
+                                Landing Page
+                              </Label>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
