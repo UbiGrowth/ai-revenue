@@ -26,6 +26,49 @@ serve(async (req) => {
 
     console.log("Starting campaign orchestration:", { campaignName, vertical, goal });
 
+    // Get user's workspace
+    const { data: workspaceData } = await supabaseClient
+      .from("workspace_users")
+      .select("workspace_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    let workspaceId = workspaceData?.workspace_id;
+
+    // If no workspace found, try to get from workspaces table directly
+    if (!workspaceId) {
+      const { data: ownedWorkspace } = await supabaseClient
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      
+      workspaceId = ownedWorkspace?.id;
+    }
+
+    // Create a default workspace if none exists
+    if (!workspaceId) {
+      const { data: newWorkspace, error: wsError } = await supabaseClient
+        .from("workspaces")
+        .insert({
+          name: "Default Workspace",
+          owner_id: user.id,
+        })
+        .select()
+        .single();
+      
+      if (wsError) {
+        console.error("Error creating workspace:", wsError);
+        throw new Error("Failed to create workspace");
+      }
+      workspaceId = newWorkspace.id;
+      console.log("Created new workspace:", workspaceId);
+    }
+
+    console.log("Using workspace:", workspaceId);
+
     // Fetch business profile for context
     const { data: businessProfile } = await supabaseClient
       .from("business_profiles")
@@ -53,6 +96,7 @@ serve(async (req) => {
             revenue
           )
         `)
+        .eq("workspace_id", workspaceId)
         .in("status", ["active", "completed"])
         .order("created_at", { ascending: false })
         .limit(20);
@@ -106,7 +150,7 @@ serve(async (req) => {
     const { data: crmLeads } = await supabaseClient
       .from("leads")
       .select("id, first_name, last_name, email, phone, company, status")
-      .eq("created_by", user.id)
+      .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -127,21 +171,32 @@ serve(async (req) => {
 
     // Step 2: Generate email campaign - linked to CRM leads with emails
     try {
-      const { data: emailContent } = await supabaseClient.functions.invoke("content-generate", {
+      console.log("Generating email content...");
+      const { data: emailContent, error: emailContentError } = await supabaseClient.functions.invoke("content-generate", {
         body: { vertical, contentType: "email", assetGoal: goal, businessProfile: enrichedProfile },
       });
 
-      const { data: emailImage } = await supabaseClient.functions.invoke("generate-hero-image", {
+      if (emailContentError) {
+        console.error("Email content generation error:", emailContentError);
+      }
+
+      const { data: emailImage, error: emailImageError } = await supabaseClient.functions.invoke("generate-hero-image", {
         body: { vertical, contentType: "email", goal },
       });
 
-      const { data: emailAsset } = await supabaseClient.from("assets").insert({
+      if (emailImageError) {
+        console.error("Email image generation error:", emailImageError);
+      }
+
+      console.log("Inserting email asset...");
+      const { data: emailAsset, error: emailAssetError } = await supabaseClient.from("assets").insert({
         name: `${campaignName} - Email Campaign`,
         type: "email",
         status: "review",
         channel: "email",
         goal: goal,
         created_by: user.id,
+        workspace_id: workspaceId,
         content: {
           subject: emailContent?.subject || `${campaignName}`,
           body: emailContent?.content || "",
@@ -160,15 +215,21 @@ serve(async (req) => {
         preview_url: emailImage?.imageUrl,
       }).select().single();
 
+      if (emailAssetError) {
+        console.error("Email asset insert error:", emailAssetError);
+      }
+
       if (emailAsset) {
         assetsCreated.push(emailAsset.id);
+        console.log("Email asset created:", emailAsset.id);
         
         // Create campaign record linked to leads
-        const { data: emailCampaign } = await supabaseClient.from("campaigns").insert({
+        const { data: emailCampaign, error: emailCampaignError } = await supabaseClient.from("campaigns").insert({
           asset_id: emailAsset.id,
           channel: "email",
           status: "pending",
           budget_allocated: budgetPerChannel,
+          workspace_id: workspaceId,
           target_audience: { 
             vertical, 
             campaignName, 
@@ -177,6 +238,10 @@ serve(async (req) => {
             total_leads: leadsWithEmail.length,
           },
         }).select().single();
+        
+        if (emailCampaignError) {
+          console.error("Email campaign insert error:", emailCampaignError);
+        }
         
         if (emailCampaign) {
           campaignIds.push(emailCampaign.id);
@@ -188,21 +253,32 @@ serve(async (req) => {
 
     // Step 3: Generate social media post
     try {
-      const { data: socialContent } = await supabaseClient.functions.invoke("content-generate", {
+      console.log("Generating social content...");
+      const { data: socialContent, error: socialContentError } = await supabaseClient.functions.invoke("content-generate", {
         body: { vertical, contentType: "social", assetGoal: goal, businessProfile: enrichedProfile },
       });
 
-      const { data: socialImage } = await supabaseClient.functions.invoke("generate-hero-image", {
+      if (socialContentError) {
+        console.error("Social content generation error:", socialContentError);
+      }
+
+      const { data: socialImage, error: socialImageError } = await supabaseClient.functions.invoke("generate-hero-image", {
         body: { vertical, contentType: "social", goal },
       });
 
-      const { data: socialAsset } = await supabaseClient.from("assets").insert({
+      if (socialImageError) {
+        console.error("Social image generation error:", socialImageError);
+      }
+
+      console.log("Inserting social asset...");
+      const { data: socialAsset, error: socialAssetError } = await supabaseClient.from("assets").insert({
         name: `${campaignName} - Social Post`,
         type: "landing_page",
         status: "review",
         channel: "social",
         goal: goal,
         created_by: user.id,
+        workspace_id: workspaceId,
         content: {
           text: socialContent?.content || "",
           vertical,
@@ -212,16 +288,26 @@ serve(async (req) => {
         preview_url: socialImage?.imageUrl,
       }).select().single();
 
+      if (socialAssetError) {
+        console.error("Social asset insert error:", socialAssetError);
+      }
+
       if (socialAsset) {
         assetsCreated.push(socialAsset.id);
+        console.log("Social asset created:", socialAsset.id);
         
-        const { data: socialCampaign } = await supabaseClient.from("campaigns").insert({
+        const { data: socialCampaign, error: socialCampaignError } = await supabaseClient.from("campaigns").insert({
           asset_id: socialAsset.id,
           channel: "social",
           status: "pending",
           budget_allocated: budgetPerChannel,
+          workspace_id: workspaceId,
           target_audience: { vertical, campaignName, goal },
         }).select().single();
+        
+        if (socialCampaignError) {
+          console.error("Social campaign insert error:", socialCampaignError);
+        }
         
         if (socialCampaign) {
           campaignIds.push(socialCampaign.id);
@@ -233,17 +319,24 @@ serve(async (req) => {
 
     // Step 4: Generate video
     try {
-      const { data: videoContent } = await supabaseClient.functions.invoke("content-generate", {
+      console.log("Generating video content...");
+      const { data: videoContent, error: videoContentError } = await supabaseClient.functions.invoke("content-generate", {
         body: { vertical, contentType: "video", assetGoal: goal, businessProfile: enrichedProfile },
       });
 
-      const { data: videoAsset } = await supabaseClient.from("assets").insert({
+      if (videoContentError) {
+        console.error("Video content generation error:", videoContentError);
+      }
+
+      console.log("Inserting video asset...");
+      const { data: videoAsset, error: videoAssetError } = await supabaseClient.from("assets").insert({
         name: `${campaignName} - Video`,
         type: "video",
         status: "review",
         channel: "video",
         goal: goal,
         created_by: user.id,
+        workspace_id: workspaceId,
         content: {
           script: videoContent?.content || "",
           vertical,
@@ -251,18 +344,30 @@ serve(async (req) => {
         },
       }).select().single();
 
+      if (videoAssetError) {
+        console.error("Video asset insert error:", videoAssetError);
+      }
+
       if (videoAsset) {
         assetsCreated.push(videoAsset.id);
+        console.log("Video asset created:", videoAsset.id);
         
-        const { data: videoCampaign } = await supabaseClient.from("campaigns").insert({
+        const { data: videoCampaign, error: videoCampaignError } = await supabaseClient.from("campaigns").insert({
           asset_id: videoAsset.id,
           channel: "video",
           status: "pending",
           budget_allocated: budgetPerChannel,
+          workspace_id: workspaceId,
           target_audience: { vertical, campaignName, goal },
         }).select().single();
         
-        if (videoCampaign) campaignIds.push(videoCampaign.id);
+        if (videoCampaignError) {
+          console.error("Video campaign insert error:", videoCampaignError);
+        }
+        
+        if (videoCampaign) {
+          campaignIds.push(videoCampaign.id);
+        }
         
         // Trigger video generation in background
         supabaseClient.functions.invoke("generate-video", {
@@ -279,17 +384,24 @@ serve(async (req) => {
 
     // Step 5: Generate voice campaign - linked to CRM leads with phone numbers
     try {
-      const { data: voiceContent } = await supabaseClient.functions.invoke("content-generate", {
+      console.log("Generating voice content...");
+      const { data: voiceContent, error: voiceContentError } = await supabaseClient.functions.invoke("content-generate", {
         body: { vertical, contentType: "voice", assetGoal: goal, businessProfile: enrichedProfile },
       });
 
-      const { data: voiceAsset } = await supabaseClient.from("assets").insert({
+      if (voiceContentError) {
+        console.error("Voice content generation error:", voiceContentError);
+      }
+
+      console.log("Inserting voice asset...");
+      const { data: voiceAsset, error: voiceAssetError } = await supabaseClient.from("assets").insert({
         name: `${campaignName} - Voice Campaign`,
         type: "voice",
         status: "review",
         channel: "voice",
         goal: goal,
         created_by: user.id,
+        workspace_id: workspaceId,
         content: {
           script: voiceContent?.content || "",
           vertical,
@@ -306,15 +418,21 @@ serve(async (req) => {
         },
       }).select().single();
 
+      if (voiceAssetError) {
+        console.error("Voice asset insert error:", voiceAssetError);
+      }
+
       if (voiceAsset) {
         assetsCreated.push(voiceAsset.id);
+        console.log("Voice asset created:", voiceAsset.id);
         
         // Create campaign record linked to leads
-        const { data: voiceCampaign } = await supabaseClient.from("campaigns").insert({
+        const { data: voiceCampaign, error: voiceCampaignError } = await supabaseClient.from("campaigns").insert({
           asset_id: voiceAsset.id,
           channel: "voice",
           status: "pending",
           budget_allocated: budgetPerChannel,
+          workspace_id: workspaceId,
           target_audience: { 
             vertical, 
             campaignName, 
@@ -323,6 +441,10 @@ serve(async (req) => {
             total_leads: leadsWithPhone.length,
           },
         }).select().single();
+        
+        if (voiceCampaignError) {
+          console.error("Voice campaign insert error:", voiceCampaignError);
+        }
         
         if (voiceCampaign) campaignIds.push(voiceCampaign.id);
       }
