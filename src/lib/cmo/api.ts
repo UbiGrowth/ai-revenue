@@ -20,6 +20,9 @@ import type {
   CMOKernelResponse,
 } from "./types";
 
+// Re-export tenant registry utilities
+export * from "./tenant-registry";
+
 // Helper to get current tenant context
 async function getTenantContext() {
   const { data: { user } } = await supabase.auth.getUser();
