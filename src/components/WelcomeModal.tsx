@@ -215,13 +215,13 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStartTour }) => {
             </div>
 
             <div className="mt-6 flex flex-col gap-2">
-              <Button onClick={startChat} className="w-full gap-2">
-                <Sparkles className="w-4 h-4" />
-                Chat with AI Assistant
-              </Button>
-              <Button onClick={handleStartTour} variant="outline" className="w-full gap-2">
+              <Button onClick={handleStartTour} className="w-full gap-2">
                 <ArrowRight className="w-4 h-4" />
                 Start Tour (2 min)
+              </Button>
+              <Button onClick={startChat} variant="outline" className="w-full gap-2">
+                <Sparkles className="w-4 h-4" />
+                Chat with AI Assistant
               </Button>
               <Button variant="ghost" onClick={handleSkip} className="w-full text-muted-foreground">
                 Skip for now
