@@ -67,6 +67,129 @@ export type Database = {
           },
         ]
       }
+      ai_settings_calendar: {
+        Row: {
+          booking_url: string
+          calendar_provider: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          booking_url?: string
+          calendar_provider?: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          booking_url?: string
+          calendar_provider?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ai_settings_crm_webhooks: {
+        Row: {
+          inbound_webhook_url: string | null
+          outbound_webhook_url: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          inbound_webhook_url?: string | null
+          outbound_webhook_url?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          inbound_webhook_url?: string | null
+          outbound_webhook_url?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ai_settings_domain: {
+        Row: {
+          cname_verified: boolean | null
+          domain: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          cname_verified?: boolean | null
+          domain?: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          cname_verified?: boolean | null
+          domain?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ai_settings_email: {
+        Row: {
+          from_address: string
+          reply_to_address: string
+          sender_name: string
+          smtp_host: string | null
+          smtp_password: string | null
+          smtp_port: number | null
+          smtp_username: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          from_address?: string
+          reply_to_address?: string
+          sender_name?: string
+          smtp_host?: string | null
+          smtp_password?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          from_address?: string
+          reply_to_address?: string
+          sender_name?: string
+          smtp_host?: string | null
+          smtp_password?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ai_settings_linkedin: {
+        Row: {
+          daily_connection_limit: number
+          daily_message_limit: number
+          linkedin_profile_url: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          daily_connection_limit?: number
+          daily_message_limit?: number
+          linkedin_profile_url?: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          daily_connection_limit?: number
+          daily_message_limit?: number
+          linkedin_profile_url?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       asset_approvals: {
         Row: {
           approved_by: string | null
