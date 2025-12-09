@@ -49,6 +49,29 @@ serve(async (req) => {
 
     console.log(`[email-sequence] Processing sequences for workspace ${workspaceId}...`);
 
+    // Fetch workspace info for email sender context
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('id, name, owner_id')
+      .eq('id', workspaceId)
+      .single();
+
+    // Fetch business profile for this workspace's owner
+    let businessName = workspace?.name || 'Marketing';
+    let fromEmail = 'campaigns@ubigrowth.com'; // Default fallback
+    
+    if (workspace?.owner_id) {
+      const { data: profile } = await supabase
+        .from('business_profiles')
+        .select('business_name')
+        .eq('user_id', workspace.owner_id)
+        .maybeSingle();
+      
+      if (profile?.business_name) {
+        businessName = profile.business_name;
+      }
+    }
+
     // Fetch email campaigns that need follow-ups - SCOPED BY WORKSPACE
     const { data: campaigns, error: campaignsError } = await supabase
       .from('campaigns')
@@ -129,7 +152,7 @@ serve(async (req) => {
       let sentCount = 0;
       let failedCount = 0;
 
-      // Send follow-up emails
+      // Send follow-up emails with dynamic sender
       for (const recipient of targetRecipients) {
         try {
           const response = await fetch('https://api.resend.com/emails', {
@@ -139,7 +162,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'Playkout Marketing <campaigns@playkout.com>',
+              from: `${businessName} Marketing <${fromEmail}>`,
               to: [recipient.email],
               subject: followUpContent.subject,
               html: followUpContent.body,
