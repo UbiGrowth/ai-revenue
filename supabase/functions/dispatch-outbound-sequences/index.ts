@@ -29,9 +29,18 @@ type OutboundSequenceRun = {
 };
 
 async function getDueRuns(): Promise<OutboundSequenceRun[]> {
+  // Join through sequences -> campaigns to get workspace_id
   const { data, error } = await supabase
     .from("outbound_sequence_runs")
-    .select("*")
+    .select(`
+      *,
+      outbound_sequences!inner(
+        campaign_id,
+        outbound_campaigns!inner(
+          workspace_id
+        )
+      )
+    `)
     .eq("status", "active")
     .lte("next_step_due_at", new Date().toISOString())
     .limit(100);
@@ -41,7 +50,12 @@ async function getDueRuns(): Promise<OutboundSequenceRun[]> {
     return [];
   }
 
-  return data as OutboundSequenceRun[];
+  // Map to include workspace_id from joined data
+  return (data || []).map((run: any) => ({
+    ...run,
+    workspace_id: run.outbound_sequences?.outbound_campaigns?.workspace_id,
+    campaign_id: run.outbound_sequences?.campaign_id,
+  })) as OutboundSequenceRun[];
 }
 
 async function getNextStep(run: OutboundSequenceRun) {
