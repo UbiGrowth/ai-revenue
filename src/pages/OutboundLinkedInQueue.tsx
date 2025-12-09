@@ -7,7 +7,6 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -22,27 +21,28 @@ import {
   Sparkles
 } from "lucide-react";
 
-interface QueuedMessage {
+interface LinkedInTask {
   id: string;
+  tenant_id: string;
+  workspace_id: string;
   prospect_id: string;
-  prospect: {
+  run_id: string | null;
+  message_text: string;
+  linkedin_url: string | null;
+  status: string;
+  created_at: string;
+  prospect?: {
     first_name: string;
     last_name: string;
     company: string;
     title: string;
-    linkedin_url: string;
   };
-  message: string;
-  step_type: string;
-  campaign_name: string;
-  created_at: string;
-  copied: boolean;
 }
 
 export default function OutboundLinkedInQueue() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [queue, setQueue] = useState<QueuedMessage[]>([]);
+  const [queue, setQueue] = useState<LinkedInTask[]>([]);
   const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set());
   const [regenerating, setRegenerating] = useState<string | null>(null);
 
@@ -56,93 +56,52 @@ export default function OutboundLinkedInQueue() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch pending LinkedIn messages from sequence runs
-      const { data: runs } = await supabase
-        .from("outbound_sequence_runs")
-        .select(`
-          id,
-          prospect_id,
-          sequence_id,
-          last_step_sent,
-          next_step_due_at
-        `)
-        .eq("status", "active")
-        .lte("next_step_due_at", new Date().toISOString());
+      // Get user's workspace
+      const { data: workspace } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", user.id)
+        .single();
 
-      if (!runs || runs.length === 0) {
+      if (!workspace) {
         setQueue([]);
         setLoading(false);
         return;
       }
 
-      // Get sequence IDs and fetch steps
-      const sequenceIds = [...new Set(runs.map(r => r.sequence_id))];
-      const { data: sequences } = await supabase
-        .from("outbound_sequences")
-        .select("id, campaign_id, name")
-        .in("id", sequenceIds);
-
-      const { data: steps } = await supabase
-        .from("outbound_sequence_steps")
+      // Fetch pending LinkedIn tasks directly from linkedin_tasks table
+      const { data: tasks, error } = await supabase
+        .from("linkedin_tasks")
         .select("*")
-        .in("sequence_id", sequenceIds);
+        .eq("workspace_id", workspace.workspace_id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
 
-      // Get campaign names
-      const campaignIds = sequences?.map(s => s.campaign_id).filter(Boolean) || [];
-      const { data: campaigns } = await supabase
-        .from("outbound_campaigns")
-        .select("id, name")
-        .in("id", campaignIds.length > 0 ? campaignIds : ["00000000-0000-0000-0000-000000000000"]);
-
-      // Get prospect details
-      const prospectIds = runs.map(r => r.prospect_id);
-      const { data: prospects } = await supabase
-        .from("prospects")
-        .select("id, first_name, last_name, company, title, linkedin_url")
-        .in("id", prospectIds);
-
-      // Build queue - only include LinkedIn channel steps
-      const queueItems: QueuedMessage[] = [];
-
-      for (const run of runs) {
-        const sequence = sequences?.find(s => s.id === run.sequence_id);
-        const campaign = campaigns?.find(c => c.id === sequence?.campaign_id);
-        const prospect = prospects?.find(p => p.id === run.prospect_id);
-        
-        // Find the next step (current step + 1)
-        const nextStep = steps?.find(s => 
-          s.sequence_id === run.sequence_id && 
-          s.step_order === (run.last_step_sent || 0) + 1
-        );
-
-        // Only include if it's a LinkedIn step and prospect has LinkedIn URL
-        if (nextStep && prospect?.linkedin_url) {
-          // Check metadata for channel
-          const metadata = nextStep.metadata as Record<string, unknown> | null;
-          const channel = metadata?.channel as string || "email";
-          
-          if (channel === "linkedin" || nextStep.step_type === "connect") {
-            queueItems.push({
-              id: run.id,
-              prospect_id: run.prospect_id,
-              prospect: {
-                first_name: prospect.first_name,
-                last_name: prospect.last_name,
-                company: prospect.company,
-                title: prospect.title,
-                linkedin_url: prospect.linkedin_url,
-              },
-              message: nextStep.message_template || "",
-              step_type: nextStep.step_type,
-              campaign_name: campaign?.name || "Unknown Campaign",
-              created_at: run.next_step_due_at || "",
-              copied: false,
-            });
-          }
-        }
+      if (error) {
+        console.error("Error fetching LinkedIn tasks:", error);
+        throw error;
       }
 
-      setQueue(queueItems);
+      if (!tasks || tasks.length === 0) {
+        setQueue([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get prospect details for the tasks
+      const prospectIds = tasks.map(t => t.prospect_id);
+      const { data: prospects } = await supabase
+        .from("prospects")
+        .select("id, first_name, last_name, company, title")
+        .in("id", prospectIds);
+
+      // Merge prospect data into tasks
+      const tasksWithProspects = tasks.map(task => ({
+        ...task,
+        prospect: prospects?.find(p => p.id === task.prospect_id)
+      }));
+
+      setQueue(tasksWithProspects);
     } catch (error) {
       console.error("Error fetching queue:", error);
       toast({
@@ -155,18 +114,21 @@ export default function OutboundLinkedInQueue() {
     }
   };
 
-  const copyMessage = async (item: QueuedMessage) => {
+  const copyMessage = async (task: LinkedInTask) => {
     try {
       // Personalize message with prospect data
-      const personalizedMessage = item.message
-        .replace(/\{\{first_name\}\}/g, item.prospect.first_name)
-        .replace(/\{\{last_name\}\}/g, item.prospect.last_name)
-        .replace(/\{\{company\}\}/g, item.prospect.company)
-        .replace(/\{\{title\}\}/g, item.prospect.title);
+      let personalizedMessage = task.message_text;
+      if (task.prospect) {
+        personalizedMessage = personalizedMessage
+          .replace(/\{\{first_name\}\}/g, task.prospect.first_name || "")
+          .replace(/\{\{last_name\}\}/g, task.prospect.last_name || "")
+          .replace(/\{\{company\}\}/g, task.prospect.company || "")
+          .replace(/\{\{title\}\}/g, task.prospect.title || "");
+      }
 
       await navigator.clipboard.writeText(personalizedMessage);
       
-      setCopiedIds(prev => new Set([...prev, item.id]));
+      setCopiedIds(prev => new Set([...prev, task.id]));
       
       toast({
         title: "Copied!",
@@ -177,7 +139,7 @@ export default function OutboundLinkedInQueue() {
       setTimeout(() => {
         setCopiedIds(prev => {
           const next = new Set(prev);
-          next.delete(item.id);
+          next.delete(task.id);
           return next;
         });
       }, 3000);
@@ -190,58 +152,74 @@ export default function OutboundLinkedInQueue() {
     }
   };
 
-  const markAsSent = async (item: QueuedMessage) => {
+  const markAsSent = async (task: LinkedInTask) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Log the event
+      // Update the linkedin_task status to sent
+      const { error: updateError } = await supabase
+        .from("linkedin_tasks")
+        .update({ 
+          status: "sent", 
+          sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString() 
+        })
+        .eq("id", task.id);
+
+      if (updateError) throw updateError;
+
+      // Log the event in outbound_message_events
       await supabase.from("outbound_message_events").insert({
-        sequence_run_id: item.id,
-        step_id: item.id, // Using run id as placeholder
-        tenant_id: user.id,
+        sequence_run_id: task.run_id,
+        step_id: task.id,
+        tenant_id: task.tenant_id,
         event_type: "sent",
         channel: "linkedin",
+        message_text: task.message_text,
         metadata: {
-          step_type: item.step_type,
           manual_send: true,
+          linkedin_url: task.linkedin_url,
+          prospect_id: task.prospect_id,
         },
       });
 
-      // Update the run to move to next step
-      const { data: run } = await supabase
-        .from("outbound_sequence_runs")
-        .select("last_step_sent, sequence_id")
-        .eq("id", item.id)
-        .single();
-
-      if (run) {
-        const nextStepOrder = (run.last_step_sent || 0) + 1;
-        
-        // Get the next step's delay
-        const { data: nextStep } = await supabase
-          .from("outbound_sequence_steps")
-          .select("delay_days")
-          .eq("sequence_id", run.sequence_id)
-          .eq("step_order", nextStepOrder + 1)
-          .maybeSingle();
-
-        const nextDueAt = nextStep
-          ? new Date(Date.now() + (nextStep.delay_days || 3) * 24 * 60 * 60 * 1000).toISOString()
-          : null;
-
-        await supabase
+      // If there's an associated sequence run, advance it
+      if (task.run_id) {
+        const { data: run } = await supabase
           .from("outbound_sequence_runs")
-          .update({
-            last_step_sent: nextStepOrder,
-            next_step_due_at: nextDueAt,
-            status: nextDueAt ? "active" : "completed",
-          })
-          .eq("id", item.id);
+          .select("last_step_sent, sequence_id")
+          .eq("id", task.run_id)
+          .single();
+
+        if (run) {
+          const nextStepOrder = (run.last_step_sent || 0) + 1;
+          
+          // Get the next step's delay
+          const { data: nextStep } = await supabase
+            .from("outbound_sequence_steps")
+            .select("delay_days")
+            .eq("sequence_id", run.sequence_id)
+            .eq("step_order", nextStepOrder + 1)
+            .maybeSingle();
+
+          const nextDueAt = nextStep
+            ? new Date(Date.now() + (nextStep.delay_days || 3) * 24 * 60 * 60 * 1000).toISOString()
+            : null;
+
+          await supabase
+            .from("outbound_sequence_runs")
+            .update({
+              last_step_sent: nextStepOrder,
+              next_step_due_at: nextDueAt,
+              status: nextDueAt ? "active" : "completed",
+            })
+            .eq("id", task.run_id);
+        }
       }
 
       // Remove from queue
-      setQueue(prev => prev.filter(q => q.id !== item.id));
+      setQueue(prev => prev.filter(q => q.id !== task.id));
 
       toast({
         title: "Marked as sent",
@@ -257,15 +235,15 @@ export default function OutboundLinkedInQueue() {
     }
   };
 
-  const regenerateMessage = async (item: QueuedMessage) => {
-    setRegenerating(item.id);
+  const regenerateMessage = async (task: LinkedInTask) => {
+    setRegenerating(task.id);
     try {
       const { data, error } = await supabase.functions.invoke("outbound-message-gen", {
         body: {
           mode: "personalize",
-          prospect_id: item.prospect_id,
-          prospect: item.prospect,
-          step_type: item.step_type,
+          prospect_id: task.prospect_id,
+          prospect: task.prospect,
+          step_type: "connect",
           channel: "linkedin",
         },
       });
@@ -273,8 +251,17 @@ export default function OutboundLinkedInQueue() {
       if (error) throw error;
 
       if (data?.message) {
+        // Update the task in database
+        await supabase
+          .from("linkedin_tasks")
+          .update({ 
+            message_text: data.message,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", task.id);
+
         setQueue(prev => prev.map(q => 
-          q.id === item.id ? { ...q, message: data.message } : q
+          q.id === task.id ? { ...q, message_text: data.message } : q
         ));
         toast({ title: "Message regenerated!" });
       }
@@ -288,6 +275,18 @@ export default function OutboundLinkedInQueue() {
     } finally {
       setRegenerating(null);
     }
+  };
+
+  const getPersonalizedMessage = (task: LinkedInTask) => {
+    let message = task.message_text;
+    if (task.prospect) {
+      message = message
+        .replace(/\{\{first_name\}\}/g, task.prospect.first_name || "")
+        .replace(/\{\{last_name\}\}/g, task.prospect.last_name || "")
+        .replace(/\{\{company\}\}/g, task.prospect.company || "")
+        .replace(/\{\{title\}\}/g, task.prospect.title || "");
+    }
+    return message;
   };
 
   return (
@@ -341,14 +340,14 @@ export default function OutboundLinkedInQueue() {
                 <Linkedin className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <h3 className="font-semibold mb-2">No messages in queue</h3>
                 <p className="text-muted-foreground text-sm">
-                  LinkedIn messages will appear here when they're due to be sent
+                  LinkedIn messages will appear here when campaigns generate them
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-4">
-              {queue.map((item) => (
-                <Card key={item.id}>
+              {queue.map((task) => (
+                <Card key={task.id}>
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -357,30 +356,23 @@ export default function OutboundLinkedInQueue() {
                         </div>
                         <div>
                           <CardTitle className="text-base">
-                            {item.prospect.first_name} {item.prospect.last_name}
+                            {task.prospect?.first_name} {task.prospect?.last_name}
                           </CardTitle>
                           <CardDescription className="flex items-center gap-1">
                             <Building className="h-3 w-3" />
-                            {item.prospect.title} at {item.prospect.company}
+                            {task.prospect?.title} at {task.prospect?.company}
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="capitalize">
-                          {item.step_type.replace("_", " ")}
-                        </Badge>
-                        <Badge variant="secondary">{item.campaign_name}</Badge>
-                      </div>
+                      <Badge variant="outline" className="bg-[#0A66C2]/10 text-[#0A66C2]">
+                        Pending
+                      </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Message Preview */}
                     <div className="p-3 bg-muted rounded-lg text-sm whitespace-pre-wrap">
-                      {item.message
-                        .replace(/\{\{first_name\}\}/g, item.prospect.first_name)
-                        .replace(/\{\{last_name\}\}/g, item.prospect.last_name)
-                        .replace(/\{\{company\}\}/g, item.prospect.company)
-                        .replace(/\{\{title\}\}/g, item.prospect.title)}
+                      {getPersonalizedMessage(task)}
                     </div>
 
                     {/* Actions */}
@@ -389,38 +381,40 @@ export default function OutboundLinkedInQueue() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => regenerateMessage(item)}
-                          disabled={regenerating === item.id}
+                          onClick={() => regenerateMessage(task)}
+                          disabled={regenerating === task.id}
                         >
-                          {regenerating === item.id ? (
+                          {regenerating === task.id ? (
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
                             <Sparkles className="h-4 w-4 mr-2" />
                           )}
                           Regenerate
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          asChild
-                        >
-                          <a
-                            href={item.prospect.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {task.linkedin_url && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            asChild
                           >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Open LinkedIn
-                          </a>
-                        </Button>
+                            <a
+                              href={task.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Open LinkedIn
+                            </a>
+                          </Button>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          variant={copiedIds.has(item.id) ? "secondary" : "outline"}
+                          variant={copiedIds.has(task.id) ? "secondary" : "outline"}
                           size="sm"
-                          onClick={() => copyMessage(item)}
+                          onClick={() => copyMessage(task)}
                         >
-                          {copiedIds.has(item.id) ? (
+                          {copiedIds.has(task.id) ? (
                             <>
                               <Check className="h-4 w-4 mr-2" />
                               Copied
@@ -434,7 +428,7 @@ export default function OutboundLinkedInQueue() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => markAsSent(item)}
+                          onClick={() => markAsSent(task)}
                         >
                           <Check className="h-4 w-4 mr-2" />
                           Mark as Sent
