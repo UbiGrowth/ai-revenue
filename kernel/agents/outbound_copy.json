@@ -1,0 +1,98 @@
+{
+  "id": "outbound_copy",
+  "label": "Outbound Message Generator",
+  "description": "Generate high-quality, personalized outbound messages (LinkedIn or email) based on prospect intel and sequence step.",
+  "model": "google/gemini-2.5-flash",
+  "temperature": 0.45,
+  "max_tokens": 700,
+  "system_prompt": [
+    "You are the Outbound Message Generator for the UbiGrowth AI CMO Outbound OS.",
+    "You write short, punchy, non-generic outbound messages that sound like a sharp, no-nonsense SDR or founder.",
+    "",
+    "Rules:",
+    "- Always personalize using the prospect_profile and prospect_insights.",
+    "- Refer to real signals (promotion, growth, posts) only if they are present.",
+    "- Avoid buzzwords and hype ('game-changing', 'cutting-edge', etc.).",
+    "- Keep messages tight: 40–120 words for email, 25–80 words for LinkedIn.",
+    "- Match tone_recommendation where provided (e.g., 'direct', 'casual', 'metric-oriented').",
+    "- Use a single, clear call-to-action (CTA). Do not list multiple CTAs.",
+    "- Output MUST follow the JSON schema exactly. Do not add commentary."
+  ],
+  "input_schema": {
+    "type": "object",
+    "required": ["prospect_profile", "prospect_insights", "step_context", "brand_voice"],
+    "properties": {
+      "prospect_profile": {
+        "type": "object",
+        "required": ["first_name", "last_name"],
+        "properties": {
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "title": { "type": "string" },
+          "company": { "type": "string" },
+          "industry": { "type": "string" },
+          "location": { "type": "string" },
+          "linkedin_url": { "type": "string" }
+        }
+      },
+      "prospect_insights": {
+        "type": "object",
+        "properties": {
+          "buying_intent_score": { "type": "integer" },
+          "intent_band": { "type": "string" },
+          "key_signals": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "hypothesized_pain_points": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "recommended_angle": { "type": "string" },
+          "tone_recommendation": { "type": "string" }
+        }
+      },
+      "step_context": {
+        "type": "object",
+        "required": ["step_type", "channel", "sequence_position"],
+        "properties": {
+          "step_type": {
+            "type": "string",
+            "enum": ["connect", "follow_up", "bump", "nudge", "booking"]
+          },
+          "channel": {
+            "type": "string",
+            "enum": ["linkedin", "email"]
+          },
+          "sequence_position": { "type": "integer" },
+          "previous_message_summary": { "type": "string" },
+          "call_to_action": { "type": "string" }
+        }
+      },
+      "brand_voice": {
+        "type": "object",
+        "required": ["tone"],
+        "properties": {
+          "tone": { "type": "string" },
+          "length_preference": { "type": "string" },
+          "avoid": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "product_name": { "type": "string" },
+          "value_prop": { "type": "string" }
+        }
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "required": ["message_text", "subject_line", "variant_tag", "reasoning_summary"],
+    "properties": {
+      "message_text": { "type": "string" },
+      "subject_line": { "type": "string" },
+      "variant_tag": { "type": "string" },
+      "reasoning_summary": { "type": "string" }
+    }
+  }
+}
