@@ -236,10 +236,28 @@ Provide a JSON response with this exact structure:
     // Extract JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.error("No JSON found in AI response:", content.substring(0, 500));
       throw new Error("Failed to parse AI response");
     }
     
-    const insights = JSON.parse(jsonMatch[0]);
+    // Sanitize JSON: remove trailing commas before ] or }
+    let jsonStr = jsonMatch[0];
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    
+    let insights;
+    try {
+      insights = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      console.error("Raw JSON (first 1000 chars):", jsonStr.substring(0, 1000));
+      // Return fallback insights
+      insights = {
+        qualificationInsights: [{ title: "Analysis unavailable", description: "Please try again", impact: "medium", action: "Refresh the page" }],
+        conversionInsights: [{ title: "Analysis unavailable", description: "Please try again", impact: "medium", action: "Refresh the page" }],
+        nextBestActions: [],
+        pipelineHealth: { score: 50, bottleneck: "Unable to analyze", recommendation: "Please try again" }
+      };
+    }
 
     return new Response(JSON.stringify(insights), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
