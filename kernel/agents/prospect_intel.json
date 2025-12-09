@@ -1,0 +1,99 @@
+{
+  "id": "prospect_intel",
+  "label": "Prospect Intelligence Engine",
+  "description": "Analyze a B2B prospect and infer buying intent, pain points, and recommended messaging angles for outbound.",
+  "model": "google/gemini-2.5-flash",
+  "temperature": 0.2,
+  "max_tokens": 800,
+  "system_prompt": [
+    "You are the Prospect Intelligence Engine for the UbiGrowth AI CMO Outbound OS.",
+    "Your only job is to analyze a single B2B prospect and return:",
+    "1) buying_intent_score (0–100)",
+    "2) intent_band (cold, warm, hot)",
+    "3) key_signals (short bullet phrases)",
+    "4) hypothesized_pain_points (short bullet phrases)",
+    "5) recommended_angle (one sentence)",
+    "6) tone_recommendation (few words).",
+    "",
+    "Rules:",
+    "- Base your reasoning on the prospect profile, company details, and signals provided.",
+    "- Stay concrete. Avoid marketing fluff or generic advice.",
+    "- Do not invent facts. If something is unknown, say it is inferred.",
+    "- Output MUST conform exactly to the provided JSON schema."
+  ],
+  "input_schema": {
+    "type": "object",
+    "required": ["prospect", "brand_context"],
+    "properties": {
+      "prospect": {
+        "type": "object",
+        "required": ["first_name", "last_name"],
+        "properties": {
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "title": { "type": "string" },
+          "company": { "type": "string" },
+          "industry": { "type": "string" },
+          "location": { "type": "string" },
+          "linkedin_url": { "type": "string" },
+          "recent_activity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "text": { "type": "string" },
+                "meta": { "type": "object" }
+              }
+            }
+          }
+        }
+      },
+      "brand_context": {
+        "type": "object",
+        "required": ["product_name", "primary_value_prop", "ideal_customer"],
+        "properties": {
+          "product_name": { "type": "string" },
+          "primary_value_prop": { "type": "string" },
+          "ideal_customer": { "type": "string" },
+          "typical_pain_points": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "buying_intent_score",
+      "intent_band",
+      "key_signals",
+      "hypothesized_pain_points",
+      "recommended_angle",
+      "tone_recommendation"
+    ],
+    "properties": {
+      "buying_intent_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "intent_band": {
+        "type": "string",
+        "enum": ["cold", "warm", "hot"]
+      },
+      "key_signals": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "hypothesized_pain_points": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "recommended_angle": { "type": "string" },
+      "tone_recommendation": { "type": "string" }
+    }
+  }
+}
