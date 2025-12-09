@@ -66,38 +66,44 @@ serve(async (req) => {
       );
     }
 
+    // ============================================================
+    // HARD GUARD: workspaceId is REQUIRED for multi-tenant isolation
+    // ============================================================
+    if (!workspaceId) {
+      console.warn(`[analyze-leads] Missing workspaceId from user ${user.id}`);
+      return new Response(
+        JSON.stringify({ error: "Missing workspaceId", message: "Workspace context is required for this operation" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Validate workspaceId: user must have access to this workspace
-    let validatedWorkspaceId: string | null = null;
-    
-    if (workspaceId) {
-      // Check if user has access to this workspace (owner or member)
-      const { data: workspaceAccess } = await supabase
-        .from("workspaces")
-        .select("id, owner_id")
-        .eq("id", workspaceId)
+    // Check ownership first (via RLS - user must be owner or member)
+    const { data: workspaceAccess } = await supabase
+      .from("workspaces")
+      .select("id, owner_id")
+      .eq("id", workspaceId)
+      .single();
+
+    if (!workspaceAccess) {
+      // Also check workspace_members
+      const { data: memberAccess } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
         .single();
 
-      if (!workspaceAccess) {
-        // Also check workspace_members
-        const { data: memberAccess } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("workspace_id", workspaceId)
-          .eq("user_id", user.id)
-          .single();
-
-        if (!memberAccess) {
-          console.warn(`[analyze-leads] User ${user.id} attempted access to unauthorized workspace ${workspaceId}`);
-          return new Response(
-            JSON.stringify({ error: "Workspace access denied" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        validatedWorkspaceId = workspaceId;
-      } else {
-        validatedWorkspaceId = workspaceId;
+      if (!memberAccess) {
+        console.warn(`[analyze-leads] User ${user.id} attempted access to unauthorized workspace ${workspaceId}`);
+        return new Response(
+          JSON.stringify({ error: "Workspace access denied" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
+
+    const validatedWorkspaceId = workspaceId;
     // ============================================================
 
     // Fetch business profile using validated workspace/user context
