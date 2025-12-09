@@ -185,19 +185,17 @@ async function getBrandContext(workspaceId: string) {
 }
 
 // Get tenant's integration settings for email, LinkedIn limits, etc.
-async function getTenantIntegrationSettings(workspaceId: string) {
-  const { data, error } = await supabase
-    .from("customer_integrations")
-    .select("*")
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
+async function getTenantIntegrationSettings(tenantId: string) {
+  // Fetch email and linkedin settings in parallel
+  const [emailRes, linkedinRes] = await Promise.all([
+    supabase.from("ai_settings_email").select("*").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("ai_settings_linkedin").select("*").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
 
-  if (error) {
-    console.error("[dispatch] Error fetching integration settings:", error);
-    return null;
-  }
-
-  return data;
+  return {
+    email: emailRes.data,
+    linkedin: linkedinRes.data,
+  };
 }
 
 async function callOutboundCopyAgent(params: {
@@ -515,17 +513,17 @@ serve(async (req) => {
 
         const insights = await getProspectInsights(run.prospect_id);
         const brand = await getBrandContext(run.workspace_id);
-        const integrationSettings = await getTenantIntegrationSettings(run.workspace_id);
+        const integrationSettings = await getTenantIntegrationSettings(run.tenant_id);
 
         // Override config with tenant integration settings if available
-        if (integrationSettings) {
-          if (integrationSettings.linkedin_daily_connect_limit) {
-            config.max_daily_sends_linkedin = integrationSettings.linkedin_daily_connect_limit;
+        if (integrationSettings.linkedin) {
+          if (integrationSettings.linkedin.daily_connection_limit) {
+            config.max_daily_sends_linkedin = integrationSettings.linkedin.daily_connection_limit;
           }
-          if (integrationSettings.linkedin_daily_message_limit) {
+          if (integrationSettings.linkedin.daily_message_limit) {
             config.max_daily_sends_linkedin = Math.min(
               config.max_daily_sends_linkedin,
-              integrationSettings.linkedin_daily_message_limit
+              integrationSettings.linkedin.daily_message_limit
             );
           }
         }
@@ -544,9 +542,10 @@ serve(async (req) => {
             console.warn("Prospect missing email, skipping", prospect.id);
           } else {
             // Build from address from integration settings
-            const fromName = integrationSettings?.email_from_name || brand?.brand_name || "UbiGrowth AI CMO";
-            const fromEmail = integrationSettings?.email_from_address || "noreply@updates.ubigrowth.ai";
-            const replyTo = integrationSettings?.email_reply_to || "team@ubigrowth.ai";
+            const emailSettings = integrationSettings.email;
+            const fromName = emailSettings?.sender_name || brand?.brand_name || "UbiGrowth AI CMO";
+            const fromEmail = emailSettings?.from_address || "noreply@updates.ubigrowth.ai";
+            const replyTo = emailSettings?.reply_to_address || "team@ubigrowth.ai";
             
             await dispatchEmail({
               to: prospect.email,
