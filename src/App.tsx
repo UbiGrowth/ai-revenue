@@ -42,6 +42,7 @@ import CRORecommendations from "./pages/cro/CRORecommendations";
 import OutboundDashboard from "./pages/OutboundDashboard";
 import OutboundCampaignBuilder from "./pages/OutboundCampaignBuilder";
 import OutboundCampaignDetail from "./pages/OutboundCampaignDetail";
+import OutboundLinkedInQueue from "./pages/OutboundLinkedInQueue";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,7 @@ const App = () => {
               <Route path="/outbound" element={<OutboundDashboard />} />
               <Route path="/outbound/campaigns/new" element={<OutboundCampaignBuilder />} />
               <Route path="/outbound/campaigns/:id" element={<OutboundCampaignDetail />} />
+              <Route path="/outbound/linkedin-queue" element={<OutboundLinkedInQueue />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
