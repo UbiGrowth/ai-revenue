@@ -99,6 +99,9 @@ verify_jwt = false
 [functions.daily-automation]
 verify_jwt = false
 
+[functions.dispatch-outbound-sequences]
+verify_jwt = false
+
 [functions.email-deploy]
 verify_jwt = true
 
@@ -193,29 +196,22 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.outbound-prospect-intel]
-enabled = true
 verify_jwt = true
 
 [functions.outbound-message-gen]
-enabled = true
 verify_jwt = true
 
 [functions.outbound-cadence-timing]
-enabled = true
 verify_jwt = true
 
 [functions.outbound-dispatch-due]
-enabled = true
 verify_jwt = false
 
 [functions.outbound-email-webhook]
-enabled = true
 verify_jwt = false
 
 [functions.outbound-reply-webhook]
-enabled = true
 verify_jwt = false
 
 [functions.outbound-booking-webhook]
-enabled = true
 verify_jwt = false
