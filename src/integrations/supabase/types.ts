@@ -2626,30 +2626,42 @@ export type Database = {
       prospect_scores: {
         Row: {
           band: string | null
+          hypothesized_pain_points: string[] | null
           id: string
+          key_signals: string[] | null
           last_scored_at: string | null
           prospect_id: string
           rationale: string | null
+          recommended_angle: string | null
           score: number
           tenant_id: string
+          tone_recommendation: string | null
         }
         Insert: {
           band?: string | null
+          hypothesized_pain_points?: string[] | null
           id?: string
+          key_signals?: string[] | null
           last_scored_at?: string | null
           prospect_id: string
           rationale?: string | null
+          recommended_angle?: string | null
           score?: number
           tenant_id: string
+          tone_recommendation?: string | null
         }
         Update: {
           band?: string | null
+          hypothesized_pain_points?: string[] | null
           id?: string
+          key_signals?: string[] | null
           last_scored_at?: string | null
           prospect_id?: string
           rationale?: string | null
+          recommended_angle?: string | null
           score?: number
           tenant_id?: string
+          tone_recommendation?: string | null
         }
         Relationships: [
           {
