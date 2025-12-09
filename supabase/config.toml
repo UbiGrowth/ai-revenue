@@ -203,3 +203,7 @@ verify_jwt = true
 [functions.outbound-cadence-timing]
 enabled = true
 verify_jwt = true
+
+[functions.outbound-dispatch-due]
+enabled = true
+verify_jwt = false
