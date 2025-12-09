@@ -51,6 +51,34 @@ serve(async (req) => {
 
     console.log(`[optimize-video-prompts] Starting optimization for workspace ${workspaceId}...`);
 
+    // Fetch workspace info for business context
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('id, name, owner_id')
+      .eq('id', workspaceId)
+      .single();
+
+    // Fetch business profile for this workspace's owner
+    let businessContext = 'your company';
+    let industryContext = 'your industry';
+    let targetAudience = 'your target customers';
+    
+    if (workspace?.owner_id) {
+      const { data: profile } = await supabase
+        .from('business_profiles')
+        .select('business_name, industry, business_description, target_audiences')
+        .eq('user_id', workspace.owner_id)
+        .maybeSingle();
+      
+      if (profile) {
+        businessContext = profile.business_name || workspace.name || 'your company';
+        industryContext = profile.industry || 'your industry';
+        targetAudience = Array.isArray(profile.target_audiences) 
+          ? profile.target_audiences.join(', ') 
+          : 'your target customers';
+      }
+    }
+
     // Fetch video campaigns with metrics - SCOPED BY WORKSPACE
     const { data: campaigns, error: campaignsError } = await supabase
       .from('campaigns')
@@ -147,8 +175,8 @@ serve(async (req) => {
       console.error('Error fetching templates:', templatesError);
     }
 
-    // Use AI to analyze and generate optimized prompts
-    const analysisPrompt = `You are a marketing optimization AI analyzing video campaign performance for PlayKout, a pickleball-focused company.
+    // Use AI to analyze and generate optimized prompts - DYNAMIC BUSINESS CONTEXT
+    const analysisPrompt = `You are a marketing optimization AI analyzing video campaign performance for ${businessContext}, a company in the ${industryContext} industry.
 
 PERFORMANCE DATA:
 Top Performing Videos:
@@ -171,16 +199,16 @@ ${existingTemplates?.map(t => `- ${t.template_name}: ${t.content.substring(0, 20
 Based on this analysis, generate optimized video prompt templates that will improve conversion rates. Focus on:
 1. What themes/messaging worked in top performers
 2. What should be avoided based on low performers
-3. PlayKout pickleball branding must be prominent
+3. ${businessContext} branding must be prominent
 
 Return a JSON array with exactly 3 optimized templates:
 [
   {
     "template_name": "High-Converting Video Template - [Theme]",
     "content": "The full optimized video prompt/description template",
-    "vertical": "All Verticals",
+    "vertical": "${industryContext}",
     "tone": "energetic",
-    "target_audience": "pickleball enthusiasts",
+    "target_audience": "${targetAudience}",
     "optimization_notes": "Why this template should perform better"
   }
 ]
@@ -242,7 +270,7 @@ Return ONLY the JSON array, no other text.`;
           .from('content_templates')
           .update({
             content: template.content,
-            vertical: template.vertical || 'All Verticals',
+            vertical: template.vertical || industryContext,
             tone: template.tone || 'energetic',
             target_audience: template.target_audience,
             optimization_notes: template.optimization_notes,
@@ -264,7 +292,7 @@ Return ONLY the JSON array, no other text.`;
             template_name: template.template_name,
             template_type: 'video',
             content: template.content,
-            vertical: template.vertical || 'All Verticals',
+            vertical: template.vertical || industryContext,
             tone: template.tone || 'energetic',
             target_audience: template.target_audience,
             optimization_notes: template.optimization_notes,

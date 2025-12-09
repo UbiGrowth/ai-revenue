@@ -51,6 +51,30 @@ serve(async (req) => {
 
     console.log(`[batch-optimize-videos] Starting optimization for workspace ${workspaceId}...`);
 
+    // Fetch workspace info for business context
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('id, name, owner_id')
+      .eq('id', workspaceId)
+      .single();
+
+    // Fetch business profile for this workspace's owner
+    let businessContext = 'your company';
+    let industryContext = 'your industry';
+    
+    if (workspace?.owner_id) {
+      const { data: profile } = await supabase
+        .from('business_profiles')
+        .select('business_name, industry, business_description')
+        .eq('user_id', workspace.owner_id)
+        .maybeSingle();
+      
+      if (profile) {
+        businessContext = profile.business_name || workspace.name || 'your company';
+        industryContext = profile.industry || 'your industry';
+      }
+    }
+
     // Fetch all video assets in review status - SCOPED BY WORKSPACE
     const { data: pendingAssets, error: fetchError } = await supabase
       .from('assets')
@@ -99,7 +123,7 @@ serve(async (req) => {
 
         // Select the most appropriate template based on content
         const content = asset.content as Record<string, any> || {};
-        const vertical = content.vertical || 'Pickleball Clubs & Country Clubs';
+        const vertical = content.vertical || industryContext;
         const currentGoal = asset.goal || '';
 
         // Find matching template or use best performer
@@ -112,14 +136,14 @@ serve(async (req) => {
           }
         }
 
-        // Generate new AI-optimized description and script
-        const optimizationPrompt = `You are an expert marketing copywriter for PlayKout, a pickleball facility company.
+        // Generate new AI-optimized description and script - DYNAMIC BUSINESS CONTEXT
+        const optimizationPrompt = `You are an expert marketing copywriter for ${businessContext}, a company in the ${industryContext} industry.
 
 OPTIMIZED TEMPLATE TO USE:
-${selectedTemplate?.content || 'Focus on PlayKout pickleball facilities, community, and competitive advantages.'}
+${selectedTemplate?.content || `Focus on ${businessContext} products/services, community, and competitive advantages.`}
 
 TEMPLATE OPTIMIZATION NOTES:
-${selectedTemplate?.optimization_notes || 'Emphasize clear value proposition, strong call to action, and PlayKout branding.'}
+${selectedTemplate?.optimization_notes || `Emphasize clear value proposition, strong call to action, and ${businessContext} branding.`}
 
 CURRENT ASSET DETAILS:
 - Name: ${asset.name}
@@ -129,7 +153,7 @@ CURRENT ASSET DETAILS:
 
 Generate an optimized video script and description that:
 1. Incorporates the high-converting elements from the template
-2. Maintains PlayKout pickleball branding throughout
+2. Maintains ${businessContext} branding throughout
 3. Has a clear, compelling call to action
 4. Speaks directly to ${vertical} audience needs
 
