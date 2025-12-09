@@ -318,6 +318,7 @@ async function dispatchEmail(params: {
 
 async function queueLinkedInTask(params: {
   tenant_id: string;
+  workspace_id: string;
   prospect_id: string;
   run_id: string;
   step_id: string;
@@ -325,7 +326,22 @@ async function queueLinkedInTask(params: {
   prospect_name: string;
   linkedin_url: string;
 }) {
-  // Push to outbound_message_events as 'pending' for human-in-the-loop
+  // Insert into linkedin_tasks table for human-in-the-loop workflow
+  const { error } = await supabase.from("linkedin_tasks").insert({
+    tenant_id: params.tenant_id,
+    workspace_id: params.workspace_id,
+    prospect_id: params.prospect_id,
+    run_id: params.run_id,
+    message_text: params.message_text,
+    linkedin_url: params.linkedin_url,
+    status: "pending",
+  });
+
+  if (error) {
+    console.error("[dispatch] Error inserting LinkedIn task:", error);
+    throw new Error("Failed to queue LinkedIn task");
+  }
+
   console.log(`[dispatch] LinkedIn task queued for ${params.prospect_name}`);
 }
 
@@ -424,6 +440,7 @@ serve(async (req) => {
         } else if (channel === "linkedin") {
           await queueLinkedInTask({
             tenant_id: run.tenant_id,
+            workspace_id: run.workspace_id,
             prospect_id: prospect.id,
             run_id: run.id,
             step_id: step.id,
