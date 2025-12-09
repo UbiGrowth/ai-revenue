@@ -51,9 +51,9 @@ const Index = () => {
   ];
 
   const steps = [
-    { num: "01", title: "Choose Your Goal", desc: "Lead gen, nurture, reactivation, upsell, retention." },
-    { num: "02", title: "AI Builds the Campaign", desc: "Targeting, sequences, automation, scheduling." },
-    { num: "03", title: "Deploy with One Click", desc: "Push into CRM, SMS, email, and voice agents." },
+    { num: "01", title: "Choose a Goal", desc: "Lead generation, nurture, reactivation, upsell, or retention." },
+    { num: "02", title: "AI Builds the Campaign", desc: "Targeting, sequences, automation rules, and scheduling." },
+    { num: "03", title: "Deploy with One Click", desc: "Push to CRM, SMS, email, and voice agents instantly." },
     { num: "04", title: "Unified Reporting", desc: "Track opens, replies, calls, and pipeline created." },
   ];
 
