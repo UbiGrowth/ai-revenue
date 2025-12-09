@@ -296,10 +296,10 @@ async function dispatchEmail(params: {
   
   try {
     const emailResponse = await resend.emails.send({
-      from: params.from_email || "UbiGrowth AI CMO <noreply@ubigrowth.com>",
+      from: params.from_email || "UbiGrowth AI CMO <noreply@ubigrowth.ai>",
       to: [params.to],
       subject: params.subject,
-      reply_to: params.reply_to || "team@ubigrowth.com",
+      reply_to: params.reply_to || "team@ubigrowth.ai",
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           ${params.body.split('\n').map(line => `<p style="margin: 0 0 16px 0; line-height: 1.6; color: #333;">${line}</p>`).join('')}
