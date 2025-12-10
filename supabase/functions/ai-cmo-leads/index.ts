@@ -1,0 +1,199 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface LeadResponse {
+  id: string;
+  contactId: string;
+  campaignId: string | null;
+  status: string;
+  score: number;
+  source: string | null;
+  notes: string | null;
+  createdAt: string;
+  contact: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phone: string | null;
+    companyName: string | null;
+    roleTitle: string | null;
+    status: string | null;
+    lifecycleStage: string | null;
+  };
+  campaign: {
+    name: string;
+  } | null;
+  lastActivity: {
+    type: string;
+    createdAt: string;
+  } | null;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Parse query params
+    const url = new URL(req.url);
+    const status = url.searchParams.get("status");
+    const campaignId = url.searchParams.get("campaignId");
+    const limit = parseInt(url.searchParams.get("limit") || "100");
+    const offset = parseInt(url.searchParams.get("offset") || "0");
+
+    // Build query for leads with contact and campaign joins
+    let query = supabase
+      .from("crm_leads")
+      .select(`
+        id,
+        contact_id,
+        campaign_id,
+        status,
+        score,
+        source,
+        notes,
+        created_at,
+        crm_contacts!inner (
+          first_name,
+          last_name,
+          email,
+          phone,
+          company,
+          job_title,
+          status,
+          lifecycle_stage
+        )
+      `)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    // Apply filters
+    if (status) {
+      query = query.eq("status", status);
+    }
+    if (campaignId) {
+      query = query.eq("campaign_id", campaignId);
+    }
+
+    const { data: leads, error: leadsError } = await query;
+
+    if (leadsError) {
+      console.error("[ai-cmo-leads] Failed to fetch leads:", leadsError);
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch leads" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get last activity for each lead
+    const leadIds = leads?.map((l: any) => l.id) || [];
+    
+    let activitiesMap: Record<string, { type: string; createdAt: string }> = {};
+    
+    if (leadIds.length > 0) {
+      const { data: activities } = await supabase
+        .from("crm_activities")
+        .select("lead_id, activity_type, created_at")
+        .in("lead_id", leadIds)
+        .order("created_at", { ascending: false });
+
+      // Map to latest per lead
+      if (activities) {
+        for (const act of activities) {
+          if (!activitiesMap[act.lead_id]) {
+            activitiesMap[act.lead_id] = {
+              type: act.activity_type,
+              createdAt: act.created_at,
+            };
+          }
+        }
+      }
+    }
+
+    // Get campaign names from campaigns + assets
+    const campaignIds = [...new Set(leads?.map((l: any) => l.campaign_id).filter(Boolean) || [])];
+    let campaignNamesMap: Record<string, string> = {};
+
+    if (campaignIds.length > 0) {
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id, asset_id, assets!inner(name)")
+        .in("id", campaignIds);
+
+      if (campaigns) {
+        for (const c of campaigns as any[]) {
+          if (c.assets?.name) {
+            campaignNamesMap[c.id] = c.assets.name;
+          }
+        }
+      }
+    }
+
+    // Transform to response shape
+    const response: LeadResponse[] = (leads || []).map((lead: any) => ({
+      id: lead.id,
+      contactId: lead.contact_id,
+      campaignId: lead.campaign_id,
+      status: lead.status,
+      score: lead.score || 0,
+      source: lead.source,
+      notes: lead.notes,
+      createdAt: lead.created_at,
+      contact: {
+        firstName: lead.crm_contacts?.first_name || null,
+        lastName: lead.crm_contacts?.last_name || null,
+        email: lead.crm_contacts?.email || "",
+        phone: lead.crm_contacts?.phone || null,
+        companyName: lead.crm_contacts?.company || null,
+        roleTitle: lead.crm_contacts?.job_title || null,
+        status: lead.crm_contacts?.status || null,
+        lifecycleStage: lead.crm_contacts?.lifecycle_stage || null,
+      },
+      campaign: lead.campaign_id && campaignNamesMap[lead.campaign_id]
+        ? { name: campaignNamesMap[lead.campaign_id] }
+        : null,
+      lastActivity: activitiesMap[lead.id] || null,
+    }));
+
+    console.log(`[ai-cmo-leads] Returning ${response.length} leads`);
+
+    return new Response(
+      JSON.stringify(response),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[ai-cmo-leads] Unexpected error:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
