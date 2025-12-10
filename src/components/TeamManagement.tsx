@@ -92,11 +92,22 @@ export default function TeamManagement() {
       return;
     }
 
+    // Get the user's tenant_id
+    const { data: userTenant } = await supabase
+      .from("user_tenants")
+      .select("tenant_id")
+      .eq("user_id", user.id)
+      .single();
+
+    // Use tenant_id from user_tenants, or fall back to user.id
+    const tenantId = userTenant?.tenant_id || user.id;
+
     const { error } = await teamInvitationsTable()
       .insert({
         email: inviteEmail.toLowerCase().trim(),
         role: inviteRole,
         invited_by: user.id,
+        tenant_id: tenantId,
         status: "pending",
       });
 

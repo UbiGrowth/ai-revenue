@@ -38,6 +38,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return (data || []).map(r => r.role as AppRole);
   };
 
+  const processInvitation = async (userId: string, email: string) => {
+    try {
+      const { data, error } = await supabase.rpc('accept_team_invitation', {
+        _user_id: userId,
+        _email: email
+      });
+
+      if (error) {
+        console.error('Error processing invitation:', error);
+        return;
+      }
+
+      const result = data as { accepted?: boolean; tenant_id?: string } | null;
+      if (result?.accepted) {
+        console.log('Invitation accepted, joined tenant:', result.tenant_id);
+      }
+    } catch (err) {
+      console.error('Error in processInvitation:', err);
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -62,6 +83,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        // Process any pending invitations for this user
+        if (session.user.email) {
+          processInvitation(session.user.id, session.user.email);
+        }
+        
         fetchUserRoles(session.user.id).then(userRoles => {
           setRoles(userRoles);
           setIsLoading(false);
