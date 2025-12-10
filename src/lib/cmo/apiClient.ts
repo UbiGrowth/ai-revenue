@@ -211,15 +211,46 @@ export async function runCampaignOptimization(payload: {
 
 // ============ LEADS ============
 
-export async function fetchLeads(tenantId: string) {
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("workspace_id", tenantId)
-    .order("created_at", { ascending: false });
+import type { LeadRow, LeadDetailsResponse, LeadStatus } from "./types";
+
+export async function fetchLeads(tenantId: string): Promise<LeadRow[]> {
+  const { data, error } = await supabase.functions.invoke("ai-cmo-leads", {
+    body: { tenantId },
+  });
 
   if (error) throw new Error(error.message);
   return data || [];
+}
+
+export async function fetchLeadDetails(
+  tenantId: string,
+  leadId: string
+): Promise<LeadDetailsResponse> {
+  const { data, error } = await supabase.functions.invoke(
+    "ai-cmo-lead-activities",
+    {
+      body: { tenantId, leadId },
+    }
+  );
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updateLeadStatus(
+  tenantId: string,
+  leadId: string,
+  status: LeadStatus
+): Promise<void> {
+  const { data, error } = await supabase.functions.invoke(
+    "ai-cmo-lead-status",
+    {
+      body: { tenantId, leadId, status },
+    }
+  );
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 // ============ CONTENT ASSETS ============

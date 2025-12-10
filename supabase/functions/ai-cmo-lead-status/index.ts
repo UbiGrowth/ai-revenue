@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,24 +5,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Extract lead ID from URL path
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split('/');
-    const leadId = pathParts[pathParts.length - 2]; // /ai-cmo-lead-status/:id/status -> get :id
-
-    if (!leadId || leadId === 'ai-cmo-lead-status') {
-      return new Response(
-        JSON.stringify({ error: 'Lead ID is required in path' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Get authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -34,11 +21,11 @@ serve(async (req) => {
     }
 
     // Initialize Supabase client with user's JWT
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
 
     // Get user from JWT
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -51,9 +38,16 @@ serve(async (req) => {
 
     const tenantId = user.id;
 
-    // Parse request body
+    // Parse request body for leadId and status
     const body = await req.json();
-    const { status } = body;
+    const { leadId, status } = body;
+
+    if (!leadId) {
+      return new Response(
+        JSON.stringify({ error: 'Lead ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!status) {
       return new Response(
@@ -63,7 +57,7 @@ serve(async (req) => {
     }
 
     // Validate status value
-    const validStatuses = ['new', 'contacted', 'working', 'qualified', 'converted', 'lost'];
+    const validStatuses = ['new', 'contacted', 'working', 'qualified', 'unqualified', 'converted', 'lost'];
     if (!validStatuses.includes(status)) {
       return new Response(
         JSON.stringify({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }),
@@ -80,7 +74,7 @@ serve(async (req) => {
       .single();
 
     if (leadError || !lead) {
-      console.error('Lead fetch error:', leadError);
+      console.error('[ai-cmo-lead-status] Lead fetch error:', leadError);
       return new Response(
         JSON.stringify({ error: 'Lead not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -97,7 +91,7 @@ serve(async (req) => {
       .eq('tenant_id', tenantId);
 
     if (updateError) {
-      console.error('Lead update error:', updateError);
+      console.error('[ai-cmo-lead-status] Lead update error:', updateError);
       return new Response(
         JSON.stringify({ error: 'Failed to update lead status' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -120,11 +114,11 @@ serve(async (req) => {
       });
 
     if (activityError) {
-      console.error('Activity insert error:', activityError);
-      // Don't fail the request if activity logging fails, but log it
+      console.error('[ai-cmo-lead-status] Activity insert error:', activityError);
+      // Don't fail the request if activity logging fails
     }
 
-    console.log(`Lead ${leadId} status updated: ${previousStatus} -> ${status}`);
+    console.log(`[ai-cmo-lead-status] Lead ${leadId} status updated: ${previousStatus} -> ${status}`);
 
     return new Response(
       JSON.stringify({ 
@@ -139,7 +133,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in ai-cmo-lead-status:', error);
+    console.error('[ai-cmo-lead-status] Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

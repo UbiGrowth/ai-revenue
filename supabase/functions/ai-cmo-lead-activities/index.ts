@@ -34,20 +34,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Extract lead ID from URL path
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split("/");
-    const leadId = pathParts[pathParts.length - 2]; // /ai-cmo-lead-activities/{id}/activities or just pass as query
+    // Support leadId from body (supabase.functions.invoke) or query param
+    let leadId: string | null = null;
+    
+    if (req.method === "POST") {
+      const body = await req.json();
+      leadId = body.leadId;
+    } else {
+      const url = new URL(req.url);
+      leadId = url.searchParams.get("leadId");
+    }
 
-    // Also support query param for flexibility
-    const leadIdParam = url.searchParams.get("leadId") || leadId;
-
-    if (!leadIdParam || leadIdParam === "ai-cmo-lead-activities") {
+    if (!leadId) {
       return new Response(
         JSON.stringify({ error: "Missing lead ID" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const leadIdParam = leadId;
 
     // Fetch lead with contact info
     const { data: lead, error: leadError } = await supabase
