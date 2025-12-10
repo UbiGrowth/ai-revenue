@@ -35,63 +35,37 @@
         "type": "object",
         "description": "Recent performance metrics",
         "properties": {
-          "emails": {
-            "type": "object",
-            "properties": {
-              "sent": { "type": "integer" },
-              "opens": { "type": "integer" },
-              "clicks": { "type": "integer" },
-              "replies": { "type": "integer" },
-              "bounces": { "type": "integer" }
-            }
-          },
-          "sms": {
-            "type": "object",
-            "properties": {
-              "sent": { "type": "integer" },
-              "delivered": { "type": "integer" },
-              "replies": { "type": "integer" }
-            }
-          },
+          "opens": { "type": "integer", "description": "Email opens" },
+          "clicks": { "type": "integer", "description": "Link clicks" },
+          "replies": { "type": "integer", "description": "Email/SMS replies" },
+          "booked_meetings": { "type": "integer", "description": "Meetings booked" },
+          "no_shows": { "type": "integer", "description": "Meeting no-shows" },
+          "conversions": { "type": "integer", "description": "Goal conversions" },
           "voice_calls": {
             "type": "object",
             "properties": {
-              "attempted": { "type": "integer" },
-              "connected": { "type": "integer" },
-              "avg_duration_seconds": { "type": "number" },
-              "booked_meetings": { "type": "integer" }
-            }
-          },
-          "landing_pages": {
-            "type": "object",
-            "properties": {
-              "visits": { "type": "integer" },
-              "conversions": { "type": "integer" }
-            }
-          },
-          "overall": {
-            "type": "object",
-            "properties": {
-              "leads_generated": { "type": "integer" },
-              "meetings_booked": { "type": "integer" },
-              "revenue_attributed": { "type": "number" }
+              "total": { "type": "integer", "description": "Total calls attempted" },
+              "reached": { "type": "integer", "description": "Calls where lead answered" },
+              "booked": { "type": "integer", "description": "Calls resulting in booking" },
+              "no_answer": { "type": "integer", "description": "Calls with no answer" }
             }
           }
         }
       },
       "assets": {
         "type": "object",
-        "description": "Current campaign assets",
+        "description": "Current campaign assets with optional performance data",
         "properties": {
           "emails": {
             "type": "array",
             "items": {
               "type": "object",
+              "required": ["id", "subject", "body"],
               "properties": {
                 "id": { "type": "string" },
                 "subject": { "type": "string" },
                 "body": { "type": "string" },
-                "step_order": { "type": "integer" }
+                "performance": { "type": "object", "description": "Per-asset metrics" }
               }
             }
           },
@@ -99,10 +73,11 @@
             "type": "array",
             "items": {
               "type": "object",
+              "required": ["id", "body"],
               "properties": {
                 "id": { "type": "string" },
                 "body": { "type": "string" },
-                "step_order": { "type": "integer" }
+                "performance": { "type": "object" }
               }
             }
           },
@@ -110,22 +85,25 @@
             "type": "array",
             "items": {
               "type": "object",
+              "required": ["id", "body"],
               "properties": {
                 "id": { "type": "string" },
-                "title": { "type": "string" },
                 "body": { "type": "string" },
-                "channel": { "type": "string" }
+                "performance": { "type": "object" }
               }
             }
           },
-          "landing_pages": {
+          "landing_sections": {
             "type": "array",
             "items": {
               "type": "object",
+              "required": ["id", "type", "heading", "body"],
               "properties": {
                 "id": { "type": "string" },
-                "url_slug": { "type": "string" },
-                "sections": { "type": "array" }
+                "type": { "type": "string" },
+                "heading": { "type": "string" },
+                "body": { "type": "string" },
+                "performance": { "type": "object" }
               }
             }
           },
@@ -133,22 +111,12 @@
             "type": "array",
             "items": {
               "type": "object",
+              "required": ["id", "scenario", "script"],
               "properties": {
                 "id": { "type": "string" },
                 "scenario": { "type": "string" },
-                "script": { "type": "string" }
-              }
-            }
-          },
-          "automation_steps": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "step_order": { "type": "integer" },
-                "type": { "type": "string" },
-                "wait_hours": { "type": "number" }
+                "script": { "type": "string" },
+                "performance": { "type": "object" }
               }
             }
           }
@@ -157,7 +125,7 @@
       "constraints": {
         "type": "array",
         "items": { "type": "string" },
-        "description": "Optimization constraints (e.g., 'Do not change brand voice', 'Max 3 emails in sequence')"
+        "description": "Optimization constraints (e.g., max touches, sending windows, compliance rules)"
       }
     }
   },
