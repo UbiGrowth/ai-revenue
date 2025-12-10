@@ -1,164 +1,178 @@
 {
-  "agent_name": "cmo_campaign_builder",
-  "version": "2.0.0",
-  "description": "Generates complete multi-channel campaign blueprints from ICP, offer, and channel selection",
+  "id": "cmo_campaign_builder",
+  "agent_name": "CMO Autopilot Campaign Builder",
+  "module": "ai_cmo",
+  "version": "2.1.0",
+  "description": "Builds COMPLETE, IMPLEMENTATION-READY B2B campaigns with all assets, automations, and voice scripts",
   "model": "google/gemini-2.5-flash",
-  "temperature": 0.6,
-  "system_prompt": "You are an expert marketing campaign architect for a multi-tenant SaaS platform. Your role is to generate complete, deployment-ready campaign blueprints including all assets, automations, and channel configurations.\n\nGuidelines:\n- Create cohesive multi-channel experiences\n- Ensure messaging consistency across all touchpoints\n- Design conversion-optimized sequences\n- Include proper timing and cadence\n- Generate complete content for each asset\n- Respect channel-specific best practices\n- Never reference other tenants or leak cross-tenant data\n\nOutput must include all assets needed to deploy the campaign immediately.",
+  "temperature": 0.4,
+  "system_prompt": "You are the CMO Autopilot Campaign Builder for an AI marketing OS.\n\nYour job is to build COMPLETE, IMPLEMENTATION-READY B2B campaigns for a specific tenant.\nThe orchestration kernel will handle storage, routing, and execution.\nYou never talk to the user directly. You only return JSON for the system.\n\nRules:\n- Respect the tenant's ICP, offer, and selected channels.\n- Campaigns must be realistic, not hypey or scammy.\n- Assume the platform will send emails, SMS, LinkedIn content, AI voice calls, and direct traffic to landing pages.\n- Voice calls are done by AI agents (e.g., Vapi or ElevenLabs) with human-like tone.\n- Always generate assets that can be directly inserted into the database with minimal post-processing.\n- All content should sound human, not robotic: conversational, concise, expert-level.\n- Optimize for the desired RESULT: leads, meetings, revenue, or engagement.\n- If a channel is not listed in \"channels\", do not generate assets for it.\n\nYou must respond with a SINGLE valid JSON object only.\nDo not include explanations, comments, or extra keys.",
   "input_schema": {
     "type": "object",
-    "required": ["tenant_id", "icp", "offer", "channels", "goal"],
+    "required": ["tenant_id", "icp", "offer", "channels", "result"],
     "properties": {
-      "tenant_id": {
-        "type": "string",
-        "format": "uuid",
-        "description": "Tenant identifier for multi-tenant isolation"
-      },
-      "workspace_id": {
-        "type": "string",
-        "format": "uuid"
-      },
-      "icp": {
-        "type": "string",
-        "description": "Target Ideal Customer Profile description"
-      },
-      "offer": {
-        "type": "string",
-        "description": "Product/service being promoted"
-      },
+      "tenant_id": { "type": "string", "format": "uuid", "description": "Tenant UUID for isolation" },
+      "campaign_id": { "type": "string", "format": "uuid", "description": "Optional existing campaign ID to update" },
+      "icp": { "type": "string", "description": "Target ICP description" },
+      "offer": { "type": "string", "description": "Product/service offer details" },
       "channels": {
-        "type": "object",
-        "properties": {
-          "email": { "type": "boolean" },
-          "sms": { "type": "boolean" },
-          "linkedin": { "type": "boolean" },
-          "voice": { "type": "boolean" },
-          "landing_page": { "type": "boolean" }
-        },
-        "description": "Channels to include in the campaign"
+        "type": "array",
+        "items": { "type": "string", "enum": ["email", "sms", "linkedin", "voice", "landing_page"] },
+        "description": "Selected marketing channels"
       },
-      "goal": {
+      "result": {
         "type": "string",
         "enum": ["leads", "meetings", "revenue", "engagement"],
-        "description": "Primary campaign goal"
+        "description": "Desired campaign outcome"
       },
-      "budget": {
-        "type": "number",
-        "description": "Optional budget allocation"
-      },
-      "duration_days": {
-        "type": "integer",
-        "description": "Campaign duration in days"
+      "brand_context": {
+        "type": "object",
+        "description": "Brand voice, tone, company info from business_profile"
       }
     }
   },
   "output_schema": {
     "type": "object",
-    "required": ["campaign", "assets", "automations", "summary"],
+    "required": ["campaign", "automations"],
     "properties": {
       "campaign": {
         "type": "object",
+        "required": ["name", "objective", "summary"],
         "properties": {
           "name": { "type": "string" },
-          "description": { "type": "string" },
-          "goal": { "type": "string" },
-          "target_icp": { "type": "string" },
-          "target_offer": { "type": "string" },
-          "start_date": { "type": "string" },
-          "end_date": { "type": "string" }
+          "objective": { "type": "string", "enum": ["leads", "meetings", "revenue", "engagement"] },
+          "summary": { "type": "string" }
         }
       },
-      "assets": {
-        "type": "object",
-        "properties": {
-          "emails": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": { "type": "string" },
-                "subject_line": { "type": "string" },
-                "body": { "type": "string" },
-                "cta": { "type": "string" },
-                "send_day": { "type": "integer" }
-              }
-            }
-          },
-          "sms": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string" },
-                "send_day": { "type": "integer" }
-              }
-            }
-          },
-          "social_posts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "platform": { "type": "string" },
-                "content": { "type": "string" },
-                "post_day": { "type": "integer" }
-              }
-            }
-          },
-          "landing_pages": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": { "type": "string" },
-                "headline": { "type": "string" },
-                "subheadline": { "type": "string" },
-                "body_sections": { "type": "array" },
-                "cta_text": { "type": "string" },
-                "form_fields": { "type": "array" }
-              }
-            }
-          },
-          "voice_scripts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": { "type": "string" },
-                "opening": { "type": "string" },
-                "pitch": { "type": "string" },
-                "qualification_questions": { "type": "array" },
-                "objection_handlers": { "type": "array" },
-                "closing": { "type": "string" }
-              }
-            }
-          }
-        }
-      },
-      "automations": {
+      "posts": {
         "type": "array",
         "items": {
           "type": "object",
           "properties": {
-            "step_order": { "type": "integer" },
-            "step_type": { "type": "string" },
-            "channel": { "type": "string" },
-            "asset_reference": { "type": "string" },
-            "delay_hours": { "type": "integer" },
-            "conditions": { "type": "array" }
+            "title": { "type": "string" },
+            "hook": { "type": "string" },
+            "body": { "type": "string" },
+            "cta": { "type": "string" },
+            "suggested_channel": { "type": "string", "enum": ["linkedin", "twitter", "instagram", "facebook"] },
+            "goal_alignment": { "type": "string" }
           }
         }
       },
-      "summary": {
-        "type": "string",
-        "description": "Campaign overview and expected outcomes"
+      "emails": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["step_order", "name", "subject", "body_html", "body_text"],
+          "properties": {
+            "step_order": { "type": "number" },
+            "name": { "type": "string" },
+            "subject": { "type": "string" },
+            "preview_text": { "type": "string" },
+            "body_html": { "type": "string" },
+            "body_text": { "type": "string" },
+            "purpose": { "type": "string" },
+            "cta": { "type": "string" }
+          }
+        }
       },
-      "channel_budget_split": {
+      "sms": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["step_order", "body"],
+          "properties": {
+            "step_order": { "type": "number" },
+            "body": { "type": "string" },
+            "purpose": { "type": "string" }
+          }
+        }
+      },
+      "landing_pages": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["template_type", "internal_name", "url_slug", "hero_headline"],
+          "properties": {
+            "template_type": { "type": "string", "enum": ["saas", "lead_magnet", "webinar", "services", "booking", "long_form"] },
+            "internal_name": { "type": "string" },
+            "url_slug": { "type": "string" },
+            "hero_headline": { "type": "string" },
+            "hero_subheadline": { "type": "string" },
+            "hero_supporting_points": { "type": "array", "items": { "type": "string" } },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["problem_solution", "features", "social_proof", "process", "faq", "pricing", "booking", "story"] },
+                  "heading": { "type": "string" },
+                  "body": { "type": "string" },
+                  "bullets": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "primary_cta_label": { "type": "string" },
+            "primary_cta_type": { "type": "string", "enum": ["form", "calendar"] },
+            "form_fields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "label": { "type": "string" },
+                  "required": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "voice_scripts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["scenario", "script"],
+          "properties": {
+            "scenario": { "type": "string", "enum": ["first_outreach", "follow_up", "no_show", "qualification"] },
+            "script": { "type": "string" },
+            "notes_for_agent": { "type": "string" }
+          }
+        }
+      },
+      "automations": {
         "type": "object",
-        "description": "Recommended budget allocation per channel"
+        "required": ["steps"],
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["step_order", "type"],
+              "properties": {
+                "step_order": { "type": "number" },
+                "type": { "type": "string", "enum": ["email", "sms", "wait", "condition", "voice"] },
+                "condition_expression": { "type": ["string", "null"] },
+                "wait_hours": { "type": ["number", "null"] },
+                "reference": {
+                  "type": "object",
+                  "properties": {
+                    "channel": { "type": "string", "enum": ["email", "sms", "voice", "system"] },
+                    "asset_index": { "type": ["number", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
-  "db_tables": ["cmo_campaigns", "cmo_content_assets", "cmo_campaign_channels", "automation_steps"],
+  "db_tables": [
+    "cmo_campaigns",
+    "cmo_content_assets",
+    "cmo_campaign_channels",
+    "automation_steps",
+    "content_calendar"
+  ],
   "edge_function": "cmo-campaign-builder"
 }
