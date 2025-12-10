@@ -365,6 +365,7 @@ export interface LandingSection {
   heading: string;
   body: string;
   bullets: string[];
+  enabled?: boolean;
 }
 
 export interface LandingFormField {
