@@ -314,8 +314,71 @@ Only include asset types for the channels specified. Make content compelling and
       }
     }
 
+    // Store SMS messages
+    if (assets.sms?.length) {
+      for (const sms of assets.sms) {
+        const { data: asset } = await supabase
+          .from('cmo_content_assets')
+          .insert({
+            tenant_id,
+            workspace_id: workspaceId,
+            campaign_id: campaign.id,
+            title: `SMS Step ${sms.step}`,
+            content_type: 'sms',
+            channel: 'sms',
+            key_message: sms.message,
+            status: 'draft',
+          })
+          .select()
+          .single();
+        if (asset) contentAssets.push(asset);
+      }
+    }
+
+    // Store landing pages
+    if (assets.landing_pages?.length) {
+      for (const page of assets.landing_pages) {
+        const { data: asset } = await supabase
+          .from('cmo_content_assets')
+          .insert({
+            tenant_id,
+            workspace_id: workspaceId,
+            campaign_id: campaign.id,
+            title: page.title,
+            content_type: 'landing_page',
+            channel: 'web',
+            key_message: page.headline,
+            supporting_points: [page.subheadline, JSON.stringify(page.sections)],
+            status: 'draft',
+          })
+          .select()
+          .single();
+        if (asset) contentAssets.push(asset);
+      }
+    }
+
+    // Store automation flow steps in automation_jobs
+    if (assets.automation_steps?.length) {
+      for (const step of assets.automation_steps) {
+        await supabase
+          .from('automation_jobs')
+          .insert({
+            workspace_id: workspaceId,
+            job_type: `campaign_${campaign.id}_step_${step.step}`,
+            status: 'pending',
+            scheduled_at: new Date(Date.now() + (step.delay_days || 0) * 86400000).toISOString(),
+            result: {
+              campaign_id: campaign.id,
+              step_type: step.type,
+              step_order: step.step,
+              config: step.config || {},
+            },
+          });
+      }
+    }
+
     // Log success
-    console.log(`Campaign ${campaign.id} created with ${contentAssets.length} assets`);
+    console.log(`Campaign ${campaign.id} created with ${contentAssets.length} assets and ${assets.automation_steps?.length || 0} automation steps`);
 
     return new Response(JSON.stringify({
       campaign_id: campaign.id,
