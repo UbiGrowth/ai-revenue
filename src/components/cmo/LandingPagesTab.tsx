@@ -28,6 +28,39 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+interface LandingPageFromAPI {
+  id: string;
+  campaignId: string | null;
+  campaignName: string | null;
+  templateType: string;
+  internalName: string;
+  urlSlug: string;
+  heroHeadline: string;
+  heroSubheadline: string;
+  heroSupportingPoints: string[];
+  sections: Array<{
+    type: string;
+    heading: string;
+    body: string;
+    bullets: string[];
+    enabled: boolean;
+  }>;
+  primaryCtaLabel: string;
+  primaryCtaType: string;
+  formFields: Array<{
+    name: string;
+    label: string;
+    type: string;
+    required: boolean;
+  }>;
+  published: boolean;
+  status: string;
+  url: string | null;
+  autoWired: boolean;
+  createdAt: string;
+  variantId?: string;
+}
+
 interface ParsedLandingPage {
   id: string;
   assetId: string;
@@ -90,70 +123,111 @@ function LandingPagesTab() {
     enabled: !!tenantId,
   });
 
-  // Fetch landing pages
+  // Fetch landing pages from backend API
   const { data: landingPages, isLoading } = useQuery({
-    queryKey: ['landing-pages', tenantId],
+    queryKey: ['landing-pages', tenantId, selectedCampaignId],
     queryFn: async () => {
       if (!tenantId) return [];
       
-      const { data: assets, error } = await supabase
-        .from('cmo_content_assets')
-        .select(`
-          id, title, campaign_id, status, created_at,
-          key_message, cta, supporting_points
-        `)
-        .eq('tenant_id', tenantId)
-        .eq('content_type', 'landing_page')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const assetIds = assets?.map(a => a.id) || [];
-      const { data: variants } = await supabase
-        .from('cmo_content_variants')
-        .select('*')
-        .in('asset_id', assetIds);
-
-      const campaignIds = [...new Set(assets?.filter(a => a.campaign_id).map(a => a.campaign_id))] as string[];
-      const { data: campaignsData } = await supabase
-        .from('cmo_campaigns')
-        .select('id, campaign_name')
-        .in('id', campaignIds);
-
-      const campaignMap = new Map(campaignsData?.map(c => [c.id, c.campaign_name]));
-
-      return (assets || []).map(asset => {
-        const variant = variants?.find(v => v.asset_id === asset.id);
-        let bodyContent: any = {};
-        try {
-          bodyContent = variant?.body_content ? JSON.parse(variant.body_content) : {};
-        } catch {}
-
-        return {
-          id: `${asset.id}-${variant?.id || 'default'}`,
-          assetId: asset.id,
-          variantId: variant?.id,
-          campaignId: asset.campaign_id,
-          campaignName: asset.campaign_id ? campaignMap.get(asset.campaign_id) : undefined,
-          status: asset.status || 'draft',
-          createdAt: asset.created_at,
-          internalName: asset.title,
-          urlSlug: bodyContent.url_slug || '',
-          publishedUrl: bodyContent.published_url || '',
-          templateType: bodyContent.template_type || 'lead_magnet',
-          heroHeadline: variant?.headline || asset.key_message || '',
-          heroSubheadline: variant?.subject_line || '',
-          heroSupportingPoints: bodyContent.hero_supporting_points || asset.supporting_points || [],
-          sections: bodyContent.sections || [],
-          primaryCtaLabel: variant?.cta_text || asset.cta || 'Get Started',
-          primaryCtaType: bodyContent.primary_cta_type || 'form',
-          formFields: bodyContent.form_fields || [],
-          autoWired: (variant?.metadata as any)?.auto_wired || false,
-        } as ParsedLandingPage;
+      const { data, error } = await supabase.functions.invoke('ai-cmo-landing-pages-list', {
+        body: {
+          tenantId,
+          campaignId: selectedCampaignId !== "all" ? selectedCampaignId : null,
+        },
       });
+
+      // Fallback to direct query if edge function not available
+      if (error) {
+        console.warn("Edge function error, falling back to direct query:", error);
+        return fetchLandingPagesDirect();
+      }
+
+      // Transform API response to internal format
+      return (data as LandingPageFromAPI[] || []).map(page => ({
+        id: page.id,
+        assetId: page.id,
+        variantId: page.variantId,
+        campaignId: page.campaignId,
+        campaignName: page.campaignName || undefined,
+        status: page.status || 'draft',
+        createdAt: page.createdAt,
+        internalName: page.internalName,
+        urlSlug: page.urlSlug || '',
+        publishedUrl: page.url || '',
+        templateType: page.templateType || 'lead_magnet',
+        heroHeadline: page.heroHeadline || '',
+        heroSubheadline: page.heroSubheadline || '',
+        heroSupportingPoints: page.heroSupportingPoints || [],
+        sections: page.sections || [],
+        primaryCtaLabel: page.primaryCtaLabel || 'Get Started',
+        primaryCtaType: (page.primaryCtaType || 'form') as 'form' | 'calendar',
+        formFields: page.formFields || [],
+        autoWired: page.autoWired || false,
+      } as ParsedLandingPage));
     },
     enabled: !!tenantId,
   });
+
+  // Fallback direct query function
+  async function fetchLandingPagesDirect(): Promise<ParsedLandingPage[]> {
+    let query = supabase
+      .from('cmo_content_assets')
+      .select(`id, title, campaign_id, status, created_at, key_message, cta, supporting_points`)
+      .eq('tenant_id', tenantId!)
+      .eq('content_type', 'landing_page')
+      .order('created_at', { ascending: false });
+
+    if (selectedCampaignId && selectedCampaignId !== "all") {
+      query = query.eq('campaign_id', selectedCampaignId);
+    }
+
+    const { data: assets, error } = await query;
+    if (error) throw error;
+
+    const assetIds = assets?.map(a => a.id) || [];
+    const { data: variants } = await supabase
+      .from('cmo_content_variants')
+      .select('*')
+      .in('asset_id', assetIds);
+
+    const campaignIds = [...new Set(assets?.filter(a => a.campaign_id).map(a => a.campaign_id))] as string[];
+    const { data: campaignsData } = await supabase
+      .from('cmo_campaigns')
+      .select('id, campaign_name')
+      .in('id', campaignIds);
+
+    const campaignMap = new Map(campaignsData?.map(c => [c.id, c.campaign_name]));
+
+    return (assets || []).map(asset => {
+      const variant = variants?.find(v => v.asset_id === asset.id);
+      let bodyContent: Record<string, unknown> = {};
+      try {
+        bodyContent = variant?.body_content ? JSON.parse(variant.body_content) : {};
+      } catch {}
+
+      return {
+        id: asset.id,
+        assetId: asset.id,
+        variantId: variant?.id,
+        campaignId: asset.campaign_id,
+        campaignName: asset.campaign_id ? campaignMap.get(asset.campaign_id) : undefined,
+        status: asset.status || 'draft',
+        createdAt: asset.created_at,
+        internalName: asset.title,
+        urlSlug: (bodyContent.url_slug as string) || '',
+        publishedUrl: (bodyContent.published_url as string) || '',
+        templateType: (bodyContent.template_type as string) || 'lead_magnet',
+        heroHeadline: variant?.headline || asset.key_message || '',
+        heroSubheadline: variant?.subject_line || '',
+        heroSupportingPoints: (bodyContent.hero_supporting_points as string[]) || asset.supporting_points || [],
+        sections: (bodyContent.sections as ParsedLandingPage['sections']) || [],
+        primaryCtaLabel: variant?.cta_text || asset.cta || 'Get Started',
+        primaryCtaType: ((bodyContent.primary_cta_type as string) || 'form') as 'form' | 'calendar',
+        formFields: (bodyContent.form_fields as ParsedLandingPage['formFields']) || [],
+        autoWired: (variant?.metadata as Record<string, unknown>)?.auto_wired as boolean || false,
+      } as ParsedLandingPage;
+    });
+  }
 
   // Filter pages by campaign
   const filteredPages = landingPages?.filter(page => 
