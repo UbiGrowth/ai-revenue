@@ -1,9 +1,11 @@
 /**
  * Autopilot Campaign Wizard
  * AI-powered autonomous campaign builder
+ * Invalidates campaign queries on completion for automatic refresh
  */
 
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -18,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout } from 'lucide-react';
 import { buildAutopilotCampaign } from '@/lib/cmo/api';
+import { cmoKeys } from '@/hooks/useCMO';
 import { toast } from 'sonner';
 import type { CampaignGoal } from '@/lib/cmo/types';
 
@@ -42,6 +45,7 @@ const GOAL_OPTIONS: { value: CampaignGoal; label: string }[] = [
 ];
 
 export function AutopilotCampaignWizard({ workspaceId, onComplete }: AutopilotCampaignWizardProps) {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [icp, setIcp] = useState('');
@@ -80,6 +84,10 @@ export function AutopilotCampaignWizard({ workspaceId, onComplete }: AutopilotCa
         workspaceId,
       });
       setResult(data);
+      
+      // Invalidate campaigns query for automatic refresh
+      queryClient.invalidateQueries({ queryKey: cmoKeys.all });
+      
       toast.success('Autopilot campaign created successfully!');
       onComplete?.(data);
     } catch (error: any) {
