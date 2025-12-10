@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Linkedin, Calendar, Globe, Webhook, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Mail, Linkedin, Calendar, Globe, Webhook, Loader2, CheckCircle2, XCircle, Copy, ExternalLink } from "lucide-react";
 
 interface CustomerIntegration {
   id?: string;
@@ -238,6 +238,50 @@ export function IntegrationsTab() {
             <p className="text-xs text-muted-foreground">
               Replies to your outbound emails will be sent to this address
             </p>
+          </div>
+
+          <Separator className="my-4" />
+
+          {/* Resend Inbound Webhook Setup */}
+          <div className="space-y-3 bg-muted/50 p-4 rounded-lg border">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" />
+              <Label className="text-sm font-medium">Email Reply Notifications</Label>
+              <Badge variant="outline" className="text-xs">Resend Inbound</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              To receive notifications when prospects reply to your emails, configure Resend Inbound to send webhooks to:
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value="https://nyzgsizvtqhafoxixyrd.supabase.co/functions/v1/outbound-reply-webhook"
+                className="font-mono text-xs bg-background"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText("https://nyzgsizvtqhafoxixyrd.supabase.co/functions/v1/outbound-reply-webhook");
+                  toast({
+                    title: "Copied!",
+                    description: "Webhook URL copied to clipboard",
+                  });
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p><strong>Setup Steps:</strong></p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Go to your <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Resend Dashboard <ExternalLink className="h-3 w-3" /></a></li>
+                <li>Navigate to <strong>Inbound</strong> → <strong>Webhooks</strong></li>
+                <li>Add the webhook URL above</li>
+                <li>Configure to receive emails for your inbound domain</li>
+              </ol>
+              <p className="mt-2">When replies come in, you'll receive a notification at your Reply-To address above, and the reply will be logged in your CRM.</p>
+            </div>
           </div>
         </CardContent>
       </Card>
