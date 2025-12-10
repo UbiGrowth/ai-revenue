@@ -251,3 +251,9 @@ verify_jwt = false
 
 [functions.outbound-booking-webhook]
 verify_jwt = false
+
+[functions.ai-cmo-landing-pages-generate]
+verify_jwt = true
+
+[functions.ai-cmo-landing-pages-save]
+verify_jwt = true
