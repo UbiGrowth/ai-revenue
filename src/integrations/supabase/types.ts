@@ -3945,6 +3945,15 @@ export type Database = {
         Args: { in_outcome: string }
         Returns: string
       }
+      crm_promote_to_customer: {
+        Args: {
+          in_contact_id: string
+          in_lead_id?: string
+          in_meta?: Json
+          in_tenant_id: string
+        }
+        Returns: undefined
+      }
       crm_upsert_contact_and_lead: {
         Args: {
           in_campaign_id: string
