@@ -3248,6 +3248,7 @@ export type Database = {
           invited_by: string
           role: string
           status: string
+          tenant_id: string | null
           updated_at: string
           workspace_id: string | null
         }
@@ -3260,6 +3261,7 @@ export type Database = {
           invited_by: string
           role?: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
           workspace_id?: string | null
         }
@@ -3272,6 +3274,7 @@ export type Database = {
           invited_by?: string
           role?: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
           workspace_id?: string | null
         }
@@ -3457,6 +3460,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_team_invitation: {
+        Args: { _email: string; _user_id: string }
+        Returns: Json
+      }
       asset_approval_workspace_access: {
         Args: { approval_asset_id: string }
         Returns: boolean
