@@ -342,3 +342,65 @@ export interface CMOWorkflowState {
   funnels?: CMOFunnel[];
   campaigns?: CMOCampaign[];
 }
+
+// Landing Page Types
+export type LandingTemplateType =
+  | "saas"
+  | "lead_magnet"
+  | "webinar"
+  | "services"
+  | "booking"
+  | "long_form";
+
+export interface LandingSection {
+  type:
+    | "problem_solution"
+    | "features"
+    | "social_proof"
+    | "process"
+    | "faq"
+    | "pricing"
+    | "booking"
+    | "story";
+  heading: string;
+  body: string;
+  bullets: string[];
+}
+
+export interface LandingFormField {
+  name: string;
+  label: string;
+  required: boolean;
+  type?: "text" | "email" | "tel" | "select" | "textarea";
+  options?: string[]; // For select fields
+}
+
+export interface LandingPageDraft {
+  id?: string;
+  tenant_id?: string;
+  workspace_id?: string;
+  campaign_id?: string;
+  templateType: LandingTemplateType;
+  internalName: string;
+  urlSlug: string;
+  heroHeadline: string;
+  heroSubheadline: string;
+  heroSupportingPoints: string[];
+  sections: LandingSection[];
+  primaryCtaLabel: string;
+  primaryCtaType: "form" | "calendar";
+  formFields: LandingFormField[];
+  calendarUrl?: string;
+  status?: "draft" | "published" | "archived";
+  published_url?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LandingPageTemplate {
+  id: LandingTemplateType;
+  name: string;
+  description: string;
+  defaultSections: LandingSection["type"][];
+  suggestedFormFields: LandingFormField[];
+}
