@@ -365,57 +365,50 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!workspaceId) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select a workspace first",
-      });
-      return;
-    }
-
     setImporting(true);
     try {
-      // First verify user has access to this workspace
+      // First verify user is authenticated
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) {
         throw new Error("Please log in to import leads");
       }
 
-      // Verify workspace membership
-      const { data: membership, error: membershipError } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", user.user.id)
-        .maybeSingle();
-
-      // Also check if user owns the workspace
+      // Find user's workspace - check owned workspaces first, then membership
+      let validWorkspaceId = workspaceId;
+      
+      // Check if user owns a workspace
       const { data: ownedWorkspace } = await supabase
         .from("workspaces")
         .select("id")
-        .eq("id", workspaceId)
         .eq("owner_id", user.user.id)
+        .limit(1)
         .maybeSingle();
 
-      if (!membership && !ownedWorkspace) {
-        // User doesn't have access - try to find their actual workspace
-        const { data: userWorkspace } = await supabase
+      if (ownedWorkspace) {
+        validWorkspaceId = ownedWorkspace.id;
+      } else {
+        // Check workspace membership
+        const { data: memberWorkspace } = await supabase
           .from("workspace_members")
           .select("workspace_id")
           .eq("user_id", user.user.id)
           .limit(1)
           .maybeSingle();
-
-        if (userWorkspace?.workspace_id) {
-          // Update to correct workspace
-          localStorage.setItem("currentWorkspaceId", userWorkspace.workspace_id);
-          setWorkspaceId(userWorkspace.workspace_id);
-          sonnerToast.info("Workspace updated. Please try the import again.");
-          return;
+        
+        if (memberWorkspace) {
+          validWorkspaceId = memberWorkspace.workspace_id;
         }
+      }
 
-        throw new Error("You don't have access to this workspace. Please select a valid workspace.");
+      if (!validWorkspaceId) {
+        throw new Error("No workspace found. Please contact support.");
+      }
+
+      // Update localStorage if needed
+      if (validWorkspaceId !== workspaceId) {
+        localStorage.setItem("currentWorkspaceId", validWorkspaceId);
+        setWorkspaceId(validWorkspaceId);
+        console.log("Updated workspace to:", validWorkspaceId);
       }
 
       const csvContent = await file.text();
@@ -439,7 +432,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
 
       console.log("AI mapped leads:", data.leads.length);
       console.log("Column mapping:", data.mapping);
-      console.log("Confidence:", data.confidence);
+      console.log("Using workspace:", validWorkspaceId);
 
       // Show mapping info
       if (data.confidence && data.confidence < 0.7) {
@@ -449,12 +442,13 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
       const leadsWithMetadata = data.leads.map((lead: any) => ({
         ...lead,
         created_by: user.user?.id,
-        workspace_id: workspaceId,
+        workspace_id: validWorkspaceId,
       }));
 
       const { error: insertError } = await supabase.from("leads").insert(leadsWithMetadata);
 
       if (insertError) {
+        console.error("Insert error:", insertError);
         if (insertError.message?.includes("row-level security")) {
           throw new Error("Permission denied. Please ensure you have the correct role to import leads.");
         }
