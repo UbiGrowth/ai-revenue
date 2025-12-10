@@ -75,6 +75,9 @@ verify_jwt = true
 [functions.cmo-optimizer]
 verify_jwt = false
 
+[functions.cmo-optimizer-cron]
+verify_jwt = false
+
 [functions.cmo-content-engine]
 verify_jwt = true
 
