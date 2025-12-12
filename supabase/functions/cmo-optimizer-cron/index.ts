@@ -58,24 +58,40 @@ serve(async (req) => {
       try {
         console.log(`Triggering optimizer for: ${campaign.campaign_name} (${campaign.id})`);
 
-        // Fetch metrics for this campaign
+        // Fetch metrics snapshots for this campaign
         const { data: metricsSnapshots } = await supabase
           .from("cmo_metrics_snapshots")
-          .select("impressions, clicks, conversions, cost, revenue")
+          .select("impressions, clicks, conversions, cost, revenue, metric_type, custom_metrics")
           .eq("campaign_id", campaign.id)
           .order("snapshot_date", { ascending: false })
           .limit(30);
 
-        // Aggregate metrics
-        const metrics = (metricsSnapshots || []).reduce(
+        // Fetch reply count from campaign_metrics table
+        const { data: campaignMetrics } = await supabase
+          .from("campaign_metrics")
+          .select("reply_count, open_count, clicks")
+          .eq("campaign_id", campaign.id)
+          .maybeSingle();
+
+        // Aggregate metrics from snapshots
+        const snapshotMetrics = (metricsSnapshots || []).reduce(
           (acc, m) => ({
             opens: acc.opens + (m.impressions || 0),
             clicks: acc.clicks + (m.clicks || 0),
-            replies: acc.replies + (m.conversions || 0),
-            booked_meetings: acc.booked_meetings,
+            // Count email_reply metric_type entries as replies
+            replies: acc.replies + (m.metric_type === 'email_reply' ? (m.conversions || 0) : 0),
+            conversions: acc.conversions + (m.metric_type !== 'email_reply' ? (m.conversions || 0) : 0),
           }),
-          { opens: 0, clicks: 0, replies: 0, booked_meetings: 0 }
+          { opens: 0, clicks: 0, replies: 0, conversions: 0 }
         );
+
+        // Combine with campaign_metrics reply_count (prefer campaign_metrics as authoritative)
+        const metrics = {
+          opens: campaignMetrics?.open_count || snapshotMetrics.opens,
+          clicks: campaignMetrics?.clicks || snapshotMetrics.clicks,
+          replies: campaignMetrics?.reply_count || snapshotMetrics.replies,
+          booked_meetings: 0, // Will be populated from other sources
+        };
 
         // Call the optimizer function
         const optimizerResponse = await fetch(
