@@ -293,3 +293,6 @@ verify_jwt = false
 
 [functions.ai-cmo-campaign-metrics]
 verify_jwt = true
+
+[functions.send-test-update]
+verify_jwt = false
