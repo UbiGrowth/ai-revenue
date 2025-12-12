@@ -524,6 +524,7 @@ export type Database = {
           last_synced_at: string | null
           likes: number | null
           open_count: number | null
+          reply_count: number | null
           revenue: number | null
           sent_count: number | null
           shares: number | null
@@ -547,6 +548,7 @@ export type Database = {
           last_synced_at?: string | null
           likes?: number | null
           open_count?: number | null
+          reply_count?: number | null
           revenue?: number | null
           sent_count?: number | null
           shares?: number | null
@@ -570,6 +572,7 @@ export type Database = {
           last_synced_at?: string | null
           likes?: number | null
           open_count?: number | null
+          reply_count?: number | null
           revenue?: number | null
           sent_count?: number | null
           shares?: number | null
@@ -3984,11 +3987,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_campaign_reply_count: {
+        Args: { p_campaign_id: string; p_workspace_id: string }
+        Returns: undefined
+      }
       is_workspace_owner_or_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
       }
       must_change_password: { Args: { _user_id: string }; Returns: boolean }
+      record_reply_metric_snapshot: {
+        Args: {
+          p_campaign_id: string
+          p_tenant_id: string
+          p_workspace_id: string
+        }
+        Returns: undefined
+      }
       sequence_step_workspace_access: {
         Args: { step_sequence_id: string }
         Returns: boolean

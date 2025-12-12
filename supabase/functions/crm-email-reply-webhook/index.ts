@@ -64,10 +64,10 @@ serve(async (req) => {
     if (crmContact) {
       console.log(`[crm-email-reply-webhook] Found CRM contact: ${crmContact.first_name} ${crmContact.last_name}`);
 
-      // Find the most recent lead for this contact
+      // Find the most recent lead for this contact (with campaign info)
       const { data: crmLead } = await supabase
         .from("crm_leads")
-        .select("id, status")
+        .select("id, status, campaign_id")
         .eq("contact_id", crmContact.id)
         .eq("tenant_id", crmContact.tenant_id)
         .order("created_at", { ascending: false })
@@ -85,6 +85,7 @@ serve(async (req) => {
           subject: subject,
           text_preview: textContent.substring(0, 500),
           received_at: new Date().toISOString(),
+          campaign_id: crmLead?.campaign_id || null,
         },
       });
 
@@ -116,12 +117,19 @@ serve(async (req) => {
         });
       }
 
+      // --- ANALYTICS: Record reply in campaign metrics ---
+      if (crmLead?.campaign_id) {
+        await recordReplyAnalytics(supabase, crmContact.tenant_id, crmLead.campaign_id);
+      }
+
       return new Response(JSON.stringify({
         status: "ok",
         contact_id: crmContact.id,
         lead_id: crmLead?.id,
+        campaign_id: crmLead?.campaign_id,
         action: "crm_reply_logged",
         contact_name: `${crmContact.first_name} ${crmContact.last_name}`,
+        analytics_recorded: !!crmLead?.campaign_id,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -147,7 +155,18 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
+      let campaignId: string | null = null;
+
       if (sequenceRun) {
+        // Get sequence to find campaign_id
+        const { data: sequence } = await supabase
+          .from("outbound_sequences")
+          .select("id, campaign_id")
+          .eq("id", sequenceRun.sequence_id)
+          .maybeSingle();
+
+        campaignId = sequence?.campaign_id || null;
+
         // Get last step
         const { data: lastStep } = await supabase
           .from("outbound_sequence_steps")
@@ -156,7 +175,7 @@ serve(async (req) => {
           .eq("step_order", sequenceRun.last_step_sent)
           .maybeSingle();
 
-        // Log reply event
+        // Log reply event to outbound_message_events
         await supabase.from("outbound_message_events").insert({
           tenant_id: prospect.tenant_id,
           sequence_run_id: sequenceRun.id,
@@ -169,6 +188,7 @@ serve(async (req) => {
             text_preview: textContent.substring(0, 500),
           },
           occurred_at: new Date().toISOString(),
+          replied_at: new Date().toISOString(),
         });
 
         // Pause sequence
@@ -180,10 +200,10 @@ serve(async (req) => {
         console.log(`[crm-email-reply-webhook] Prospect reply logged, sequence paused`);
       }
 
-      // Also log to crm_activities if prospect has a linked CRM contact
+      // Also log to crm_activities for unified timeline
       await supabase.from("crm_activities").insert({
         tenant_id: prospect.tenant_id,
-        contact_id: null, // Will be linked if prospect has contact_id
+        contact_id: null,
         lead_id: null,
         activity_type: "email_reply",
         meta: {
@@ -192,13 +212,42 @@ serve(async (req) => {
           text_preview: textContent.substring(0, 500),
           prospect_id: prospect.id,
           source: "outbound_os",
+          campaign_id: campaignId,
         },
       });
+
+      // --- ANALYTICS: Record reply in campaign metrics for Outbound campaigns ---
+      if (campaignId) {
+        // Get campaign to find workspace_id for CMO campaigns
+        const { data: cmoCampaign } = await supabase
+          .from("cmo_campaigns")
+          .select("id, workspace_id")
+          .eq("id", campaignId)
+          .maybeSingle();
+
+        if (cmoCampaign?.workspace_id) {
+          await recordReplyAnalytics(supabase, prospect.tenant_id, campaignId, cmoCampaign.workspace_id);
+        }
+
+        // Also check outbound_campaigns
+        const { data: outboundCampaign } = await supabase
+          .from("outbound_campaigns")
+          .select("id, tenant_id")
+          .eq("id", campaignId)
+          .maybeSingle();
+
+        if (outboundCampaign) {
+          // Record in outbound analytics
+          console.log(`[crm-email-reply-webhook] Reply recorded for outbound campaign: ${campaignId}`);
+        }
+      }
 
       return new Response(JSON.stringify({
         status: "ok",
         prospect_id: prospect.id,
+        campaign_id: campaignId,
         action: "prospect_reply_logged",
+        analytics_recorded: !!campaignId,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -219,3 +268,61 @@ serve(async (req) => {
     });
   }
 });
+
+/**
+ * Record reply in campaign analytics tables
+ * - Increments reply_count in campaign_metrics
+ * - Records snapshot in cmo_metrics_snapshots for optimizer
+ */
+async function recordReplyAnalytics(
+  supabase: any,
+  tenantId: string,
+  campaignId: string,
+  workspaceId?: string
+) {
+  try {
+    // Get workspace_id if not provided
+    let wsId = workspaceId;
+    if (!wsId) {
+      const { data: campaign } = await supabase
+        .from("cmo_campaigns")
+        .select("workspace_id")
+        .eq("id", campaignId)
+        .maybeSingle();
+      wsId = campaign?.workspace_id;
+    }
+
+    if (!wsId) {
+      console.log(`[crm-email-reply-webhook] No workspace_id found for campaign ${campaignId}`);
+      return;
+    }
+
+    // Call RPC to increment reply count atomically
+    const { error: incError } = await supabase.rpc("increment_campaign_reply_count", {
+      p_campaign_id: campaignId,
+      p_workspace_id: wsId,
+    });
+
+    if (incError) {
+      console.error("[crm-email-reply-webhook] Error incrementing reply count:", incError);
+    } else {
+      console.log(`[crm-email-reply-webhook] Incremented reply_count for campaign ${campaignId}`);
+    }
+
+    // Record in metrics snapshot for optimizer
+    const { error: snapError } = await supabase.rpc("record_reply_metric_snapshot", {
+      p_workspace_id: wsId,
+      p_campaign_id: campaignId,
+      p_tenant_id: tenantId,
+    });
+
+    if (snapError) {
+      console.error("[crm-email-reply-webhook] Error recording metrics snapshot:", snapError);
+    } else {
+      console.log(`[crm-email-reply-webhook] Recorded metrics snapshot for campaign ${campaignId}`);
+    }
+
+  } catch (err) {
+    console.error("[crm-email-reply-webhook] Analytics recording error:", err);
+  }
+}
