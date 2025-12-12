@@ -2474,6 +2474,86 @@ export type Database = {
           },
         ]
       }
+      email_events: {
+        Row: {
+          campaign_id: string | null
+          contact_id: string | null
+          email_address: string
+          event_type: string
+          id: string
+          lead_id: string | null
+          meta: Json
+          occurred_at: string
+          provider: string
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          received_at: string
+          sequence_run_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          contact_id?: string | null
+          email_address: string
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          occurred_at: string
+          provider: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          received_at?: string
+          sequence_run_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          contact_id?: string | null
+          email_address?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          occurred_at?: string
+          provider?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          received_at?: string
+          sequence_run_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "cmo_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_sequence_run_id_fkey"
+            columns: ["sequence_run_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_sequence_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_sequence_steps: {
         Row: {
           body: string
