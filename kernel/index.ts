@@ -46,6 +46,7 @@ export * from './test/tenant-test';
 export * from './launch/module-toggle';
 export * from './health/module-health';
 export * from './prompts';
+export * from './crm-spine';
 
 // Export routing table for edge functions
 export { 
