@@ -302,3 +302,6 @@ verify_jwt = false
 
 [functions.send-bulk-update]
 verify_jwt = false
+
+[functions.cfo-weekly-snapshot]
+verify_jwt = false
