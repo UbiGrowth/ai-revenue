@@ -66,15 +66,12 @@ serve(async (req: Request): Promise<Response> => {
     // Supabase action_link format: https://xxx.supabase.co/auth/v1/verify?token=...&type=recovery&redirect_to=...
     const actionLinkUrl = new URL(data.properties.action_link);
     const token = actionLinkUrl.searchParams.get('token');
-    const tokenHash = actionLinkUrl.searchParams.get('token_hash');
-    
+
     // Build the reset link pointing directly to our app
     // The app will use verifyOtp to exchange the token for a session
     const targetUrl = redirectTo || "https://ubigrowth.ai/change-password";
-    const resetLink = tokenHash 
-      ? `${targetUrl}?token_hash=${tokenHash}&type=recovery`
-      : `${targetUrl}?token=${token}&type=recovery`;
-    
+    const resetLink = `${targetUrl}?token=${encodeURIComponent(token ?? "")}&type=recovery&email=${encodeURIComponent(email)}`;
+
     console.log("Reset link generated successfully, pointing to:", targetUrl);
 
     // Send branded email via Resend using fetch
