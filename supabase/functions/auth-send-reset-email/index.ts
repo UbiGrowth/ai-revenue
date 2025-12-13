@@ -39,10 +39,17 @@ serve(async (req: Request): Promise<Response> => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Determine the target URL for after password reset
+    const targetUrl = redirectTo || "https://ubigrowth.ai/change-password";
+    
     // Generate the password reset link using Supabase Admin API
+    // The admin API allows us to specify any redirect_to URL
     const { data, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: email,
+      options: {
+        redirectTo: targetUrl,
+      },
     });
 
     if (resetError) {
@@ -62,17 +69,9 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // The action_link contains the token - extract it and build our own link
-    // Supabase action_link format: https://xxx.supabase.co/auth/v1/verify?token=...&type=recovery&redirect_to=...
-    const actionLinkUrl = new URL(data.properties.action_link);
-    const token = actionLinkUrl.searchParams.get('token');
-
-    // Build the reset link pointing directly to our app
-    // The app will use verifyOtp to exchange the token for a session
-    const targetUrl = redirectTo || "https://ubigrowth.ai/change-password";
-    const resetLink = `${targetUrl}?token=${encodeURIComponent(token ?? "")}&type=recovery&email=${encodeURIComponent(email)}`;
-
-    console.log("Reset link generated successfully, pointing to:", targetUrl);
+    // Use the action_link directly - Supabase will verify the token and redirect to our app
+    const resetLink = data.properties.action_link;
+    console.log("Reset link generated successfully with redirect to:", targetUrl);
 
     // Send branded email via Resend using fetch
     const emailResponse = await fetch("https://api.resend.com/emails", {

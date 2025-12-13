@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,6 @@ const passwordSchema = z.object({
 
 const ForcePasswordChange = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -39,49 +38,37 @@ const ForcePasswordChange = () => {
   useEffect(() => {
     const handleRecoverySession = async () => {
       try {
-        // Check for token in query params (from our custom reset link)
-        const token = searchParams.get('token');
-        const email = searchParams.get('email');
-        const type = searchParams.get('type');
-        
-        // Also check hash params (legacy Supabase format)
+        // Check hash params - Supabase redirects with tokens in the hash
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
         const hashType = hashParams.get('type');
+        const errorDescription = hashParams.get('error_description');
         
-        if (token && email && type === 'recovery') {
-          setIsRecoveryFlow(true);
-          
-          // Verify the OTP token to get a session
-          const { data, error } = await supabase.auth.verifyOtp({
-            email,
-            token,
-            type: 'recovery',
+        // Handle error from Supabase redirect
+        if (errorDescription) {
+          console.error("Auth error from redirect:", errorDescription);
+          toast({
+            variant: "destructive",
+            title: "Invalid or expired link",
+            description: decodeURIComponent(errorDescription.replace(/\+/g, ' ')),
           });
-          
-          if (error || !data.session) {
-            console.error("Token verification failed:", error);
-            toast({
-              variant: "destructive",
-              title: "Invalid or expired link",
-              description: "Please request a new password reset link.",
-            });
-            navigate("/login");
-            return;
-          }
-          
-          // Clear the query params from URL for cleaner display
-          window.history.replaceState(null, '', window.location.pathname);
-          setIsInitializing(false);
+          navigate("/login");
           return;
         }
         
-        // Handle hash params (legacy format)
-        if (accessToken && hashType === 'recovery') {
+        // Handle recovery flow with tokens in hash
+        if (accessToken && refreshToken && hashType === 'recovery') {
           setIsRecoveryFlow(true);
-          const { data: { session }, error } = await supabase.auth.getSession();
           
-          if (error || !session) {
+          // Set the session using the tokens from the URL
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (error || !data.session) {
+            console.error("Session setup failed:", error);
             toast({
               variant: "destructive",
               title: "Invalid or expired link",
@@ -91,6 +78,7 @@ const ForcePasswordChange = () => {
             return;
           }
           
+          // Clear the hash from URL for cleaner display
           window.history.replaceState(null, '', window.location.pathname);
           setIsInitializing(false);
           return;
@@ -125,7 +113,7 @@ const ForcePasswordChange = () => {
     handleRecoverySession();
 
     return () => subscription.unsubscribe();
-  }, [navigate, toast, searchParams]);
+  }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
