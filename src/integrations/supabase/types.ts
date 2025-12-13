@@ -1024,11 +1024,20 @@ export type Database = {
           content_types: Json | null
           created_at: string
           expected_metrics: Json | null
+          external_account_id: string | null
+          external_ad_id: string | null
+          external_adset_id: string | null
+          external_campaign_id: string | null
+          external_source: string | null
           id: string
+          is_paid: boolean | null
           posting_frequency: string | null
           priority: string | null
           targeting_notes: string | null
           updated_at: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
         }
         Insert: {
           budget_percentage?: number | null
@@ -1038,11 +1047,20 @@ export type Database = {
           content_types?: Json | null
           created_at?: string
           expected_metrics?: Json | null
+          external_account_id?: string | null
+          external_ad_id?: string | null
+          external_adset_id?: string | null
+          external_campaign_id?: string | null
+          external_source?: string | null
           id?: string
+          is_paid?: boolean | null
           posting_frequency?: string | null
           priority?: string | null
           targeting_notes?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
         }
         Update: {
           budget_percentage?: number | null
@@ -1052,11 +1070,20 @@ export type Database = {
           content_types?: Json | null
           created_at?: string
           expected_metrics?: Json | null
+          external_account_id?: string | null
+          external_ad_id?: string | null
+          external_adset_id?: string | null
+          external_campaign_id?: string | null
+          external_source?: string | null
           id?: string
+          is_paid?: boolean | null
           posting_frequency?: string | null
           priority?: string | null
           targeting_notes?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
         }
         Relationships: [
           {
