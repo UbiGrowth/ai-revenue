@@ -53,8 +53,12 @@ export default function TargetsGuardrailsPanel({ tenantId }: Props) {
 
   const [guardrails, setGuardrails] = useState<Guardrail[]>([
     { id: "budget_cap", label: "Monthly Budget Cap", enabled: true, value: 50000, unit: "$" },
+    { id: "payback_target", label: "Target Payback Months", enabled: true, value: 12, unit: "mo" },
     { id: "payback_threshold", label: "Max Payback Months", enabled: true, value: 18, unit: "mo" },
-    { id: "experiment_risk", label: "Experiment Risk Level", enabled: true, value: 20, unit: "%" },
+    { id: "margin_floor", label: "Gross Margin Floor", enabled: true, value: 50, unit: "%" },
+    { id: "max_cac", label: "Max CAC", enabled: false, value: 2500, unit: "$" },
+    { id: "cash_risk", label: "Cash Risk Tolerance", enabled: true, value: 2, unit: "" }, // 1=low, 2=medium, 3=high
+    { id: "experiment_risk", label: "Experiment Exposure Limit", enabled: true, value: 20, unit: "%" },
   ]);
 
   const [levers, setLevers] = useState([
