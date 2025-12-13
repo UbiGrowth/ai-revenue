@@ -3400,6 +3400,7 @@ export type Database = {
           created_at: string
           delta: number | null
           delta_direction: string | null
+          economic_deltas: Json | null
           id: string
           metadata: Json | null
           metric_id: string
@@ -3415,6 +3416,7 @@ export type Database = {
           created_at?: string
           delta?: number | null
           delta_direction?: string | null
+          economic_deltas?: Json | null
           id?: string
           metadata?: Json | null
           metric_id: string
@@ -3430,6 +3432,7 @@ export type Database = {
           created_at?: string
           delta?: number | null
           delta_direction?: string | null
+          economic_deltas?: Json | null
           id?: string
           metadata?: Json | null
           metric_id?: string
@@ -3537,6 +3540,7 @@ export type Database = {
       optimization_cycles: {
         Row: {
           binding_constraint: string | null
+          cfo_gates_active: string[] | null
           created_at: string
           duration_ms: number | null
           error_message: string | null
@@ -3550,6 +3554,7 @@ export type Database = {
         }
         Insert: {
           binding_constraint?: string | null
+          cfo_gates_active?: string[] | null
           created_at?: string
           duration_ms?: number | null
           error_message?: string | null
@@ -3563,6 +3568,7 @@ export type Database = {
         }
         Update: {
           binding_constraint?: string | null
+          cfo_gates_active?: string[] | null
           created_at?: string
           duration_ms?: number | null
           error_message?: string | null
