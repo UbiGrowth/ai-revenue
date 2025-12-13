@@ -62,6 +62,18 @@ Any change to frozen components MUST follow this process:
 5. **Tag**: Create new tag (e.g., `revenue-os-v1.1-stable`)
 6. **Document**: Update this file with change summary
 
+### PR Checklist Item (Required)
+
+All PRs must answer: **"Does this touch any frozen Revenue OS v1 components?"**
+
+If yes:
+- [ ] Updated relevant spec document
+- [ ] Peer review obtained
+- [ ] PRCT scenarios re-run and passed
+- [ ] CFO gates verified
+- [ ] New tag created
+- [ ] This document updated
+
 ---
 
 ## What Goes to v2 Backlog

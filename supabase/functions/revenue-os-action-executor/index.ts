@@ -21,7 +21,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { tenant_id, action_id, operation } = await req.json();
+    const body = await req.json();
+    const { tenant_id, action_id, operation, user_id } = body;
 
     if (operation === 'execute_pending') {
       // Find and execute pending actions
@@ -61,7 +62,6 @@ serve(async (req) => {
 
     if (operation === 'acknowledge_action') {
       // Human acknowledges action - allows execution to proceed
-      const { user_id } = await req.json();
       await acknowledgeAction(supabase, action_id, user_id);
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
