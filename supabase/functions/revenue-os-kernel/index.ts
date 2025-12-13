@@ -80,13 +80,36 @@ const METRIC_TARGETS: Record<string, { target: number; direction: 'higher_is_bet
   cac_blended: { target: 500, direction: 'lower_is_better', domain: 'economics' },
   payback_months: { target: 12, direction: 'lower_is_better', domain: 'economics' },
   gross_margin_pct: { target: 0.70, direction: 'higher_is_better', domain: 'economics' },
+  contribution_margin_pct: { target: 0.50, direction: 'higher_is_better', domain: 'economics' },
   ltv_cac_ratio: { target: 3.0, direction: 'higher_is_better', domain: 'economics' },
+  revenue_per_fte: { target: 150000, direction: 'higher_is_better', domain: 'economics' },
+  sales_efficiency_ratio: { target: 1.0, direction: 'higher_is_better', domain: 'economics' },
+  cash_runway_months: { target: 12, direction: 'higher_is_better', domain: 'economics' },
+};
+
+// CFO Guardrails - configurable per tenant, these are defaults
+interface CFOGuardrails {
+  payback_target: number;
+  payback_tolerance: number;
+  margin_floor: number;
+  cash_runway_threshold: number;
+  max_cac: number | null;
+  cash_risk_tolerance: 'low' | 'medium' | 'high';
+}
+
+const DEFAULT_CFO_GUARDRAILS: CFOGuardrails = {
+  payback_target: 12,
+  payback_tolerance: 3, // Allow up to target + 3 months
+  margin_floor: 0.50, // 50% gross margin floor
+  cash_runway_threshold: 6, // 6 months minimum runway
+  max_cac: null, // Optional per-segment CAC cap
+  cash_risk_tolerance: 'medium',
 };
 
 // Data quality thresholds
 const DATA_QUALITY_CONFIG = {
   max_staleness_hours: 48,
-  required_metrics: ['pipeline_total', 'bookings_count', 'cac_blended', 'payback_months'],
+  required_metrics: ['pipeline_total', 'bookings_count', 'cac_blended', 'payback_months', 'gross_margin_pct'],
   min_data_points: 7,
 };
 
@@ -136,6 +159,15 @@ serve(async (req) => {
     // 3. Validate data quality
     const dataQuality = validateDataQuality(inputBundle.metrics);
     
+    // 4. Get CFO guardrails (from tenant config or defaults)
+    const cfoGuardrails: CFOGuardrails = {
+      ...DEFAULT_CFO_GUARDRAILS,
+      ...(inputBundle.tenantConfig?.cfo_guardrails || {}),
+    };
+    
+    // 5. Evaluate CFO gates
+    const cfoGates = evaluateCFOGates(inputBundle.metrics, cfoGuardrails);
+    
     let bindingConstraint: BindingConstraint;
     let actions: Action[] = [];
     let dataQualityActions: { field: string; issue: string; impact: string; recommended_fix: string }[] = [];
@@ -152,35 +184,39 @@ serve(async (req) => {
       dataQualityActions = dataQuality.issues;
       actions = generateDataCorrectionActions(dataQuality.issues);
     } else {
-      // 4. Identify binding constraint
-      bindingConstraint = identifyBindingConstraint(inputBundle.metrics, inputBundle.tenantConfig);
+      // 6. Identify binding constraint (CFO gates may override)
+      bindingConstraint = identifyBindingConstraint(inputBundle.metrics, inputBundle.tenantConfig, cfoGates);
 
-      // 5. Generate action candidates
-      const candidates = generateActionCandidates(bindingConstraint, inputBundle, trigger);
+      // 7. Generate action candidates with CFO gating
+      const candidates = generateActionCandidates(bindingConstraint, inputBundle, trigger, cfoGates);
 
-      // 6. Filter and rank (top 3-7)
-      actions = filterAndRankActions(candidates, inputBundle.activeActions);
+      // 8. Score with CFO weights and filter
+      const scored = scoreActionsWithCFOWeights(candidates, cfoGates, inputBundle.priorResults);
+      
+      // 9. Filter and rank (top 3-7)
+      actions = filterAndRankActions(scored, inputBundle.activeActions, cfoGates);
     }
 
-    // 7. Build kernel output
+    // 10. Build kernel output
     const kernelOutput = {
       tenant_id,
       cycle_summary: {
         binding_constraint: bindingConstraint.constraint,
-        diagnosis: buildDiagnosis(bindingConstraint, inputBundle.metrics),
+        diagnosis: buildDiagnosis(bindingConstraint, inputBundle.metrics, cfoGates),
         priority_metric: bindingConstraint.priority_metric,
         supporting_metrics: bindingConstraint.supporting_metrics,
+        cfo_gates_active: Object.entries(cfoGates).filter(([_, v]) => v === true).map(([k]) => k),
       },
       actions,
       data_quality_actions: dataQualityActions,
       learning_plan: buildLearningPlan(actions, bindingConstraint),
     };
 
-    // 8. Persist optimization cycle
+    // 11. Persist optimization cycle
     const durationMs = Date.now() - startTime;
-    const cycleId = await persistOptimizationCycle(supabase, tenant_id, kernelOutput, trigger, durationMs);
+    const cycleId = await persistOptimizationCycle(supabase, tenant_id, kernelOutput, trigger, durationMs, cfoGates);
 
-    // 9. Persist optimization actions
+    // 12. Persist optimization actions
     if (actions.length > 0) {
       await persistOptimizationActions(supabase, tenant_id, cycleId, actions);
     }
@@ -207,6 +243,129 @@ serve(async (req) => {
 });
 
 // =====================================================
+// CFO GATING FUNCTIONS
+// =====================================================
+
+interface CFOGateStatus {
+  payback_gate_triggered: boolean;
+  margin_gate_triggered: boolean;
+  cash_runway_gate_triggered: boolean;
+  suppress_demand_scaling: boolean;
+  reduce_experiment_exposure: boolean;
+  current_payback_months: number | null;
+  current_margin_pct: number | null;
+  current_runway_months: number | null;
+}
+
+function evaluateCFOGates(metrics: MetricSnapshot[], guardrails: CFOGuardrails): CFOGateStatus {
+  const latestByMetric = new Map<string, number>();
+  for (const m of metrics) {
+    if (!latestByMetric.has(m.metric_id)) {
+      latestByMetric.set(m.metric_id, m.value);
+    }
+  }
+
+  const paybackMonths = latestByMetric.get('payback_months') ?? null;
+  const marginPct = latestByMetric.get('gross_margin_pct') ?? null;
+  const runwayMonths = latestByMetric.get('cash_runway_months') ?? null;
+
+  const paybackGateTriggered = paybackMonths !== null && 
+    paybackMonths > guardrails.payback_target + guardrails.payback_tolerance;
+  
+  const marginGateTriggered = marginPct !== null && 
+    marginPct < guardrails.margin_floor;
+  
+  const cashRunwayGateTriggered = runwayMonths !== null && 
+    runwayMonths < guardrails.cash_runway_threshold;
+
+  return {
+    payback_gate_triggered: paybackGateTriggered,
+    margin_gate_triggered: marginGateTriggered,
+    cash_runway_gate_triggered: cashRunwayGateTriggered,
+    suppress_demand_scaling: paybackGateTriggered || marginGateTriggered,
+    reduce_experiment_exposure: cashRunwayGateTriggered || guardrails.cash_risk_tolerance === 'low',
+    current_payback_months: paybackMonths,
+    current_margin_pct: marginPct,
+    current_runway_months: runwayMonths,
+  };
+}
+
+// CFO-weighted action scoring
+interface ScoredAction extends Action {
+  cfo_score: number;
+}
+
+function scoreActionsWithCFOWeights(
+  candidates: Action[], 
+  gates: CFOGateStatus,
+  priorResults: any[]
+): ScoredAction[] {
+  // Build map of action types that failed in prior cycles
+  const failedActionTypes = new Set<string>();
+  for (const result of priorResults) {
+    if (result.delta_direction === 'decrease' && result.optimization_actions?.target_direction === 'increase') {
+      const actionType = result.optimization_actions?.action_id?.split('_').slice(0, 2).join('_');
+      if (actionType) failedActionTypes.add(actionType);
+    }
+    if (result.delta_direction === 'increase' && result.optimization_actions?.target_direction === 'decrease') {
+      const actionType = result.optimization_actions?.action_id?.split('_').slice(0, 2).join('_');
+      if (actionType) failedActionTypes.add(actionType);
+    }
+  }
+
+  return candidates.map(action => {
+    let revenue_impact_weight = 0.5;
+    let payback_improvement_weight = 0;
+    let margin_protection_weight = 0;
+    let cash_risk_penalty = 0;
+
+    // Revenue impact based on target metric
+    if (['pipeline_total', 'bookings_count', 'opps_created'].includes(action.target_metric)) {
+      revenue_impact_weight = 1.0;
+    } else if (['win_rate', 'leads_qualified'].includes(action.target_metric)) {
+      revenue_impact_weight = 0.8;
+    }
+
+    // Payback improvement for efficiency actions
+    if (['payback_months', 'cac_blended', 'ltv_cac_ratio'].includes(action.target_metric)) {
+      payback_improvement_weight = 1.0;
+    } else if (action.lens_emphasis === 'cfo') {
+      payback_improvement_weight = 0.5;
+    }
+
+    // Margin protection
+    if (['gross_margin_pct', 'contribution_margin_pct'].includes(action.target_metric)) {
+      margin_protection_weight = 1.0;
+    } else if (action.owner_subsystem === 'pricing') {
+      margin_protection_weight = 0.7;
+    }
+
+    // Cash risk based on spend and experiment type
+    if (action.guardrails.max_additional_spend && action.guardrails.max_additional_spend > 1000) {
+      cash_risk_penalty = 0.5;
+    }
+    if (action.type === 'experiment' && action.guardrails.max_exposure_percent && action.guardrails.max_exposure_percent > 30) {
+      cash_risk_penalty += 0.3;
+    }
+
+    // Penalize repeating failed experiments
+    const actionType = action.action_id.split('_').slice(0, 2).join('_');
+    if (failedActionTypes.has(actionType)) {
+      cash_risk_penalty += 1.0;
+    }
+
+    // Calculate CFO-weighted score
+    const cfo_score = 
+      (revenue_impact_weight * 1.0) +
+      (payback_improvement_weight * 1.5) +
+      (margin_protection_weight * 1.3) -
+      (cash_risk_penalty * 2.0);
+
+    return { ...action, cfo_score };
+  });
+}
+
+// =====================================================
 // HELPER FUNCTIONS
 // =====================================================
 
@@ -227,7 +386,7 @@ async function gatherInputBundle(supabase: any, tenantId: string, windowDays: nu
   const windowStart = new Date(Date.now() - windowDays * 86400000).toISOString().split('T')[0];
 
   // Parallel queries for efficiency
-  const [metricsResult, revenueEventsResult, activitiesResult, campaignsResult, activeActionsResult, tenantResult] = await Promise.all([
+  const [metricsResult, revenueEventsResult, activitiesResult, campaignsResult, activeActionsResult, tenantResult, priorResultsResult] = await Promise.all([
     supabase.from('metric_snapshots_daily')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -253,6 +412,12 @@ async function gatherInputBundle(supabase: any, tenantId: string, windowDays: nu
       .select('*')
       .eq('id', tenantId)
       .single(),
+    // Get prior action results for learning loop
+    supabase.from('optimization_action_results')
+      .select('*, optimization_actions(*)')
+      .eq('tenant_id', tenantId)
+      .order('observation_end_date', { ascending: false })
+      .limit(50),
   ]);
 
   return {
@@ -262,6 +427,7 @@ async function gatherInputBundle(supabase: any, tenantId: string, windowDays: nu
     campaigns: campaignsResult.data || [],
     activeActions: activeActionsResult.data || [],
     tenantConfig: tenantResult.data?.config || {},
+    priorResults: priorResultsResult.data || [],
   };
 }
 
@@ -315,7 +481,7 @@ function validateDataQuality(metrics: MetricSnapshot[]): { valid: boolean; issue
   return { valid: issues.length === 0, issues };
 }
 
-function identifyBindingConstraint(metrics: MetricSnapshot[], tenantConfig: Record<string, unknown>): BindingConstraint {
+function identifyBindingConstraint(metrics: MetricSnapshot[], tenantConfig: Record<string, unknown>, cfoGates: CFOGateStatus): BindingConstraint {
   const latestByMetric = new Map<string, MetricSnapshot>();
   const trendByMetric = new Map<string, 'improving' | 'degrading' | 'flat'>();
 
@@ -400,14 +566,19 @@ function identifyBindingConstraint(metrics: MetricSnapshot[], tenantConfig: Reco
 function generateActionCandidates(
   constraint: BindingConstraint,
   inputBundle: any,
-  trigger: TriggerCondition
+  trigger: TriggerCondition,
+  cfoGates: CFOGateStatus
 ): Action[] {
   const candidates: Action[] = [];
   const timestamp = Date.now();
 
+  // CFO gate check: suppress demand scaling if triggered
+  const suppressDemandScaling = cfoGates.suppress_demand_scaling;
+  const reduceExperimentExposure = cfoGates.reduce_experiment_exposure;
+
   // Generate lens-specific actions based on constraint
-  if (constraint.constraint === 'demand') {
-    // CMO lens actions
+  if (constraint.constraint === 'demand' && !suppressDemandScaling) {
+    // CMO lens actions - only if CFO gates allow scaling
     candidates.push({
       action_id: `increase_channel_budget_${timestamp}`,
       priority_rank: 1,
@@ -621,22 +792,36 @@ function generateDataCorrectionActions(issues: { field: string; issue: string; i
   }));
 }
 
-function filterAndRankActions(candidates: Action[], activeActions: any[]): Action[] {
+function filterAndRankActions(candidates: ScoredAction[], activeActions: any[], cfoGates: CFOGateStatus): Action[] {
   // Remove duplicates with active actions
   const activeActionTypes = new Set(activeActions.map(a => a.action_id?.split('_').slice(0, -1).join('_')));
   
-  const filtered = candidates.filter(c => {
+  let filtered = candidates.filter(c => {
     const actionType = c.action_id.split('_').slice(0, -1).join('_');
     return !activeActionTypes.has(actionType);
   });
 
-  // Sort by priority and take top N
+  // Apply CFO experiment exposure reduction
+  if (cfoGates.reduce_experiment_exposure) {
+    filtered = filtered.map(a => {
+      if (a.type === 'experiment' && a.guardrails.max_exposure_percent && a.guardrails.max_exposure_percent > 10) {
+        return {
+          ...a,
+          guardrails: { ...a.guardrails, max_exposure_percent: 10 },
+          notes_for_humans: `${a.notes_for_humans} [CFO: Exposure reduced due to cash runway concerns]`,
+        };
+      }
+      return a;
+    });
+  }
+
+  // Sort by CFO score (highest first) then priority
   return filtered
-    .sort((a, b) => a.priority_rank - b.priority_rank)
+    .sort((a, b) => (b.cfo_score || 0) - (a.cfo_score || 0) || a.priority_rank - b.priority_rank)
     .slice(0, MAX_ACTIONS_PER_CYCLE);
 }
 
-function buildDiagnosis(constraint: BindingConstraint, metrics: MetricSnapshot[]): string {
+function buildDiagnosis(constraint: BindingConstraint, metrics: MetricSnapshot[], cfoGates: CFOGateStatus): string {
   const trendText = constraint.trend === 'improving' ? 'showing improvement' : 
                     constraint.trend === 'degrading' ? 'declining' : 'stable';
   
@@ -644,9 +829,20 @@ function buildDiagnosis(constraint: BindingConstraint, metrics: MetricSnapshot[]
     ? `${Math.round(constraint.gap_to_target_pct)}% below target` 
     : 'on target';
 
+  let cfoNote = '';
+  if (cfoGates.payback_gate_triggered) {
+    cfoNote += ` [CFO GATE: Payback ${cfoGates.current_payback_months?.toFixed(1)}mo exceeds threshold - demand scaling suppressed]`;
+  }
+  if (cfoGates.margin_gate_triggered) {
+    cfoNote += ` [CFO GATE: Margin ${((cfoGates.current_margin_pct || 0) * 100).toFixed(0)}% below floor - channel scaling blocked]`;
+  }
+  if (cfoGates.cash_runway_gate_triggered) {
+    cfoNote += ` [CFO GATE: Cash runway ${cfoGates.current_runway_months?.toFixed(0)}mo below threshold - experiment exposure reduced]`;
+  }
+
   return `Primary constraint: ${constraint.constraint}. ` +
          `Key metric ${constraint.priority_metric} is ${gapText} and ${trendText}. ` +
-         `Focus optimization efforts on ${constraint.constraint} improvements.`;
+         `Focus optimization efforts on ${constraint.constraint} improvements.${cfoNote}`;
 }
 
 function buildLearningPlan(actions: Action[], constraint: BindingConstraint) {
@@ -673,7 +869,8 @@ async function persistOptimizationCycle(
   tenantId: string,
   output: any,
   trigger: TriggerCondition,
-  durationMs: number
+  durationMs: number,
+  cfoGates: CFOGateStatus
 ): Promise<string> {
   const { data, error } = await supabase
     .from('optimization_cycles')
@@ -682,7 +879,7 @@ async function persistOptimizationCycle(
       invoked_at: new Date().toISOString(),
       binding_constraint: output.cycle_summary.binding_constraint,
       priority_metric_id: output.cycle_summary.priority_metric,
-      input_snapshot_ref: { trigger },
+      input_snapshot_ref: { trigger, cfo_gates: cfoGates },
       raw_kernel_output: output,
       duration_ms: durationMs,
       status: 'completed',
