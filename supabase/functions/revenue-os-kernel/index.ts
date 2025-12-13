@@ -883,6 +883,7 @@ async function persistOptimizationCycle(
       raw_kernel_output: output,
       duration_ms: durationMs,
       status: 'completed',
+      cfo_gates_active: output.cycle_summary.cfo_gates_active || [],
     })
     .select('id')
     .single();
