@@ -5148,6 +5148,21 @@ export type Database = {
         Args: { p_campaign_id: string }
         Returns: Json
       }
+      weekly_cfo_portfolio_snapshot: {
+        Args: never
+        Returns: {
+          avg_cac_blended: number
+          avg_contribution_margin_pct: number
+          avg_gross_margin_pct: number
+          avg_payback_months: number
+          avg_revenue_per_fte: number
+          avg_sales_efficiency_ratio: number
+          tenants_active: number
+          total_econ_actions: number
+          total_econ_actions_hurt: number
+          total_econ_actions_improved: number
+        }[]
+      }
       weekly_cfo_snapshot: {
         Args: never
         Returns: {
