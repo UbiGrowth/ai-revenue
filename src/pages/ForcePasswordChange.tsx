@@ -40,8 +40,8 @@ const ForcePasswordChange = () => {
     const handleRecoverySession = async () => {
       try {
         // Check for token in query params (from our custom reset link)
-        const tokenHash = searchParams.get('token_hash');
         const token = searchParams.get('token');
+        const email = searchParams.get('email');
         const type = searchParams.get('type');
         
         // Also check hash params (legacy Supabase format)
@@ -49,13 +49,13 @@ const ForcePasswordChange = () => {
         const accessToken = hashParams.get('access_token');
         const hashType = hashParams.get('type');
         
-        if ((tokenHash || token) && type === 'recovery') {
+        if (token && email && type === 'recovery') {
           setIsRecoveryFlow(true);
           
           // Verify the OTP token to get a session
           const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash || undefined,
-            token: token || undefined,
+            email,
+            token,
             type: 'recovery',
           });
           
