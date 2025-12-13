@@ -100,7 +100,7 @@ interface CFOGuardrails {
 const DEFAULT_CFO_GUARDRAILS: CFOGuardrails = {
   payback_target: 12,
   payback_tolerance: 3, // Allow up to target + 3 months
-  margin_floor: 0.50, // 50% gross margin floor
+  margin_floor: 50, // 50% gross margin floor (stored as percentage in DB)
   cash_runway_threshold: 6, // 6 months minimum runway
   max_cac: null, // Optional per-segment CAC cap
   cash_risk_tolerance: 'medium',
@@ -435,13 +435,20 @@ async function gatherInputBundle(supabase: any, tenantId: string, windowDays: nu
       .limit(50),
   ]);
 
+  // Merge config JSONB with direct columns for CFO expansion
+  const tenantData = tenantResult.data;
+  const mergedConfig = {
+    ...(tenantData?.config || {}),
+    cfo_expansion_enabled: tenantData?.cfo_expansion_enabled === true,
+  };
+
   return {
     metrics: metricsResult.data || [],
     revenueEvents: revenueEventsResult.data || [],
     activities: activitiesResult.data || [],
     campaigns: campaignsResult.data || [],
     activeActions: activeActionsResult.data || [],
-    tenantConfig: tenantResult.data?.config || {},
+    tenantConfig: mergedConfig,
     priorResults: priorResultsResult.data || [],
   };
 }
