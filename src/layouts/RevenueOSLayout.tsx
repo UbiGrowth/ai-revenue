@@ -1,5 +1,5 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Target, Activity, Zap } from "lucide-react";
+import { Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
+import { Target, Activity, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { useRevenueOSEnabled } from "@/hooks/useRevenueOSEnabled";
 
 const navItems = [
   { id: "targets", label: "Targets & Guardrails", path: "/revenue-os/targets", icon: Target },
@@ -36,6 +37,7 @@ export default function RevenueOSLayout() {
   const { toast } = useToast();
   const [userName, setUserName] = useState<string>("");
   const [userInitials, setUserInitials] = useState<string>("U");
+  const { revenue_os_enabled, loading: flagsLoading } = useRevenueOSEnabled();
 
   useEffect(() => {
     if (user) {
@@ -45,6 +47,19 @@ export default function RevenueOSLayout() {
       setUserInitials(initials);
     }
   }, [user]);
+
+  // Check feature flag
+  if (flagsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!revenue_os_enabled) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleLogout = async () => {
     await signOut();

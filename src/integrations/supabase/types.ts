@@ -2918,6 +2918,50 @@ export type Database = {
         }
         Relationships: []
       }
+      kernel_cycle_slo: {
+        Row: {
+          created_at: string
+          cycle_date: string
+          cycles_attempted: number
+          cycles_failed: number
+          cycles_succeeded: number
+          economics_actions_count: number
+          id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cycle_date: string
+          cycles_attempted?: number
+          cycles_failed?: number
+          cycles_succeeded?: number
+          economics_actions_count?: number
+          id?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cycle_date?: string
+          cycles_attempted?: number
+          cycles_failed?: number
+          cycles_succeeded?: number
+          economics_actions_count?: number
+          id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kernel_cycle_slo_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       landing_pages: {
         Row: {
           campaign_id: string
@@ -4806,33 +4850,39 @@ export type Database = {
       tenants: {
         Row: {
           billing_plan: string
+          cfo_expansion_enabled: boolean
           config: Json | null
           created_at: string
           default_currency: string
           id: string
           name: string
+          revenue_os_enabled: boolean
           slug: string
           status: string
           updated_at: string
         }
         Insert: {
           billing_plan?: string
+          cfo_expansion_enabled?: boolean
           config?: Json | null
           created_at?: string
           default_currency?: string
           id?: string
           name: string
+          revenue_os_enabled?: boolean
           slug: string
           status?: string
           updated_at?: string
         }
         Update: {
           billing_plan?: string
+          cfo_expansion_enabled?: boolean
           config?: Json | null
           created_at?: string
           default_currency?: string
           id?: string
           name?: string
+          revenue_os_enabled?: boolean
           slug?: string
           status?: string
           updated_at?: string
