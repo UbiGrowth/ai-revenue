@@ -4,24 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
 import {
-  Zap,
-  BarChart3,
-  Target,
-  Workflow,
-  Shield,
-  Lock,
-  CreditCard,
   ArrowRight,
-  CheckCircle2,
-  LineChart,
-  TrendingUp,
-  DollarSign,
-  Users,
-  Brain,
-  Gauge,
-  Activity,
-  PieChart,
-  Calculator,
+  Check,
+  X,
 } from "lucide-react";
 
 const Index = () => {
@@ -35,164 +20,90 @@ const Index = () => {
     });
   }, [navigate]);
 
-  const pillars = [
-    { 
-      icon: Target, 
-      title: "CMO", 
-      subtitle: "Demand & Pipeline",
-      desc: "Autonomous campaigns, multi-channel orchestration, funnel optimization" 
-    },
-    { 
-      icon: TrendingUp, 
-      title: "CRO", 
-      subtitle: "Sales & Conversion",
-      desc: "Deal velocity, win rate optimization, forecast accuracy" 
-    },
-    { 
-      icon: DollarSign, 
-      title: "CFO", 
-      subtitle: "Economics & Efficiency",
-      desc: "CAC payback, margin protection, spend governance" 
-    },
-  ];
-
   const steps = [
-    { num: "01", title: "Set Targets", desc: "Define your revenue goals and economic guardrails." },
-    { num: "02", title: "Connect Data", desc: "OS ingests metrics across marketing, sales, and finance." },
-    { num: "03", title: "AI Optimizes", desc: "OS generates prioritized actions to hit your targets." },
-    { num: "04", title: "Auto-Execute", desc: "Actions run automatically. You stay in control." },
+    { num: "1", title: "Set your revenue goal", desc: "Tell us what you want to hit. Pipeline, bookings, meetings — your number." },
+    { num: "2", title: "UbiGrowth builds the plan", desc: "AI creates campaigns, sequences, and content. You approve or adjust." },
+    { num: "3", title: "Watch it execute and optimize", desc: "The system runs, learns, and improves. You focus on closing." },
   ];
 
-  const keyFeatures = [
-    { icon: Brain, title: "Unified AI", desc: "One system optimizing pipeline, conversion, and economics together" },
-    { icon: Activity, title: "Revenue Spine", desc: "Single source of truth for all your metrics" },
-    { icon: Gauge, title: "Targets & Guardrails", desc: "Set goals once—OS respects your constraints" },
-    { icon: Zap, title: "Auto-Optimization", desc: "AI experiments that execute and learn on their own" },
-    { icon: LineChart, title: "Economics-First", desc: "Every action checked against payback and margin" },
-    { icon: PieChart, title: "Continuous Learning", desc: "Results feed back into the OS automatically" },
+  const stackItems = [
+    { name: "CRM", replaced: true },
+    { name: "Outreach tool", replaced: true },
+    { name: "Email automation", replaced: true },
+    { name: "Analytics dashboard", replaced: true },
+    { name: "Lead scoring", replaced: true },
+    { name: "Marketing automation", replaced: true },
   ];
 
-  const metrics = [
-    { label: "Pipeline", metric: "pipeline_total", desc: "Total qualified pipeline value" },
-    { label: "Bookings", metric: "bookings_total", desc: "New business closed" },
-    { label: "Payback", metric: "payback_months", desc: "CAC recovery time" },
-    { label: "CAC", metric: "cac_blended", desc: "Customer acquisition cost" },
-    { label: "Margin", metric: "gross_margin_pct", desc: "Gross margin percentage" },
+  const differences = [
+    { label: "One system", desc: "Not 6 tools stitched together" },
+    { label: "AI that executes", desc: "Not just reports and recommendations" },
+    { label: "Automatic optimization", desc: "Not manual A/B tests you forget to check" },
+    { label: "Revenue focus", desc: "Not activity metrics that don't matter" },
   ];
 
-  const benefits = [
-    "No more role silos — one unified revenue view",
-    "Economics constraints baked into every decision",
-    "Autonomous optimization without constant oversight",
-    "Full audit trail of every AI decision",
-    "Multi-tenant architecture with strict isolation",
-    "CFO-gated spend controls and margin protection",
+  const outcomes = [
+    "Fewer tools to manage",
+    "Lower software costs",
+    "Less time on busywork",
+    "Faster pipeline velocity",
+    "More consistent execution",
+    "Better conversion rates",
   ];
 
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto max-w-[1400px] px-6 sm:px-8 lg:px-12">
-          <div className="flex h-20 items-center justify-between">
-            <Logo className="h-8" />
-            <div className="flex items-center gap-6">
-              <Button variant="ghost" onClick={() => navigate("/login")} className="text-muted-foreground hover:text-foreground tracking-wide">
+        <div className="mx-auto max-w-[1200px] px-6">
+          <div className="flex h-16 items-center justify-between">
+            <Logo className="h-7" />
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" onClick={() => navigate("/login")} className="text-muted-foreground hover:text-foreground">
                 Login
               </Button>
-              <Button onClick={() => navigate("/revenue-os/targets")} className="gold-gradient text-primary-foreground font-semibold tracking-wide">
-                Launch Revenue OS
+              <Button onClick={() => navigate("/signup")} className="gold-gradient text-primary-foreground font-medium">
+                Start Free
               </Button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-40 pb-32 px-6 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(190_100%_50%/0.08),transparent_50%)]" />
-        <div className="mx-auto max-w-[1200px] text-center relative">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm mb-8">
-            <Zap className="h-4 w-4" />
-            <span className="tracking-wide">Marketing + Sales + Finance — Unified</span>
-          </div>
-          <h1 className="font-display text-6xl md:text-8xl font-bold tracking-tight mb-8">
-            Revenue OS.{" "}
-            <span className="gold-gradient-text">One System.</span>
+      {/* Hero Section - Simple headline, subheadline, one CTA */}
+      <section className="pt-32 pb-24 px-6">
+        <div className="mx-auto max-w-[900px] text-center">
+          <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight mb-6">
+            Replace your revenue stack.
           </h1>
-          <p className="text-xl md:text-2xl text-muted-foreground max-w-4xl mx-auto mb-14 leading-relaxed tracking-wide">
-            AI that optimizes your pipeline, conversions, and economics together — automatically.
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+            One AI system that plans, executes, and optimizes your growth. 
+            Stop paying for tools that don't talk to each other.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-20">
-            <Button onClick={() => navigate("/revenue-os/targets")} size="lg" className="gold-gradient text-primary-foreground font-semibold text-lg px-10 h-16 gold-glow tracking-wide">
-              Launch Revenue OS
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-            <Button variant="outline" size="lg" className="border-border hover:bg-secondary text-foreground text-lg px-10 h-16 tracking-wide">
-              Book a Demo
-            </Button>
-          </div>
-          
-          {/* Proof Points */}
-          <div className="flex flex-wrap justify-center gap-10 md:gap-20">
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              <span className="tracking-wide">Unified revenue metrics</span>
-            </div>
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              <span className="tracking-wide">Economics-first decisions</span>
-            </div>
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              <span className="tracking-wide">Autonomous optimization</span>
-            </div>
-          </div>
+          <Button 
+            onClick={() => navigate("/signup")} 
+            size="lg" 
+            className="gold-gradient text-primary-foreground font-semibold text-lg px-10 h-14 gold-glow"
+          >
+            Start with your revenue goal
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
         </div>
       </section>
 
-      {/* Accent line */}
-      <div className="h-px gold-gradient mx-auto max-w-5xl opacity-50" />
-
-      {/* Three Pillars */}
-      <section className="py-36 px-6">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="text-center mb-20">
-            <h2 className="font-display text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-              Three Functions. <span className="gold-gradient-text">One OS.</span>
-            </h2>
-            <p className="text-xl text-muted-foreground tracking-wide max-w-3xl mx-auto">
-              Revenue OS thinks across marketing, sales, and finance — then acts.
-            </p>
-          </div>
+      {/* How It Works - Exactly 3 steps */}
+      <section className="py-24 px-6 bg-card/30">
+        <div className="mx-auto max-w-[1000px]">
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-center mb-16 tracking-tight">
+            How it works
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pillars.map((pillar, i) => (
-              <div key={i} className="group p-8 rounded-2xl border border-border bg-card hover:border-primary/50 transition-all duration-300">
-                <div className="h-14 w-14 rounded-xl gold-gradient flex items-center justify-center mb-6">
-                  <pillar.icon className="h-7 w-7 text-primary-foreground" />
-                </div>
-                <div className="text-sm text-primary font-semibold tracking-widest uppercase mb-2">{pillar.title}</div>
-                <h3 className="text-2xl font-semibold mb-3 tracking-tight">{pillar.subtitle}</h3>
-                <p className="text-muted-foreground leading-relaxed">{pillar.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="py-36 px-6 bg-card/50">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="text-center mb-20">
-            <h2 className="font-display text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-              How It <span className="gold-gradient-text">Works</span>
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map((step, i) => (
-              <div key={i} className="relative p-8 rounded-2xl border border-border bg-background">
-                <span className="text-6xl font-bold gold-gradient-text opacity-50 font-display">{step.num}</span>
-                <h3 className="text-xl font-semibold mt-6 mb-3 tracking-tight">{step.title}</h3>
+              <div key={i} className="text-center">
+                <div className="w-12 h-12 rounded-full gold-gradient flex items-center justify-center mx-auto mb-5">
+                  <span className="text-xl font-bold text-primary-foreground">{step.num}</span>
+                </div>
+                <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
                 <p className="text-muted-foreground leading-relaxed">{step.desc}</p>
               </div>
             ))}
@@ -200,201 +111,99 @@ const Index = () => {
         </div>
       </section>
 
-      {/* The Revenue Spine */}
-      <section className="py-36 px-6">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div>
-              <h2 className="font-display text-4xl md:text-5xl font-bold mb-8 tracking-tight">
-                The <span className="gold-gradient-text">Revenue Spine</span>
-              </h2>
-              <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
-                One canonical data layer for all your revenue metrics. No more reconciling 
-                marketing dashboards with sales reports with finance spreadsheets.
-              </p>
-              <div className="space-y-4">
-                {metrics.map((m, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <BarChart3 className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">{m.label}</div>
-                      <div className="text-sm text-muted-foreground">{m.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="relative">
-              <div className="rounded-2xl border border-border bg-card p-10 gold-glow">
-                <div className="text-center mb-8">
-                  <Calculator className="h-12 w-12 text-primary mx-auto mb-4" />
-                  <h3 className="text-2xl font-semibold">One Source of Truth</h3>
+      {/* Replace This Stack */}
+      <section className="py-24 px-6">
+        <div className="mx-auto max-w-[900px]">
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-center mb-6 tracking-tight">
+            Replace this stack
+          </h2>
+          <p className="text-center text-muted-foreground mb-12 text-lg">
+            One system instead of many tools.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-[700px] mx-auto">
+            {stackItems.map((item, i) => (
+              <div 
+                key={i} 
+                className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card"
+              >
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                  <X className="w-3 h-3 text-primary" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-background border border-border text-center">
-                    <div className="text-2xl font-bold gold-gradient-text font-display">$1.2M</div>
-                    <div className="text-xs text-muted-foreground mt-1">Pipeline</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-background border border-border text-center">
-                    <div className="text-2xl font-bold gold-gradient-text font-display">4.2mo</div>
-                    <div className="text-xs text-muted-foreground mt-1">Payback</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-background border border-border text-center">
-                    <div className="text-2xl font-bold gold-gradient-text font-display">$842</div>
-                    <div className="text-xs text-muted-foreground mt-1">CAC</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-background border border-border text-center">
-                    <div className="text-2xl font-bold gold-gradient-text font-display">72%</div>
-                    <div className="text-xs text-muted-foreground mt-1">Margin</div>
-                  </div>
-                </div>
+                <span className="text-muted-foreground line-through">{item.name}</span>
               </div>
+            ))}
+          </div>
+          <div className="mt-10 p-6 rounded-2xl border-2 border-primary/30 bg-primary/5 max-w-[400px] mx-auto text-center">
+            <div className="w-10 h-10 rounded-full gold-gradient flex items-center justify-center mx-auto mb-4">
+              <Check className="w-5 h-5 text-primary-foreground" />
             </div>
+            <div className="text-xl font-semibold">UbiGrowth</div>
+            <div className="text-muted-foreground text-sm mt-1">Revenue, automated.</div>
           </div>
         </div>
       </section>
 
-      {/* Key Features Grid */}
-      <section className="py-36 px-6 bg-card/50">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="text-center mb-20">
-            <h2 className="font-display text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-              Key <span className="gold-gradient-text">Capabilities</span>
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {keyFeatures.map((feature, i) => (
-              <div key={i} className="p-8 rounded-2xl border border-border bg-background hover:gold-glow transition-all duration-300">
-                <feature.icon className="h-12 w-12 text-primary mb-6" />
-                <h3 className="text-2xl font-semibold mb-3 tracking-tight">{feature.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">{feature.desc}</p>
+      {/* Why UbiGrowth Is Different */}
+      <section className="py-24 px-6 bg-card/30">
+        <div className="mx-auto max-w-[900px]">
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-center mb-16 tracking-tight">
+            Why UbiGrowth is different
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {differences.map((diff, i) => (
+              <div key={i} className="p-6 rounded-xl border border-border bg-background">
+                <div className="font-semibold text-lg mb-1">{diff.label}</div>
+                <p className="text-muted-foreground">{diff.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Accent line */}
-      <div className="h-px gold-gradient mx-auto max-w-5xl opacity-50" />
-
-      {/* Why Revenue OS */}
-      <section className="py-36 px-6">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div>
-              <h2 className="font-display text-4xl md:text-5xl font-bold mb-10 tracking-tight">
-                Why <span className="gold-gradient-text">Revenue OS</span>
-              </h2>
-              <ul className="space-y-5">
-                {benefits.map((benefit, i) => (
-                  <li key={i} className="flex items-center gap-4">
-                    <CheckCircle2 className="h-6 w-6 text-primary flex-shrink-0" />
-                    <span className="text-lg tracking-wide">{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="relative">
-              <div className="rounded-2xl border border-border bg-card p-10 gold-glow">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="p-6 rounded-xl bg-background border border-border">
-                    <div className="text-4xl font-bold gold-gradient-text font-display">3</div>
-                    <div className="text-sm text-muted-foreground mt-1 tracking-wide">Lenses Unified</div>
-                  </div>
-                  <div className="p-6 rounded-xl bg-background border border-border">
-                    <div className="text-4xl font-bold gold-gradient-text font-display">1</div>
-                    <div className="text-sm text-muted-foreground mt-1 tracking-wide">OS</div>
-                  </div>
-                  <div className="p-6 rounded-xl bg-background border border-border">
-                    <div className="text-4xl font-bold gold-gradient-text font-display">0</div>
-                    <div className="text-sm text-muted-foreground mt-1 tracking-wide">Manual Dashboards</div>
-                  </div>
-                  <div className="p-6 rounded-xl bg-background border border-border">
-                    <div className="text-4xl font-bold gold-gradient-text font-display">∞</div>
-                    <div className="text-sm text-muted-foreground mt-1 tracking-wide">Learning Loops</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Security & Infrastructure */}
-      <section className="py-36 px-6 bg-card/50">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="text-center mb-20">
-            <h2 className="font-display text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-              Security & <span className="gold-gradient-text">Infrastructure</span>
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
-            <div className="p-8 rounded-2xl border border-border bg-background text-center">
-              <Shield className="h-14 w-14 text-primary mx-auto mb-6" />
-              <h3 className="text-xl font-semibold mb-3 tracking-tight">Multi-tenant RLS Isolation</h3>
-              <p className="text-muted-foreground leading-relaxed">Complete data separation between tenants</p>
-            </div>
-            <div className="p-8 rounded-2xl border border-border bg-background text-center">
-              <Lock className="h-14 w-14 text-primary mx-auto mb-6" />
-              <h3 className="text-xl font-semibold mb-3 tracking-tight">Full Audit Trail</h3>
-              <p className="text-muted-foreground leading-relaxed">Every decision tracked and traceable</p>
-            </div>
-            <div className="p-8 rounded-2xl border border-border bg-background text-center">
-              <CreditCard className="h-14 w-14 text-primary mx-auto mb-6" />
-              <h3 className="text-xl font-semibold mb-3 tracking-tight">Spend Controls</h3>
-              <p className="text-muted-foreground leading-relaxed">Economic guardrails built into the OS</p>
-            </div>
-          </div>
-          <p className="text-center text-muted-foreground tracking-wide">
-            Built on UbiGrowth AI with secure edge functions, SLO monitoring, and weekly CFO digests.
-          </p>
-        </div>
-      </section>
-
-      {/* Final CTA Banner */}
-      <section className="py-36 px-6">
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="h-px gold-gradient mb-20 opacity-50" />
-          <h2 className="font-display text-4xl md:text-6xl font-bold mb-8 tracking-tight">
-            Stop juggling <span className="gold-gradient-text">dashboards.</span>
+      {/* Outcomes */}
+      <section className="py-24 px-6">
+        <div className="mx-auto max-w-[800px]">
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-center mb-12 tracking-tight">
+            What you get
           </h2>
-          <p className="text-xl text-muted-foreground mb-14 tracking-wide">
-            Revenue OS unifies CMO, CRO, and CFO into one autonomous kernel.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
-            <Button onClick={() => navigate("/revenue-os/targets")} size="lg" className="gold-gradient text-primary-foreground font-semibold text-lg px-10 h-16 gold-glow tracking-wide">
-              Launch Revenue OS
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-            <Button variant="outline" size="lg" className="border-border hover:bg-secondary text-foreground text-lg px-10 h-16 tracking-wide">
-              Book a Demo
-            </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {outcomes.map((outcome, i) => (
+              <div key={i} className="flex items-center gap-3 p-4">
+                <Check className="w-5 h-5 text-primary flex-shrink-0" />
+                <span className="text-lg">{outcome}</span>
+              </div>
+            ))}
           </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-24 px-6 bg-card/30">
+        <div className="mx-auto max-w-[700px] text-center">
+          <h2 className="font-display text-3xl md:text-4xl font-bold mb-6 tracking-tight">
+            Ready to simplify your revenue stack?
+          </h2>
+          <p className="text-muted-foreground text-lg mb-10">
+            Start with your goal. UbiGrowth handles the rest.
+          </p>
+          <Button 
+            onClick={() => navigate("/signup")} 
+            size="lg" 
+            className="gold-gradient text-primary-foreground font-semibold text-lg px-10 h-14 gold-glow"
+          >
+            Start with your revenue goal
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-16 px-6">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-            <Logo className="h-8" />
-            <div className="flex items-center gap-10 text-sm text-muted-foreground">
-              <button onClick={() => navigate("/revenue-os/targets")} className="hover:text-foreground transition-colors tracking-wide">
-                Product
-              </button>
-              <a href="#" className="hover:text-foreground transition-colors tracking-wide">
-                Documentation
-              </a>
-              <button onClick={() => navigate("/login")} className="hover:text-foreground transition-colors tracking-wide">
-                Login
-              </button>
-            </div>
-          </div>
-          <div className="mt-10 pt-10 border-t border-border text-center text-sm text-muted-foreground tracking-wide">
-            © 2025 UbiGrowth AI. All rights reserved.
-          </div>
+      <footer className="py-12 px-6 border-t border-border">
+        <div className="mx-auto max-w-[1200px] flex flex-col md:flex-row items-center justify-between gap-4">
+          <Logo className="h-6" />
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} UbiGrowth. All rights reserved.
+          </p>
         </div>
       </footer>
     </div>
