@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          arr: number | null
+          created_at: string
+          external_crm_id: string | null
+          id: string
+          industry: string | null
+          lifecycle_stage: string | null
+          metadata: Json | null
+          mrr: number | null
+          name: string
+          segment: string | null
+          size_bucket: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          arr?: number | null
+          created_at?: string
+          external_crm_id?: string | null
+          id?: string
+          industry?: string | null
+          lifecycle_stage?: string | null
+          metadata?: Json | null
+          mrr?: number | null
+          name: string
+          segment?: string | null
+          size_bucket?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          arr?: number | null
+          created_at?: string
+          external_crm_id?: string | null
+          id?: string
+          industry?: string | null
+          lifecycle_stage?: string | null
+          metadata?: Json | null
+          mrr?: number | null
+          name?: string
+          segment?: string | null
+          size_bucket?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_runs: {
         Row: {
           agent: string
@@ -508,6 +564,57 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_channel_stats_daily: {
+        Row: {
+          bounces: number
+          campaign_id: string
+          channel: string
+          clicks: number
+          created_at: string
+          day: string
+          deliveries: number
+          id: string
+          meetings_booked: number
+          opens: number
+          replies: number
+          sends: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          bounces?: number
+          campaign_id: string
+          channel: string
+          clicks?: number
+          created_at?: string
+          day: string
+          deliveries?: number
+          id?: string
+          meetings_booked?: number
+          opens?: number
+          replies?: number
+          sends?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          bounces?: number
+          campaign_id?: string
+          channel?: string
+          clicks?: number
+          created_at?: string
+          day?: string
+          deliveries?: number
+          id?: string
+          meetings_booked?: number
+          opens?: number
+          replies?: number
+          sends?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_metrics: {
         Row: {
           bounce_count: number | null
@@ -749,6 +856,75 @@ export type Database = {
           },
         ]
       }
+      channel_spend_daily: {
+        Row: {
+          attribution_model: string
+          attribution_window_days: number
+          channel_id: string
+          clicks: number
+          created_at: string
+          currency: string
+          date: string
+          id: string
+          impressions: number
+          leads: number
+          opportunities: number
+          revenue_booked: number
+          spend: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attribution_model?: string
+          attribution_window_days?: number
+          channel_id: string
+          clicks?: number
+          created_at?: string
+          currency?: string
+          date: string
+          id?: string
+          impressions?: number
+          leads?: number
+          opportunities?: number
+          revenue_booked?: number
+          spend?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attribution_model?: string
+          attribution_window_days?: number
+          channel_id?: string
+          clicks?: number
+          created_at?: string
+          currency?: string
+          date?: string
+          id?: string
+          impressions?: number
+          leads?: number
+          opportunities?: number
+          revenue_booked?: number
+          spend?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_spend_daily_channel_fk"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "cmo_campaign_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_spend_daily_tenant_fk"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cmo_brand_profiles: {
         Row: {
           brand_colors: Json | null
@@ -917,11 +1093,20 @@ export type Database = {
           content_types: Json | null
           created_at: string
           expected_metrics: Json | null
+          external_account_id: string | null
+          external_ad_id: string | null
+          external_adset_id: string | null
+          external_campaign_id: string | null
+          external_source: string | null
           id: string
+          is_paid: boolean | null
           posting_frequency: string | null
           priority: string | null
           targeting_notes: string | null
           updated_at: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
         }
         Insert: {
           budget_percentage?: number | null
@@ -931,11 +1116,20 @@ export type Database = {
           content_types?: Json | null
           created_at?: string
           expected_metrics?: Json | null
+          external_account_id?: string | null
+          external_ad_id?: string | null
+          external_adset_id?: string | null
+          external_campaign_id?: string | null
+          external_source?: string | null
           id?: string
+          is_paid?: boolean | null
           posting_frequency?: string | null
           priority?: string | null
           targeting_notes?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
         }
         Update: {
           budget_percentage?: number | null
@@ -945,11 +1139,20 @@ export type Database = {
           content_types?: Json | null
           created_at?: string
           expected_metrics?: Json | null
+          external_account_id?: string | null
+          external_ad_id?: string | null
+          external_adset_id?: string | null
+          external_campaign_id?: string | null
+          external_source?: string | null
           id?: string
+          is_paid?: boolean | null
           posting_frequency?: string | null
           priority?: string | null
           targeting_notes?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
         }
         Relationships: [
           {
@@ -2474,6 +2677,92 @@ export type Database = {
           },
         ]
       }
+      email_events: {
+        Row: {
+          campaign_id: string | null
+          contact_id: string | null
+          email_address: string
+          event_type: string
+          event_type_internal: string | null
+          id: string
+          lead_id: string | null
+          meta: Json
+          occurred_at: string
+          provider: string
+          provider_event_type: string | null
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          received_at: string
+          sequence_run_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          contact_id?: string | null
+          email_address: string
+          event_type: string
+          event_type_internal?: string | null
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          occurred_at: string
+          provider: string
+          provider_event_type?: string | null
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          received_at?: string
+          sequence_run_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          contact_id?: string | null
+          email_address?: string
+          event_type?: string
+          event_type_internal?: string | null
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          occurred_at?: string
+          provider?: string
+          provider_event_type?: string | null
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          received_at?: string
+          sequence_run_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "cmo_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_sequence_run_id_fkey"
+            columns: ["sequence_run_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_sequence_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_sequence_steps: {
         Row: {
           body: string
@@ -2568,6 +2857,133 @@ export type Database = {
           },
         ]
       }
+      errors_email_webhook: {
+        Row: {
+          created_at: string
+          error_message: string
+          error_type: string
+          id: string
+          provider_event_id: string | null
+          provider_message_id: string | null
+          provider_type: string | null
+          raw_payload: Json | null
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message: string
+          error_type: string
+          id?: string
+          provider_event_id?: string | null
+          provider_message_id?: string | null
+          provider_type?: string | null
+          raw_payload?: Json | null
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string
+          error_type?: string
+          id?: string
+          provider_event_id?: string | null
+          provider_message_id?: string | null
+          provider_type?: string | null
+          raw_payload?: Json | null
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
+      events_raw: {
+        Row: {
+          account_id: string | null
+          campaign_channel_id: string | null
+          campaign_id: string | null
+          contact_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_key: string | null
+          occurred_at: string
+          opportunity_id: string | null
+          properties: Json | null
+          source_system: string
+          tenant_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          campaign_channel_id?: string | null
+          campaign_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          idempotency_key?: string | null
+          occurred_at?: string
+          opportunity_id?: string | null
+          properties?: Json | null
+          source_system: string
+          tenant_id: string
+        }
+        Update: {
+          account_id?: string | null
+          campaign_channel_id?: string | null
+          campaign_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string | null
+          occurred_at?: string
+          opportunity_id?: string | null
+          properties?: Json | null
+          source_system?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_raw_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_raw_campaign_channel_id_fkey"
+            columns: ["campaign_channel_id"]
+            isOneToOne: false
+            referencedRelation: "spine_campaign_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_raw_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "spine_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_raw_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "spine_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_raw_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_raw_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_audit_log: {
         Row: {
           action: string
@@ -2597,6 +3013,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      kernel_cycle_slo: {
+        Row: {
+          created_at: string
+          cycle_date: string
+          cycles_attempted: number
+          cycles_failed: number
+          cycles_succeeded: number
+          economics_actions_count: number
+          id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cycle_date: string
+          cycles_attempted?: number
+          cycles_failed?: number
+          cycles_succeeded?: number
+          economics_actions_count?: number
+          id?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cycle_date?: string
+          cycles_attempted?: number
+          cycles_failed?: number
+          cycles_succeeded?: number
+          economics_actions_count?: number
+          id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kernel_cycle_slo_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       landing_pages: {
         Row: {
@@ -2906,6 +3366,44 @@ export type Database = {
           },
         ]
       }
+      metric_snapshots_daily: {
+        Row: {
+          created_at: string
+          date: string
+          dimension: Json | null
+          id: string
+          metric_id: string
+          tenant_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          dimension?: Json | null
+          id?: string
+          metric_id: string
+          tenant_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          dimension?: Json | null
+          id?: string
+          metric_id?: string
+          tenant_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metric_snapshots_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -2949,6 +3447,385 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      opportunities: {
+        Row: {
+          account_id: string | null
+          amount: number | null
+          campaign_id: string | null
+          closed_at: string | null
+          contact_id: string | null
+          created_at: string
+          expected_close_date: string | null
+          external_crm_id: string | null
+          id: string
+          lost_reason: string | null
+          metadata: Json | null
+          name: string
+          owner_user_id: string | null
+          source: string | null
+          stage: string
+          tenant_id: string
+          updated_at: string
+          win_probability: number | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount?: number | null
+          campaign_id?: string | null
+          closed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          expected_close_date?: string | null
+          external_crm_id?: string | null
+          id?: string
+          lost_reason?: string | null
+          metadata?: Json | null
+          name: string
+          owner_user_id?: string | null
+          source?: string | null
+          stage?: string
+          tenant_id: string
+          updated_at?: string
+          win_probability?: number | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number | null
+          campaign_id?: string | null
+          closed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          expected_close_date?: string | null
+          external_crm_id?: string | null
+          id?: string
+          lost_reason?: string | null
+          metadata?: Json | null
+          name?: string
+          owner_user_id?: string | null
+          source?: string | null
+          stage?: string
+          tenant_id?: string
+          updated_at?: string
+          win_probability?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "spine_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opportunity_channel_attribution: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          opportunity_id: string
+          role: string
+          tenant_id: string
+          weight: number
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          opportunity_id: string
+          role?: string
+          tenant_id: string
+          weight?: number
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          opportunity_id?: string
+          role?: string
+          tenant_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opp_channel_attr_channel_fk"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "cmo_campaign_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opp_channel_attr_opp_fk"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opp_channel_attr_tenant_fk"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      optimization_action_results: {
+        Row: {
+          baseline_value: number | null
+          confidence: number | null
+          context_snapshot: Json | null
+          created_at: string
+          delta: number | null
+          delta_direction: string | null
+          economic_deltas: Json | null
+          id: string
+          metadata: Json | null
+          metric_id: string
+          observation_end_date: string | null
+          observation_start_date: string | null
+          observed_value: number | null
+          optimization_action_id: string
+          tenant_id: string
+        }
+        Insert: {
+          baseline_value?: number | null
+          confidence?: number | null
+          context_snapshot?: Json | null
+          created_at?: string
+          delta?: number | null
+          delta_direction?: string | null
+          economic_deltas?: Json | null
+          id?: string
+          metadata?: Json | null
+          metric_id: string
+          observation_end_date?: string | null
+          observation_start_date?: string | null
+          observed_value?: number | null
+          optimization_action_id: string
+          tenant_id: string
+        }
+        Update: {
+          baseline_value?: number | null
+          confidence?: number | null
+          context_snapshot?: Json | null
+          created_at?: string
+          delta?: number | null
+          delta_direction?: string | null
+          economic_deltas?: Json | null
+          id?: string
+          metadata?: Json | null
+          metric_id?: string
+          observation_end_date?: string | null
+          observation_start_date?: string | null
+          observed_value?: number | null
+          optimization_action_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimization_action_results_optimization_action_id_fkey"
+            columns: ["optimization_action_id"]
+            isOneToOne: false
+            referencedRelation: "optimization_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "optimization_action_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      optimization_actions: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          action_id: string
+          config: Json | null
+          created_at: string
+          expected_observation_window_days: number | null
+          guardrails: Json | null
+          hypothesis: string | null
+          id: string
+          lens_emphasis: string | null
+          notes_for_humans: string | null
+          optimization_cycle_id: string
+          owner_subsystem: string | null
+          priority_rank: number | null
+          requires_acknowledgment: boolean | null
+          status: string | null
+          target_direction: string | null
+          target_metric: string | null
+          tenant_id: string
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_id: string
+          config?: Json | null
+          created_at?: string
+          expected_observation_window_days?: number | null
+          guardrails?: Json | null
+          hypothesis?: string | null
+          id?: string
+          lens_emphasis?: string | null
+          notes_for_humans?: string | null
+          optimization_cycle_id: string
+          owner_subsystem?: string | null
+          priority_rank?: number | null
+          requires_acknowledgment?: boolean | null
+          status?: string | null
+          target_direction?: string | null
+          target_metric?: string | null
+          tenant_id: string
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_id?: string
+          config?: Json | null
+          created_at?: string
+          expected_observation_window_days?: number | null
+          guardrails?: Json | null
+          hypothesis?: string | null
+          id?: string
+          lens_emphasis?: string | null
+          notes_for_humans?: string | null
+          optimization_cycle_id?: string
+          owner_subsystem?: string | null
+          priority_rank?: number | null
+          requires_acknowledgment?: boolean | null
+          status?: string | null
+          target_direction?: string | null
+          target_metric?: string | null
+          tenant_id?: string
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimization_actions_optimization_cycle_id_fkey"
+            columns: ["optimization_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "optimization_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "optimization_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      optimization_cycles: {
+        Row: {
+          binding_constraint: string | null
+          cfo_gates_active: string[] | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input_snapshot_ref: Json | null
+          invoked_at: string
+          priority_metric_id: string | null
+          raw_kernel_output: Json | null
+          status: string | null
+          tenant_id: string
+        }
+        Insert: {
+          binding_constraint?: string | null
+          cfo_gates_active?: string[] | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_snapshot_ref?: Json | null
+          invoked_at?: string
+          priority_metric_id?: string | null
+          raw_kernel_output?: Json | null
+          status?: string | null
+          tenant_id: string
+        }
+        Update: {
+          binding_constraint?: string | null
+          cfo_gates_active?: string[] | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_snapshot_ref?: Json | null
+          invoked_at?: string
+          priority_metric_id?: string | null
+          raw_kernel_output?: Json | null
+          status?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimization_cycles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      optimizer_configs: {
+        Row: {
+          channel: string
+          click_weight: number
+          created_at: string
+          id: string
+          open_weight: number
+          prompt_version: string
+          reply_weight: number
+          tenant_id: string
+        }
+        Insert: {
+          channel: string
+          click_weight?: number
+          created_at?: string
+          id?: string
+          open_weight?: number
+          prompt_version?: string
+          reply_weight?: number
+          tenant_id: string
+        }
+        Update: {
+          channel?: string
+          click_weight?: number
+          created_at?: string
+          id?: string
+          open_weight?: number
+          prompt_version?: string
+          reply_weight?: number
+          tenant_id?: string
+        }
+        Relationships: []
       }
       os_tenant_registry: {
         Row: {
@@ -3402,6 +4279,121 @@ export type Database = {
         }
         Relationships: []
       }
+      release_notes: {
+        Row: {
+          body_md: string
+          created_at: string
+          created_by: string | null
+          id: string
+          released_at: string
+          tenant_id: string | null
+          title: string
+        }
+        Insert: {
+          body_md: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          released_at?: string
+          tenant_id?: string | null
+          title: string
+        }
+        Update: {
+          body_md?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          released_at?: string
+          tenant_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "release_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_events: {
+        Row: {
+          account_id: string | null
+          amount: number
+          attributed_campaign_id: string | null
+          attributed_channel: string | null
+          attribution_model: string | null
+          created_at: string
+          currency: string | null
+          effective_date: string
+          id: string
+          metadata: Json | null
+          opportunity_id: string | null
+          tenant_id: string
+          type: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          attributed_campaign_id?: string | null
+          attributed_channel?: string | null
+          attribution_model?: string | null
+          created_at?: string
+          currency?: string | null
+          effective_date: string
+          id?: string
+          metadata?: Json | null
+          opportunity_id?: string | null
+          tenant_id: string
+          type: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          attributed_campaign_id?: string | null
+          attributed_channel?: string | null
+          attribution_model?: string | null
+          created_at?: string
+          currency?: string | null
+          effective_date?: string
+          id?: string
+          metadata?: Json | null
+          opportunity_id?: string | null
+          tenant_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_events_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_events_attributed_campaign_id_fkey"
+            columns: ["attributed_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "spine_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_events_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       segments: {
         Row: {
           created_at: string
@@ -3542,6 +4534,259 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      spine_campaign_channels: {
+        Row: {
+          bidding_strategy: Json | null
+          campaign_id: string
+          channel: string
+          config: Json | null
+          created_at: string
+          daily_budget: number | null
+          id: string
+          status: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          bidding_strategy?: Json | null
+          campaign_id: string
+          channel: string
+          config?: Json | null
+          created_at?: string
+          daily_budget?: number | null
+          id?: string
+          status?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          bidding_strategy?: Json | null
+          campaign_id?: string
+          channel?: string
+          config?: Json | null
+          created_at?: string
+          daily_budget?: number | null
+          id?: string
+          status?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spine_campaign_channels_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "spine_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spine_campaign_channels_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spine_campaigns: {
+        Row: {
+          budget_currency: string | null
+          budget_total: number | null
+          created_at: string
+          end_date: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          objective: string | null
+          start_date: string | null
+          status: string | null
+          target_segment: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          budget_currency?: string | null
+          budget_total?: number | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          objective?: string | null
+          start_date?: string | null
+          status?: string | null
+          target_segment?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          budget_currency?: string | null
+          budget_total?: number | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          objective?: string | null
+          start_date?: string | null
+          status?: string | null
+          target_segment?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spine_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spine_contacts: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          email: string | null
+          external_crm_id: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          lifecycle_stage: string | null
+          metadata: Json | null
+          persona_tag: string | null
+          phone: string | null
+          role_title: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          email?: string | null
+          external_crm_id?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          lifecycle_stage?: string | null
+          metadata?: Json | null
+          persona_tag?: string | null
+          phone?: string | null
+          role_title?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          email?: string | null
+          external_crm_id?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          lifecycle_stage?: string | null
+          metadata?: Json | null
+          persona_tag?: string | null
+          phone?: string | null
+          role_title?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spine_contacts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spine_contacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spine_crm_activities: {
+        Row: {
+          account_id: string | null
+          activity_type: string
+          contact_id: string | null
+          created_at: string
+          direction: string | null
+          id: string
+          metadata: Json | null
+          occurred_at: string
+          opportunity_id: string | null
+          outcome: string | null
+          performed_by_agent_id: string | null
+          performed_by_user_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          activity_type: string
+          contact_id?: string | null
+          created_at?: string
+          direction?: string | null
+          id?: string
+          metadata?: Json | null
+          occurred_at?: string
+          opportunity_id?: string | null
+          outcome?: string | null
+          performed_by_agent_id?: string | null
+          performed_by_user_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          account_id?: string | null
+          activity_type?: string
+          contact_id?: string | null
+          created_at?: string
+          direction?: string | null
+          id?: string
+          metadata?: Json | null
+          occurred_at?: string
+          opportunity_id?: string | null
+          outcome?: string | null
+          performed_by_agent_id?: string | null
+          performed_by_user_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spine_crm_activities_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spine_crm_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "spine_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spine_crm_activities_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spine_crm_activities_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {
@@ -3702,6 +4947,111 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_targets: {
+        Row: {
+          cash_risk_tolerance: string | null
+          created_at: string
+          email_enabled: boolean | null
+          experiment_exposure_pct: number | null
+          landing_pages_enabled: boolean | null
+          linkedin_enabled: boolean | null
+          margin_floor_pct: number | null
+          max_cac: number | null
+          max_cac_by_segment: Json | null
+          monthly_budget_cap: number | null
+          sms_enabled: boolean | null
+          target_bookings: number | null
+          target_payback_months: number | null
+          target_pipeline: number | null
+          tenant_id: string
+          updated_at: string
+          voice_enabled: boolean | null
+        }
+        Insert: {
+          cash_risk_tolerance?: string | null
+          created_at?: string
+          email_enabled?: boolean | null
+          experiment_exposure_pct?: number | null
+          landing_pages_enabled?: boolean | null
+          linkedin_enabled?: boolean | null
+          margin_floor_pct?: number | null
+          max_cac?: number | null
+          max_cac_by_segment?: Json | null
+          monthly_budget_cap?: number | null
+          sms_enabled?: boolean | null
+          target_bookings?: number | null
+          target_payback_months?: number | null
+          target_pipeline?: number | null
+          tenant_id: string
+          updated_at?: string
+          voice_enabled?: boolean | null
+        }
+        Update: {
+          cash_risk_tolerance?: string | null
+          created_at?: string
+          email_enabled?: boolean | null
+          experiment_exposure_pct?: number | null
+          landing_pages_enabled?: boolean | null
+          linkedin_enabled?: boolean | null
+          margin_floor_pct?: number | null
+          max_cac?: number | null
+          max_cac_by_segment?: Json | null
+          monthly_budget_cap?: number | null
+          sms_enabled?: boolean | null
+          target_bookings?: number | null
+          target_payback_months?: number | null
+          target_pipeline?: number | null
+          tenant_id?: string
+          updated_at?: string
+          voice_enabled?: boolean | null
+        }
+        Relationships: []
+      }
+      tenants: {
+        Row: {
+          billing_plan: string
+          cfo_expansion_enabled: boolean
+          config: Json | null
+          created_at: string
+          default_currency: string
+          id: string
+          name: string
+          revenue_os_activated_at: string | null
+          revenue_os_enabled: boolean
+          slug: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          billing_plan?: string
+          cfo_expansion_enabled?: boolean
+          config?: Json | null
+          created_at?: string
+          default_currency?: string
+          id?: string
+          name: string
+          revenue_os_activated_at?: string | null
+          revenue_os_enabled?: boolean
+          slug: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          billing_plan?: string
+          cfo_expansion_enabled?: boolean
+          config?: Json | null
+          created_at?: string
+          default_currency?: string
+          id?: string
+          name?: string
+          revenue_os_activated_at?: string | null
+          revenue_os_enabled?: boolean
+          slug?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_password_resets: {
         Row: {
           created_at: string
@@ -3754,6 +5104,7 @@ export type Database = {
           role: string | null
           tenant_id: string
           user_id: string
+          wants_product_updates: boolean
         }
         Insert: {
           created_at?: string
@@ -3761,6 +5112,7 @@ export type Database = {
           role?: string | null
           tenant_id: string
           user_id: string
+          wants_product_updates?: boolean
         }
         Update: {
           created_at?: string
@@ -3768,6 +5120,7 @@ export type Database = {
           role?: string | null
           tenant_id?: string
           user_id?: string
+          wants_product_updates?: boolean
         }
         Relationships: []
       }
@@ -3980,6 +5333,39 @@ export type Database = {
         Returns: boolean
       }
       gc_rate_limit_counters: { Args: never; Returns: undefined }
+      get_weekly_cfo_portfolio_summary: {
+        Args: never
+        Returns: {
+          avg_cac_blended: number
+          avg_contribution_margin_pct: number
+          avg_gross_margin_pct: number
+          avg_payback_months: number
+          avg_revenue_per_fte: number
+          avg_sales_efficiency_ratio: number
+          tenants_active: number
+          total_econ_actions: number
+          total_econ_actions_hurt: number
+          total_econ_actions_improved: number
+        }[]
+      }
+      get_weekly_cfo_snapshot: {
+        Args: never
+        Returns: {
+          cac_blended: number
+          cfo_enabled: boolean
+          cfo_gates_triggered: number
+          contribution_margin_pct: number
+          econ_actions_hurt: number
+          econ_actions_improved: number
+          econ_actions_total: number
+          gross_margin_pct: number
+          payback_months: number
+          revenue_per_fte: number
+          sales_efficiency_ratio: number
+          tenant_id: string
+          tenant_name: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3996,6 +5382,10 @@ export type Database = {
         Returns: boolean
       }
       must_change_password: { Args: { _user_id: string }; Returns: boolean }
+      rebuild_campaign_daily_stats: {
+        Args: { _date_from: string; _date_to: string; _tenant_id: string }
+        Returns: undefined
+      }
       record_reply_metric_snapshot: {
         Args: {
           p_campaign_id: string
@@ -4004,9 +5394,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      resume_sequence_for_lead: {
+        Args: { _lead_id: string; _user_id: string }
+        Returns: undefined
+      }
       sequence_step_workspace_access: {
         Args: { step_sequence_id: string }
         Returns: boolean
+      }
+      upsert_campaign_daily_stat: {
+        Args: {
+          p_campaign_id: string
+          p_channel: string
+          p_day: string
+          p_increment?: number
+          p_stat_type: string
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       user_has_workspace_access: {
         Args: { _workspace_id: string }
@@ -4015,6 +5420,37 @@ export type Database = {
       validate_campaign_integrations: {
         Args: { p_campaign_id: string }
         Returns: Json
+      }
+      weekly_cfo_portfolio_snapshot: {
+        Args: never
+        Returns: {
+          avg_cac_blended: number
+          avg_contribution_margin_pct: number
+          avg_gross_margin_pct: number
+          avg_payback_months: number
+          avg_revenue_per_fte: number
+          avg_sales_efficiency_ratio: number
+          tenants_active: number
+          total_econ_actions: number
+          total_econ_actions_hurt: number
+          total_econ_actions_improved: number
+        }[]
+      }
+      weekly_cfo_snapshot: {
+        Args: never
+        Returns: {
+          cac_blended: number
+          contribution_margin_pct: number
+          econ_actions_hurt: number
+          econ_actions_improved: number
+          econ_actions_total: number
+          gross_margin_pct: number
+          payback_months: number
+          revenue_per_fte: number
+          sales_efficiency_ratio: number
+          tenant_id: string
+          tenant_name: string
+        }[]
       }
     }
     Enums: {
