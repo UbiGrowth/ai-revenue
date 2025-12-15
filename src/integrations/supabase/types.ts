@@ -4967,6 +4967,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          is_global: boolean | null
           name: string
           sort_order: number | null
           tenant_id: string
@@ -4979,6 +4980,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_global?: boolean | null
           name: string
           sort_order?: number | null
           tenant_id: string
@@ -4991,6 +4993,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_global?: boolean | null
           name?: string
           sort_order?: number | null
           tenant_id?: string
