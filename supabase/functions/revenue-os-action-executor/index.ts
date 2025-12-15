@@ -339,31 +339,7 @@ async function evaluateActionResults(supabase: any, tenantId?: string) {
       (action.target_direction === 'stabilize' && Math.abs(delta) < baseline.baseline_value * 0.05)
     );
 
-    // Get economic deltas for CFO learning loop
-    const economicMetrics = ['cac_blended', 'payback_months', 'gross_margin_pct', 'revenue_per_fte'];
-    const { data: economicSnapshots } = await supabase
-      .from('metric_snapshots_daily')
-      .select('metric_id, value')
-      .eq('tenant_id', action.tenant_id)
-      .in('metric_id', economicMetrics)
-      .order('date', { ascending: false })
-      .limit(economicMetrics.length);
-
-    // Fetch prior results for this action to compute economic deltas
-    const { data: priorResultsData } = await supabase
-      .from('optimization_action_results')
-      .select('metric_id, baseline_value')
-      .eq('action_id', action.id);
-
-    const economicDeltas: Record<string, number> = {};
-    for (const es of economicSnapshots || []) {
-      const baselineEcon = (priorResultsData || []).find((r: any) => r.metric_id === es.metric_id);
-      if (baselineEcon?.baseline_value) {
-        economicDeltas[`delta_${es.metric_id}`] = es.value - baselineEcon.baseline_value;
-      }
-    }
-
-    // Update the result record with economic deltas
+    // Update the result record
     await supabase
       .from('optimization_action_results')
       .update({
@@ -371,8 +347,7 @@ async function evaluateActionResults(supabase: any, tenantId?: string) {
         observed_value: latestMetric.value,
         delta,
         delta_direction: deltaDirection,
-        confidence: 0.7,
-        economic_deltas: economicDeltas, // CFO learning signal
+        confidence: 0.7, // Simplified - would compute based on sample size
       })
       .eq('id', baseline.id);
 

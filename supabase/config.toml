@@ -288,9 +288,6 @@ verify_jwt = false
 [functions.revenue-os-action-executor]
 verify_jwt = false
 
-[functions.revenue-os-validation]
-verify_jwt = false
-
 [functions.weekly-software-updates]
 verify_jwt = false
 
@@ -301,10 +298,4 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.send-bulk-update]
-verify_jwt = false
-
-[functions.cfo-weekly-snapshot]
-verify_jwt = false
-
-[functions.weekly-cfo-digest]
 verify_jwt = false

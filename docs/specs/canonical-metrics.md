@@ -54,13 +54,8 @@ This is the **single source of truth** for all metric IDs used in UbiGrowth Reve
 | `cac_by_channel` | CAC per acquisition channel | channel_spend / channel_new_customers | revenue_events | ↓ | analytics_job |
 | `payback_months` | Months to recover CAC | cac_blended / (avg_mrr × gross_margin) | derived | ↓ | kernel |
 | `gross_margin` | Gross profit margin | (revenue - cogs) / revenue | revenue_events | ↑ | analytics_job |
-| `gross_margin_pct` | Gross margin percentage | gross_margin × 100 | derived | ↑ | kernel |
-| `contribution_margin_pct` | Contribution margin after variable costs | (revenue - variable_costs) / revenue × 100 | revenue_events | ↑ | analytics_job |
 | `ltv_to_cac` | Lifetime value to CAC ratio | ltv / cac_blended | derived | ↑ | kernel |
 | `avg_deal_size` | Average closed deal value | AVG(opportunities.amount WHERE stage = 'closed_won') | opportunities | ↑ | analytics_job |
-| `revenue_per_fte` | Revenue efficiency per employee | arr_total / headcount | accounts, tenants | ↑ | analytics_job |
-| `sales_efficiency_ratio` | Sales efficiency (magic number) | net_new_arr / sales_marketing_spend | revenue_events | ↑ | analytics_job |
-| `cash_runway_months` | Months of cash remaining | cash_balance / monthly_burn | derived | ↑ | kernel |
 
 ---
 

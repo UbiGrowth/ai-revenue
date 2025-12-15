@@ -3400,7 +3400,6 @@ export type Database = {
           created_at: string
           delta: number | null
           delta_direction: string | null
-          economic_deltas: Json | null
           id: string
           metadata: Json | null
           metric_id: string
@@ -3416,7 +3415,6 @@ export type Database = {
           created_at?: string
           delta?: number | null
           delta_direction?: string | null
-          economic_deltas?: Json | null
           id?: string
           metadata?: Json | null
           metric_id: string
@@ -3432,7 +3430,6 @@ export type Database = {
           created_at?: string
           delta?: number | null
           delta_direction?: string | null
-          economic_deltas?: Json | null
           id?: string
           metadata?: Json | null
           metric_id?: string
@@ -3540,7 +3537,6 @@ export type Database = {
       optimization_cycles: {
         Row: {
           binding_constraint: string | null
-          cfo_gates_active: string[] | null
           created_at: string
           duration_ms: number | null
           error_message: string | null
@@ -3554,7 +3550,6 @@ export type Database = {
         }
         Insert: {
           binding_constraint?: string | null
-          cfo_gates_active?: string[] | null
           created_at?: string
           duration_ms?: number | null
           error_message?: string | null
@@ -3568,7 +3563,6 @@ export type Database = {
         }
         Update: {
           binding_constraint?: string | null
-          cfo_gates_active?: string[] | null
           created_at?: string
           duration_ms?: number | null
           error_message?: string | null
@@ -4743,66 +4737,6 @@ export type Database = {
         }
         Relationships: []
       }
-      tenant_targets: {
-        Row: {
-          cash_risk_tolerance: string | null
-          created_at: string
-          email_enabled: boolean | null
-          experiment_exposure_pct: number | null
-          landing_pages_enabled: boolean | null
-          linkedin_enabled: boolean | null
-          margin_floor_pct: number | null
-          max_cac: number | null
-          max_cac_by_segment: Json | null
-          monthly_budget_cap: number | null
-          sms_enabled: boolean | null
-          target_bookings: number | null
-          target_payback_months: number | null
-          target_pipeline: number | null
-          tenant_id: string
-          updated_at: string
-          voice_enabled: boolean | null
-        }
-        Insert: {
-          cash_risk_tolerance?: string | null
-          created_at?: string
-          email_enabled?: boolean | null
-          experiment_exposure_pct?: number | null
-          landing_pages_enabled?: boolean | null
-          linkedin_enabled?: boolean | null
-          margin_floor_pct?: number | null
-          max_cac?: number | null
-          max_cac_by_segment?: Json | null
-          monthly_budget_cap?: number | null
-          sms_enabled?: boolean | null
-          target_bookings?: number | null
-          target_payback_months?: number | null
-          target_pipeline?: number | null
-          tenant_id: string
-          updated_at?: string
-          voice_enabled?: boolean | null
-        }
-        Update: {
-          cash_risk_tolerance?: string | null
-          created_at?: string
-          email_enabled?: boolean | null
-          experiment_exposure_pct?: number | null
-          landing_pages_enabled?: boolean | null
-          linkedin_enabled?: boolean | null
-          margin_floor_pct?: number | null
-          max_cac?: number | null
-          max_cac_by_segment?: Json | null
-          monthly_budget_cap?: number | null
-          sms_enabled?: boolean | null
-          target_bookings?: number | null
-          target_payback_months?: number | null
-          target_pipeline?: number | null
-          tenant_id?: string
-          updated_at?: string
-          voice_enabled?: boolean | null
-        }
-        Relationships: []
-      }
       tenants: {
         Row: {
           billing_plan: string
@@ -5120,39 +5054,6 @@ export type Database = {
         Returns: boolean
       }
       gc_rate_limit_counters: { Args: never; Returns: undefined }
-      get_weekly_cfo_portfolio_summary: {
-        Args: never
-        Returns: {
-          avg_cac_blended: number
-          avg_contribution_margin_pct: number
-          avg_gross_margin_pct: number
-          avg_payback_months: number
-          avg_revenue_per_fte: number
-          avg_sales_efficiency_ratio: number
-          tenants_active: number
-          total_econ_actions: number
-          total_econ_actions_hurt: number
-          total_econ_actions_improved: number
-        }[]
-      }
-      get_weekly_cfo_snapshot: {
-        Args: never
-        Returns: {
-          cac_blended: number
-          cfo_enabled: boolean
-          cfo_gates_triggered: number
-          contribution_margin_pct: number
-          econ_actions_hurt: number
-          econ_actions_improved: number
-          econ_actions_total: number
-          gross_margin_pct: number
-          payback_months: number
-          revenue_per_fte: number
-          sales_efficiency_ratio: number
-          tenant_id: string
-          tenant_name: string
-        }[]
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5207,37 +5108,6 @@ export type Database = {
       validate_campaign_integrations: {
         Args: { p_campaign_id: string }
         Returns: Json
-      }
-      weekly_cfo_portfolio_snapshot: {
-        Args: never
-        Returns: {
-          avg_cac_blended: number
-          avg_contribution_margin_pct: number
-          avg_gross_margin_pct: number
-          avg_payback_months: number
-          avg_revenue_per_fte: number
-          avg_sales_efficiency_ratio: number
-          tenants_active: number
-          total_econ_actions: number
-          total_econ_actions_hurt: number
-          total_econ_actions_improved: number
-        }[]
-      }
-      weekly_cfo_snapshot: {
-        Args: never
-        Returns: {
-          cac_blended: number
-          contribution_margin_pct: number
-          econ_actions_hurt: number
-          econ_actions_improved: number
-          econ_actions_total: number
-          gross_margin_pct: number
-          payback_months: number
-          revenue_per_fte: number
-          sales_efficiency_ratio: number
-          tenant_id: string
-          tenant_name: string
-        }[]
       }
     }
     Enums: {
