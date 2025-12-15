@@ -4116,6 +4116,45 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          created_at: string | null
+          email: string
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          is_active: boolean | null
+          name: string | null
+          notes: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          notes?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          notes?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       prospect_scores: {
         Row: {
           band: string | null
@@ -5431,6 +5470,7 @@ export type Database = {
         Args: { p_campaign_id: string; p_workspace_id: string }
         Returns: undefined
       }
+      is_platform_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_workspace_owner_or_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
