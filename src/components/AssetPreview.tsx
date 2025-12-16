@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Video, Mail, Phone, Layout } from "lucide-react";
 import { getAssetPlaceholder } from "@/lib/placeholders";
+import DOMPurify from "dompurify";
 
 interface AssetPreviewProps {
   type: string;
@@ -51,7 +52,7 @@ const AssetPreview = ({ type, previewUrl, content, name }: AssetPreviewProps) =>
             {content?.body ? (
               <div
                 className="whitespace-pre-wrap"
-                dangerouslySetInnerHTML={{ __html: content.body }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content.body) }}
               />
             ) : (
               <div>
