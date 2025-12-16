@@ -28,7 +28,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Sending feedback email from:", userEmail);
 
     const emailResponse = await resend.emails.send({
-      from: "UbiGrowth Feedback <noreply@updates.ubigrowth.ai>",
+      from: "UbiGrowth Feedback <onboarding@resend.dev>",
       to: ["support@ubigrowth.com"],
       cc: [userEmail],
       subject: `Feedback from ${userName}`,
