@@ -1,6 +1,7 @@
 // CMO API Client - Tenant-scoped Supabase operations
 
 import { supabase } from "@/integrations/supabase/client";
+import { getTenantContext } from "@/lib/tenant";
 import type {
   CMOBrandProfile,
   CMOICPSegment,
@@ -23,22 +24,8 @@ import type {
 // Re-export tenant registry utilities
 export * from "./tenant-registry";
 
-// Helper to get current tenant context
-async function getTenantContext() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  
-  // Get user's primary tenant
-  const { data: userTenant } = await supabase
-    .from("user_tenants")
-    .select("tenant_id")
-    .eq("user_id", user.id)
-    .single();
-  
-  if (!userTenant) throw new Error("No tenant found for user");
-  
-  return { userId: user.id, tenantId: userTenant.tenant_id };
-}
+// Re-export tenant context for convenience
+export { getTenantContext } from "@/lib/tenant";
 
 // CMO Kernel - AI Gateway
 export async function invokeCMOKernel(

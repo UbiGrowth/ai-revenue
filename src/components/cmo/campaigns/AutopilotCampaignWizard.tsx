@@ -20,12 +20,14 @@ import {
 } from '@/components/ui/select';
 import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout } from 'lucide-react';
 import { buildAutopilotCampaign } from '@/lib/cmo/api';
+import { getTenantContextSafe, requireTenantId } from '@/lib/tenant';
 import { cmoKeys } from '@/hooks/useCMO';
 import { toast } from 'sonner';
 import type { CampaignGoal } from '@/lib/cmo/types';
 
 interface AutopilotCampaignWizardProps {
   workspaceId?: string;
+  tenantId?: string;
   onComplete?: (result: any) => void;
 }
 
@@ -44,7 +46,7 @@ const GOAL_OPTIONS: { value: CampaignGoal; label: string }[] = [
   { value: 'engagement', label: 'Grow engagement' },
 ];
 
-export function AutopilotCampaignWizard({ workspaceId, onComplete }: AutopilotCampaignWizardProps) {
+export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, onComplete }: AutopilotCampaignWizardProps) {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
@@ -76,12 +78,22 @@ export function AutopilotCampaignWizard({ workspaceId, onComplete }: AutopilotCa
 
     setLoading(true);
     try {
+      // Resolve tenant context from multiple sources
+      const context = await getTenantContextSafe();
+      const resolvedWorkspaceId = workspaceId || context.workspaceId;
+      
+      // Validate we have tenant context
+      requireTenantId({
+        activeTenantId: propTenantId || context.tenantId,
+        workspaceId: resolvedWorkspaceId,
+      });
+
       const data = await buildAutopilotCampaign({
         icp,
         offer,
         channels: selectedChannels,
         desiredResult,
-        workspaceId,
+        workspaceId: resolvedWorkspaceId || undefined,
       });
       setResult(data);
       
