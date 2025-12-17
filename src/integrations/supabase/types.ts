@@ -286,6 +286,44 @@ export type Database = {
           },
         ]
       }
+      ai_settings_stripe: {
+        Row: {
+          account_name: string | null
+          is_connected: boolean | null
+          stripe_publishable_key: string | null
+          stripe_secret_key_hint: string | null
+          tenant_id: string
+          updated_at: string | null
+          webhook_secret_hint: string | null
+        }
+        Insert: {
+          account_name?: string | null
+          is_connected?: boolean | null
+          stripe_publishable_key?: string | null
+          stripe_secret_key_hint?: string | null
+          tenant_id: string
+          updated_at?: string | null
+          webhook_secret_hint?: string | null
+        }
+        Update: {
+          account_name?: string | null
+          is_connected?: boolean | null
+          stripe_publishable_key?: string | null
+          stripe_secret_key_hint?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+          webhook_secret_hint?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_settings_stripe_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_settings_voice: {
         Row: {
           default_elevenlabs_voice_id: string | null
