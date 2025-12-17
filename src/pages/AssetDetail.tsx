@@ -949,7 +949,7 @@ const AssetDetail = () => {
               
               <Card className="border-border bg-card shadow-md">
                 <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <CardTitle className="text-lg">Preview</CardTitle>
                       {lastRefreshedAt && (
@@ -958,15 +958,40 @@ const AssetDetail = () => {
                         </Badge>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={fetchAsset}
-                      disabled={loading}
-                    >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchAsset}
+                        disabled={loading}
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <Button
+                          onClick={handleSave}
+                          disabled={saving}
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {saving ? "Saving..." : "Save"}
+                        </Button>
+                        <Button
+                          onClick={handleSaveAndPublish}
+                          disabled={saving}
+                          size="sm"
+                          className="w-full"
+                        >
+                          <Send className="mr-2 h-4 w-4" />
+                          {saving ? "Publishing..." : "Save & Publish"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -978,17 +1003,7 @@ const AssetDetail = () => {
                     name={asset.name}
                   />
 
-                  {/* Quick-save actions (keeps Save visible while reviewing the preview) */}
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Button onClick={handleSave} disabled={saving} variant="outline" className="w-full">
-                      <Save className="mr-2 h-4 w-4" />
-                      {saving ? "Saving..." : "Save"}
-                    </Button>
-                    <Button onClick={handleSaveAndPublish} disabled={saving} className="w-full">
-                      <Send className="mr-2 h-4 w-4" />
-                      {saving ? "Publishing..." : "Save & Publish"}
-                    </Button>
-                  </div>
+
                 </CardContent>
               </Card>
             </div>
