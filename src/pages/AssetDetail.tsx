@@ -233,11 +233,12 @@ const AssetDetail = () => {
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 3000);
       fetchAsset();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error saving asset:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save changes",
+        description: error?.message || "Failed to save changes",
       });
     } finally {
       setSaving(false);
@@ -294,11 +295,12 @@ const AssetDetail = () => {
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 3000);
       fetchAsset();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error publishing asset:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to publish changes",
+        description: error?.message || "Failed to publish changes",
       });
     } finally {
       setSaving(false);
