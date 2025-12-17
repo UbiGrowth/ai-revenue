@@ -14,7 +14,8 @@ import { toast } from "@/hooks/use-toast";
 import { 
   Mail, Linkedin, Calendar, Globe, Webhook, Loader2, 
   CheckCircle2, XCircle, Copy, ChevronDown, Settings, ArrowLeft,
-  History, User, Clock, Phone, Mic, RefreshCw, Plus, Trash2
+  History, User, Clock, Phone, Mic, RefreshCw, Plus, Trash2,
+  CreditCard, Share2, Instagram, Facebook
 } from "lucide-react";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
@@ -83,6 +84,25 @@ interface VapiAssistant {
   voice?: string;
 }
 
+interface StripeSettings {
+  tenant_id: string;
+  stripe_publishable_key: string;
+  stripe_secret_key_hint: string;
+  webhook_secret_hint: string;
+  is_connected: boolean;
+  account_name: string;
+  updated_at: string | null;
+}
+
+interface SocialIntegration {
+  id: string;
+  platform: string;
+  access_token: string;
+  account_name: string | null;
+  is_active: boolean | null;
+  workspace_id: string | null;
+}
+
 interface AuditLogEntry {
   id: string;
   tenant_id: string;
@@ -100,7 +120,16 @@ const SETTINGS_TYPE_LABELS: Record<string, string> = {
   crm: "CRM Webhooks",
   domain: "Domain",
   voice: "Voice",
+  stripe: "Stripe",
+  social: "Social",
 };
+
+const SOCIAL_PLATFORMS = [
+  { id: "linkedin", name: "LinkedIn", icon: Linkedin },
+  { id: "instagram", name: "Instagram", icon: Instagram },
+  { id: "facebook", name: "Facebook", icon: Facebook },
+  { id: "tiktok", name: "TikTok", icon: Share2 },
+];
 
 const ELEVENLABS_VOICES = [
   { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah (Default)" },
@@ -144,6 +173,11 @@ const FIELD_LABELS: Record<string, string> = {
   default_vapi_assistant_id: "Default Assistant",
   default_elevenlabs_voice_id: "Default Voice",
   elevenlabs_model: "ElevenLabs Model",
+  stripe_publishable_key: "Publishable Key",
+  stripe_secret_key_hint: "Secret Key",
+  webhook_secret_hint: "Webhook Secret",
+  account_name: "Account Name",
+  access_token: "Access Token",
 };
 
 export default function SettingsIntegrations() {
@@ -201,6 +235,18 @@ export default function SettingsIntegrations() {
   const [newAssistantName, setNewAssistantName] = useState("");
   const [newAssistantPrompt, setNewAssistantPrompt] = useState("You are a helpful AI assistant.");
 
+  // Stripe state
+  const [stripeSettings, setStripeSettings] = useState<StripeSettings | null>(null);
+  const [stripePublishableKey, setStripePublishableKey] = useState("");
+  const [stripeSecretKeyHint, setStripeSecretKeyHint] = useState("");
+  const [stripeWebhookSecretHint, setStripeWebhookSecretHint] = useState("");
+  const [stripeAccountName, setStripeAccountName] = useState("");
+  const [stripeIsConnected, setStripeIsConnected] = useState(false);
+
+  // Social integrations state
+  const [socialIntegrations, setSocialIntegrations] = useState<SocialIntegration[]>([]);
+  const [socialTokens, setSocialTokens] = useState<Record<string, { token: string; accountName: string }>>({});
+
   useEffect(() => {
     loadAllSettings();
   }, []);
@@ -240,13 +286,15 @@ export default function SettingsIntegrations() {
     setTenantId(workspaceId);
 
     // Load all settings and audit logs in parallel using workspace_id
-    const [emailRes, linkedinRes, calendarRes, crmRes, domainRes, voiceRes, auditRes] = await Promise.all([
+    const [emailRes, linkedinRes, calendarRes, crmRes, domainRes, voiceRes, stripeRes, socialRes, auditRes] = await Promise.all([
       supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).maybeSingle(),
       supabase.from("ai_settings_linkedin").select("*").eq("tenant_id", workspaceId).maybeSingle(),
       supabase.from("ai_settings_calendar").select("*").eq("tenant_id", workspaceId).maybeSingle(),
       supabase.from("ai_settings_crm_webhooks").select("*").eq("tenant_id", workspaceId).maybeSingle(),
       supabase.from("ai_settings_domain").select("*").eq("tenant_id", workspaceId).maybeSingle(),
       supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).maybeSingle(),
+      supabase.from("ai_settings_stripe").select("*").eq("tenant_id", workspaceId).maybeSingle(),
+      supabase.from("social_integrations").select("*").eq("workspace_id", workspaceId),
       supabase.from("integration_audit_log").select("*").eq("tenant_id", workspaceId).order("created_at", { ascending: false }).limit(20),
     ]);
 
@@ -299,6 +347,29 @@ export default function SettingsIntegrations() {
       setDefaultVapiAssistantId(voiceRes.data.default_vapi_assistant_id || "");
       setDefaultElevenlabsVoiceId(voiceRes.data.default_elevenlabs_voice_id || "EXAVITQu4vr4xnSDxMaL");
       setElevenlabsModel(voiceRes.data.elevenlabs_model || "eleven_multilingual_v2");
+    }
+
+    // Populate Stripe
+    if (stripeRes.data) {
+      setStripeSettings(stripeRes.data as StripeSettings);
+      setStripePublishableKey(stripeRes.data.stripe_publishable_key || "");
+      setStripeSecretKeyHint(stripeRes.data.stripe_secret_key_hint || "");
+      setStripeWebhookSecretHint(stripeRes.data.webhook_secret_hint || "");
+      setStripeAccountName(stripeRes.data.account_name || "");
+      setStripeIsConnected(stripeRes.data.is_connected || false);
+    }
+
+    // Populate Social integrations
+    if (socialRes.data) {
+      setSocialIntegrations(socialRes.data as SocialIntegration[]);
+      const tokens: Record<string, { token: string; accountName: string }> = {};
+      (socialRes.data as SocialIntegration[]).forEach((integration) => {
+        tokens[integration.platform] = {
+          token: integration.access_token || "",
+          accountName: integration.account_name || "",
+        };
+      });
+      setSocialTokens(tokens);
     }
 
     // Populate audit logs
@@ -676,6 +747,123 @@ export default function SettingsIntegrations() {
     }
   };
 
+  const saveStripeSettings = async () => {
+    if (!tenantId) return;
+    setSaving("stripe");
+
+    try {
+      const payload = {
+        tenant_id: tenantId,
+        stripe_publishable_key: stripePublishableKey,
+        stripe_secret_key_hint: stripeSecretKeyHint,
+        webhook_secret_hint: stripeWebhookSecretHint,
+        account_name: stripeAccountName,
+        is_connected: stripeIsConnected,
+        updated_at: new Date().toISOString(),
+      };
+
+      const changes = detectChanges(stripeSettings || {}, payload);
+      const isCreate = !stripeSettings;
+
+      if (Object.keys(changes).length === 0) {
+        toast({ title: "No changes", description: "No changes were detected to save." });
+        setSaving(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("ai_settings_stripe")
+        .upsert(payload, { onConflict: "tenant_id" });
+
+      if (error) throw error;
+
+      await logAuditEntry('stripe', changes, isCreate);
+
+      setStripeSettings({ ...payload, updated_at: payload.updated_at });
+      
+      const changesList = formatChangesList(changes);
+      toast({ 
+        title: "✓ Stripe Settings Updated", 
+        description: (
+          <div className="mt-2 space-y-1">
+            {changesList.map((change, i) => (
+              <div key={i} className="text-sm">• {change}</div>
+            ))}
+            <div className="text-xs text-muted-foreground mt-2">
+              Saved at {format(new Date(), "h:mm a")}
+            </div>
+          </div>
+        ),
+      });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const saveSocialIntegration = async (platform: string) => {
+    if (!tenantId || !userId) return;
+    setSaving(`social-${platform}`);
+
+    try {
+      const tokenData = socialTokens[platform] || { token: "", accountName: "" };
+      
+      // Check if integration already exists
+      const existing = socialIntegrations.find(i => i.platform === platform);
+      
+      const payload = {
+        workspace_id: tenantId,
+        user_id: userId,
+        platform,
+        access_token: tokenData.token,
+        account_name: tokenData.accountName,
+        is_active: !!tokenData.token,
+        updated_at: new Date().toISOString(),
+      };
+
+      let error;
+      if (existing) {
+        const result = await supabase
+          .from("social_integrations")
+          .update(payload)
+          .eq("id", existing.id);
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from("social_integrations")
+          .insert(payload);
+        error = result.error;
+      }
+
+      if (error) throw error;
+
+      await logAuditEntry('social', { 
+        [`${platform}_access_token`]: { old: existing?.access_token ? '••••••••' : null, new: tokenData.token ? '••••••••' : null },
+        [`${platform}_account_name`]: { old: existing?.account_name, new: tokenData.accountName }
+      }, !existing);
+
+      // Refresh social integrations
+      const { data: refreshed } = await supabase
+        .from("social_integrations")
+        .select("*")
+        .eq("workspace_id", tenantId);
+      
+      if (refreshed) {
+        setSocialIntegrations(refreshed as SocialIntegration[]);
+      }
+      
+      toast({ 
+        title: `✓ ${platform.charAt(0).toUpperCase() + platform.slice(1)} Settings Saved`, 
+        description: `Connection ${tokenData.token ? 'configured' : 'cleared'}`,
+      });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const loadVapiAssistants = async () => {
     if (!vapiPrivateKey) {
       toast({ title: "Missing Key", description: "Please save your VAPI Private Key first", variant: "destructive" });
@@ -802,14 +990,14 @@ export default function SettingsIntegrations() {
               <h1 className="text-3xl font-bold">Integrations</h1>
             </div>
             <p className="text-muted-foreground">
-              Configure your email, LinkedIn, calendar, CRM, domain, and voice settings for outbound campaigns.
+              Configure your email, social platforms, calendar, CRM, domain, voice, and Stripe settings for campaigns.
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
+                <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex lg:flex-wrap">
                   <TabsTrigger value="email" className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     <span className="hidden sm:inline">Email</span>
@@ -833,6 +1021,14 @@ export default function SettingsIntegrations() {
                   <TabsTrigger value="voice" className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
                     <span className="hidden sm:inline">Voice</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="stripe" className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    <span className="hidden sm:inline">Stripe</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="social" className="flex items-center gap-2">
+                    <Share2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Social</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -1429,6 +1625,183 @@ export default function SettingsIntegrations() {
                         Save Voice Settings
                       </Button>
                     </div>
+                  </div>
+                </TabsContent>
+
+                {/* Stripe Tab */}
+                <TabsContent value="stripe">
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CreditCard className="h-5 w-5 text-primary" />
+                          Stripe Configuration
+                        </CardTitle>
+                        <CardDescription>
+                          Configure your Stripe integration for payments and subscriptions.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="stripe-account">Account Name</Label>
+                          <Input
+                            id="stripe-account"
+                            placeholder="My Business Stripe Account"
+                            value={stripeAccountName}
+                            onChange={(e) => setStripeAccountName(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="stripe-publishable">Publishable Key</Label>
+                          <Input
+                            id="stripe-publishable"
+                            placeholder="pk_live_..."
+                            value={stripePublishableKey}
+                            onChange={(e) => setStripePublishableKey(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Your Stripe publishable key (starts with pk_live_ or pk_test_)
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="stripe-secret">Secret Key (hint only)</Label>
+                          <Input
+                            id="stripe-secret"
+                            type="password"
+                            placeholder="sk_live_...xxxx (last 4 chars for reference)"
+                            value={stripeSecretKeyHint}
+                            onChange={(e) => setStripeSecretKeyHint(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Store only last 4 characters for reference. Full key should be in secure environment variables.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="stripe-webhook">Webhook Secret (hint only)</Label>
+                          <Input
+                            id="stripe-webhook"
+                            type="password"
+                            placeholder="whsec_...xxxx (last 4 chars for reference)"
+                            value={stripeWebhookSecretHint}
+                            onChange={(e) => setStripeWebhookSecretHint(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="stripe-connected"
+                            checked={stripeIsConnected}
+                            onChange={(e) => setStripeIsConnected(e.target.checked)}
+                            className="h-4 w-4"
+                          />
+                          <Label htmlFor="stripe-connected" className="cursor-pointer">
+                            Mark as connected
+                          </Label>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Separator />
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        {stripeSettings?.updated_at && (
+                          <p className="text-sm text-muted-foreground">
+                            Last updated: {formatUpdatedAt(stripeSettings.updated_at)}
+                          </p>
+                        )}
+                      </div>
+                      <Button onClick={saveStripeSettings} disabled={saving === "stripe"}>
+                        {saving === "stripe" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Save Stripe Settings
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Social Tab */}
+                <TabsContent value="social">
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Share2 className="h-5 w-5 text-primary" />
+                          Social Platforms
+                        </CardTitle>
+                        <CardDescription>
+                          Configure access tokens for your social media platforms.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {SOCIAL_PLATFORMS.map((platform) => {
+                          const IconComponent = platform.icon;
+                          const existingIntegration = socialIntegrations.find(i => i.platform === platform.id);
+                          const tokenData = socialTokens[platform.id] || { token: "", accountName: "" };
+                          
+                          return (
+                            <div key={platform.id} className="border rounded-lg p-4 space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <IconComponent className="h-5 w-5 text-primary" />
+                                  <span className="font-medium">{platform.name}</span>
+                                </div>
+                                {existingIntegration?.is_active && (
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                    Connected
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor={`${platform.id}-token`}>Access Token</Label>
+                                  <Input
+                                    id={`${platform.id}-token`}
+                                    type="password"
+                                    placeholder="Enter access token"
+                                    value={tokenData.token}
+                                    onChange={(e) => setSocialTokens(prev => ({
+                                      ...prev,
+                                      [platform.id]: { ...tokenData, token: e.target.value }
+                                    }))}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`${platform.id}-account`}>Account Name</Label>
+                                  <Input
+                                    id={`${platform.id}-account`}
+                                    placeholder="@username or Page Name"
+                                    value={tokenData.accountName}
+                                    onChange={(e) => setSocialTokens(prev => ({
+                                      ...prev,
+                                      [platform.id]: { ...tokenData, accountName: e.target.value }
+                                    }))}
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end">
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => saveSocialIntegration(platform.id)}
+                                  disabled={saving === `social-${platform.id}`}
+                                >
+                                  {saving === `social-${platform.id}` && (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  )}
+                                  Save {platform.name}
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
                   </div>
                 </TabsContent>
               </Tabs>
