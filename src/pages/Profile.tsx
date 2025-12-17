@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import NavBar from "@/components/NavBar";
+import PageBreadcrumbs from "@/components/PageBreadcrumbs";
 import BusinessProfileTab from "@/components/BusinessProfileTab";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -33,6 +34,10 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
+      <PageBreadcrumbs items={[
+        { label: "Settings", href: "/settings" },
+        { label: "Business Profile" }
+      ]} />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Business Profile</h1>
         <p className="text-muted-foreground mb-8">

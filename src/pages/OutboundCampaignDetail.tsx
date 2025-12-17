@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import NavBar from "@/components/NavBar";
+import PageBreadcrumbs from "@/components/PageBreadcrumbs";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -253,13 +254,14 @@ export default function OutboundCampaignDetail() {
     <ProtectedRoute>
       <div className="min-h-screen bg-background flex flex-col">
         <NavBar />
+        <PageBreadcrumbs items={[
+          { label: "Outbound", href: "/outbound" },
+          { label: campaign?.name || "Campaign" }
+        ]} />
         <main className="flex-1 container mx-auto px-4 py-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/outbound")}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold">{campaign.name}</h1>

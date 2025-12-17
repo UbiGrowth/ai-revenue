@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, X, PlayCircle, Mail, Phone, Layout, Video, Loader2, RefreshCw, FlaskConical, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import NavBar from "@/components/NavBar";
+import PageBreadcrumbs from "@/components/PageBreadcrumbs";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import WorkflowProgress from "@/components/WorkflowProgress";
@@ -687,6 +688,7 @@ const Approvals = () => {
     <ProtectedRoute>
       <div className="flex min-h-screen flex-col bg-background">
         <NavBar />
+        <PageBreadcrumbs items={[{ label: "Approvals" }]} />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <WorkflowProgress
             steps={[

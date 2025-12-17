@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import NavBar from "@/components/NavBar";
+import PageBreadcrumbs from "@/components/PageBreadcrumbs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -190,16 +191,14 @@ export default function CRODealDetail() {
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
+      <PageBreadcrumbs items={[
+        { label: "CRO", href: "/cro" },
+        { label: "Pipeline", href: "/cro/pipeline" },
+        { label: deal?.name || "Deal" }
+      ]} />
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link 
-            to="/cro/pipeline" 
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to Pipeline
-          </Link>
-          
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold">{deal.name}</h1>
