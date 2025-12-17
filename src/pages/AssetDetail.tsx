@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, CheckCircle, Save, Send, Sparkles, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import NavBar from "@/components/NavBar";
+import PageBreadcrumbs from "@/components/PageBreadcrumbs";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AssetPreview from "@/components/AssetPreview";
@@ -841,15 +842,11 @@ const AssetDetail = () => {
     <ProtectedRoute>
       <div className="flex min-h-screen flex-col bg-background">
         <NavBar />
+        <PageBreadcrumbs items={[
+          { label: "Assets", href: "/assets" },
+          { label: asset?.name || "Asset" }
+        ]} />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/assets")}
-            className="mb-6 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Catalog
-          </Button>
 
           <div className="mb-6">
             <h1 className="text-4xl font-bold text-foreground">{asset.name}</h1>

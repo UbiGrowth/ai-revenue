@@ -31,6 +31,7 @@ import {
   Trash2,
 } from "lucide-react";
 import NavBar from "@/components/NavBar";
+import PageBreadcrumbs from "@/components/PageBreadcrumbs";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LeadScoring from "@/components/crm/LeadScoring";
@@ -234,12 +235,12 @@ export default function LeadDetail() {
     <ProtectedRoute>
       <div className="flex min-h-screen flex-col bg-background">
         <NavBar />
+        <PageBreadcrumbs items={[
+          { label: "CRM", href: "/crm" },
+          { label: lead ? `${lead.first_name} ${lead.last_name}` : "Lead" }
+        ]} />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-6">
-            <Button variant="ghost" onClick={() => navigate("/crm")} className="mb-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to CRM
-            </Button>
 
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
