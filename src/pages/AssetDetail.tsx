@@ -949,7 +949,7 @@ const AssetDetail = () => {
               
               <Card className="border-border bg-card shadow-md">
                 <CardHeader className="pb-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <CardTitle className="text-lg">Preview</CardTitle>
                       {lastRefreshedAt && (
@@ -958,40 +958,15 @@ const AssetDetail = () => {
                         </Badge>
                       )}
                     </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={fetchAsset}
-                        disabled={loading}
-                      >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                      </Button>
-
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <Button
-                          onClick={handleSave}
-                          disabled={saving}
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {saving ? "Saving..." : "Save"}
-                        </Button>
-                        <Button
-                          onClick={handleSaveAndPublish}
-                          disabled={saving}
-                          size="sm"
-                          className="w-full"
-                        >
-                          <Send className="mr-2 h-4 w-4" />
-                          {saving ? "Publishing..." : "Save & Publish"}
-                        </Button>
-                      </div>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchAsset}
+                      disabled={loading}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1465,6 +1440,20 @@ const AssetDetail = () => {
                       </div>
                     </div>
                   </TabsContent>
+
+                  {/* Save actions (always visible under Edit Asset) */}
+                  <div className="sticky bottom-0 mt-6 border-t border-border bg-card/95 pt-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button onClick={handleSave} disabled={saving} variant="outline" className="w-full">
+                        <Save className="mr-2 h-4 w-4" />
+                        {saving ? "Saving..." : "Save Draft"}
+                      </Button>
+                      <Button onClick={handleSaveAndPublish} disabled={saving} className="w-full">
+                        <Send className="mr-2 h-4 w-4" />
+                        {saving ? "Publishing..." : "Save & Publish Live"}
+                      </Button>
+                    </div>
+                  </div>
                 </Tabs>
                 </CardContent>
               </Card>
