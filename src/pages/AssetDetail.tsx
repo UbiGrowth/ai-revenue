@@ -1181,7 +1181,55 @@ const AssetDetail = () => {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="content" className="space-y-4">
+                    <TabsContent value="content" className="space-y-4 relative">
+                      {/* Sticky Save Bar at Top */}
+                      <div className="sticky top-0 z-10 bg-card border-b border-border -mx-6 px-6 py-3 flex items-center justify-between gap-3">
+                        <p className="text-sm text-muted-foreground">Edit content below, then save your changes</p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            variant="outline"
+                            size="sm"
+                          >
+                            {saving ? (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="mr-2 h-4 w-4" />
+                                Save Draft
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            onClick={handleSaveAndPublish}
+                            disabled={saving}
+                            size="sm"
+                            className={justSaved ? 'bg-green-600 hover:bg-green-700' : ''}
+                          >
+                            {justSaved ? (
+                              <>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Saved!
+                              </>
+                            ) : saving ? (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                Publishing...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="mr-2 h-4 w-4" />
+                                Save & Publish
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
                       <div className="space-y-3">
                         <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
                           <div>
@@ -1239,50 +1287,6 @@ const AssetDetail = () => {
                         )}
                       </div>
                       {renderContentFields()}
-                      
-                      {/* Save buttons for content changes */}
-                      <div className="pt-4 border-t border-border space-y-3">
-                        <Button
-                          onClick={handleSave}
-                          disabled={saving}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          {saving ? (
-                            <>
-                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="mr-2 h-4 w-4" />
-                              Save Draft
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          onClick={handleSaveAndPublish}
-                          disabled={saving}
-                          className={`w-full ${justSaved ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                        >
-                          {justSaved ? (
-                            <>
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Published Successfully
-                            </>
-                          ) : saving ? (
-                            <>
-                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                              Publishing...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="mr-2 h-4 w-4" />
-                              Save & Publish Live
-                            </>
-                          )}
-                        </Button>
-                      </div>
                     </TabsContent>
 
                     <TabsContent value="actions" className="space-y-4">
