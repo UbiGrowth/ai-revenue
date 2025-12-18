@@ -281,3 +281,12 @@ verify_jwt = false
 
 [functions.email-hook]
 verify_jwt = false
+
+[functions.gmail-oauth-start]
+verify_jwt = true
+
+[functions.gmail-oauth-callback]
+verify_jwt = false
+
+[functions.gmail-disconnect]
+verify_jwt = true
