@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Send, Loader2, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   role: "user" | "assistant";
@@ -16,23 +18,83 @@ interface AIChatProps {
   initialPrompt?: string | null;
 }
 
+interface AppContext {
+  businessName: string | null;
+  industry: string | null;
+  currentRoute: string;
+  leadCount: number;
+  campaignCount: number;
+  modulesEnabled: string[];
+}
+
 const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
   const { toast } = useToast();
+  const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi! I'm your UbiGrowth AI Assistant. I can help you:\n\n• Create compelling campaigns\n• Write video scripts and email content\n• Optimize your marketing strategy\n• Target the right audience\n• Analyze campaign performance\n\nWhat would you like help with today?"
+      content: "Hi! I'm your UbiGrowth AI Assistant. I can help you create campaigns, write content, optimize your marketing strategy, and answer questions about your account. What would you like help with today?"
     }
   ]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [appContext, setAppContext] = useState<AppContext | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
 
+  // Fetch application context on mount
+  useEffect(() => {
+    const fetchContext = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Fetch business profile
+        const { data: profile } = await supabase
+          .from("business_profiles")
+          .select("business_name, industry")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        // Fetch lead count
+        const { count: leadCount } = await supabase
+          .from("crm_leads")
+          .select("*", { count: "exact", head: true });
+
+        // Fetch campaign count
+        const { count: campaignCount } = await supabase
+          .from("cmo_campaigns")
+          .select("*", { count: "exact", head: true });
+
+        // Fetch enabled modules
+        const { data: moduleAccess } = await supabase
+          .from("tenant_module_access")
+          .select("module_id, enabled")
+          .eq("enabled", true);
+
+        const modulesEnabled = moduleAccess?.map(m => m.module_id) || [];
+
+        setAppContext({
+          businessName: profile?.business_name || null,
+          industry: profile?.industry || null,
+          currentRoute: location.pathname,
+          leadCount: leadCount || 0,
+          campaignCount: campaignCount || 0,
+          modulesEnabled,
+        });
+      } catch (error) {
+        console.error("Failed to fetch app context:", error);
+      }
+    };
+
+    fetchContext();
+  }, [location.pathname]);
+
+  // Handle initial prompt
   useEffect(() => {
     if (initialPrompt) {
       setInput(initialPrompt);
-      // Auto-send the initial prompt after a brief delay
       setTimeout(() => {
         if (initialPrompt.trim()) {
           streamChat(initialPrompt);
@@ -41,11 +103,16 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
     }
   }, [initialPrompt]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   const streamChat = async (userMessage: string) => {
     setIsStreaming(true);
@@ -60,7 +127,10 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: [...messages, newUserMessage] }),
+        body: JSON.stringify({ 
+          messages: [...messages, newUserMessage],
+          context: appContext,
+        }),
       });
 
       if (!resp.ok) {
@@ -70,6 +140,7 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
             description: "Too many requests. Please wait a moment.",
             variant: "destructive",
           });
+          setMessages(prev => prev.slice(0, -1));
           return;
         }
         if (resp.status === 402) {
@@ -78,6 +149,7 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
             description: "Please add credits to continue using AI.",
             variant: "destructive",
           });
+          setMessages(prev => prev.slice(0, -1));
           return;
         }
         throw new Error("Failed to start stream");
@@ -141,7 +213,7 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
         description: "Failed to send message. Please try again.",
         variant: "destructive",
       });
-      // Remove the failed assistant message
+      // Remove the failed user message
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setIsStreaming(false);
@@ -179,7 +251,7 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.map((message, i) => (
             <div
@@ -197,13 +269,14 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
               </div>
             </div>
           ))}
-          {isStreaming && (
+          {isStreaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-lg px-4 py-2">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
@@ -214,7 +287,7 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask me anything..."
+            placeholder="Ask me anything about your account..."
             rows={2}
             className="resize-none"
             disabled={isStreaming}
