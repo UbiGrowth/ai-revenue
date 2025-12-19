@@ -11,28 +11,41 @@ interface ChatMessage {
   content: string;
 }
 
+interface AppContext {
+  businessName: string | null;
+  industry: string | null;
+  currentRoute: string;
+  leadCount: number;
+  campaignCount: number;
+  modulesEnabled: string[];
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages }: { messages: ChatMessage[] } = await req.json();
+    const { messages, context }: { messages: ChatMessage[]; context?: AppContext } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Get user's business profile for personalized assistance
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const authHeader = req.headers.get('Authorization');
     
-    let businessName = "your business";
-    let industry = "your industry";
+    let businessName = context?.businessName || "your business";
+    let industry = context?.industry || "your industry";
+    let leadCount = context?.leadCount || 0;
+    let campaignCount = context?.campaignCount || 0;
+    let currentRoute = context?.currentRoute || "/dashboard";
+    let modulesEnabled = context?.modulesEnabled || [];
 
-    if (authHeader) {
+    // Fallback: fetch from database if context not provided
+    if (!context && authHeader) {
       const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: authHeader } }
       });
@@ -49,21 +62,48 @@ serve(async (req) => {
           businessName = profile.business_name || businessName;
           industry = profile.industry || industry;
         }
+
+        // Get counts
+        const { count: leads } = await supabaseClient
+          .from("crm_leads")
+          .select("*", { count: "exact", head: true });
+        
+        const { count: campaigns } = await supabaseClient
+          .from("cmo_campaigns")
+          .select("*", { count: "exact", head: true });
+
+        leadCount = leads || 0;
+        campaignCount = campaigns || 0;
       }
     }
 
-    // Dynamic system prompt based on customer's business
-    const systemPrompt = `You are an AI Marketing Assistant, an expert in marketing automation for ${businessName} in the ${industry} industry. You help users with:
+    // Build context-aware system prompt
+    const systemPrompt = `You are the UbiGrowth AI Assistant, an expert marketing automation assistant.
 
-- Creating effective marketing campaigns across video, email, and social media
-- Writing compelling content tailored to the ${industry} industry
-- Optimizing campaign performance and ROI
-- Audience targeting and segmentation strategies
-- Best practices for marketing in the ${industry} sector
+ACCOUNT CONTEXT:
+- Business: ${businessName}
+- Industry: ${industry}
+- Current leads: ${leadCount}
+- Active campaigns: ${campaignCount}
+- Current page: ${currentRoute}
+- Enabled modules: ${modulesEnabled.length > 0 ? modulesEnabled.join(", ") : "All standard modules"}
 
-Keep responses concise, actionable, and focused on helping users succeed with their marketing automation. Provide industry-specific recommendations when relevant.
+YOUR CAPABILITIES:
+1. Answer questions about the user's account and data
+2. Help create marketing campaigns (email, social, voice, landing pages)
+3. Provide industry-specific marketing advice for ${industry}
+4. Guide users through the platform features
+5. Suggest optimizations based on their current setup
 
-IMPORTANT: Write in plain text without markdown formatting (no bold, italics, or special characters).`;
+RESPONSE GUIDELINES:
+- Be concise and direct. Avoid filler phrases.
+- When asked about account data (industry, business name, leads, campaigns), use the context above.
+- Provide actionable recommendations specific to their industry.
+- Use clear, professional language without markdown formatting.
+- If asked about a feature, explain how to access it in the current UI.
+
+When the user asks "What is my industry?" respond with their stored industry: "${industry}".
+When asked about leads or campaigns, reference the actual counts provided.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
