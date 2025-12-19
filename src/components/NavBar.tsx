@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Menu, X, LogOut, User, Settings, Plus, Shield, Plug } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import { Menu, X, LogOut, User, Settings, Plus, Shield, Plug, Home, PenSquare, CheckSquare, Rocket, BarChart3, Users, ChevronDown, FileText, Video, Mail, Phone, Globe, Layout, Database, Workflow } from "lucide-react";
 import Logo from "@/components/Logo";
 import NotificationBell from "@/components/NotificationBell";
 import FeedbackButton from "@/components/FeedbackButton";
@@ -26,7 +26,6 @@ const NavBar = () => {
 
   useEffect(() => {
     if (user) {
-      // Check platform admin status
       supabase.rpc('is_platform_admin', { _user_id: user.id })
         .then(({ data }) => setIsPlatformAdmin(!!data));
     }
@@ -50,25 +49,40 @@ const NavBar = () => {
     navigate("/login");
   };
 
-  // Base nav links - filtered by module access
-  const allNavLinks = [
-    { path: "/dashboard", label: "Home", module: null },
-    { path: "/os", label: "OS", module: "os_admin" as const },
-    { path: "/approvals", label: "Approve", module: null },
-    { path: "/voice-agents", label: "Voice", module: null },
-    { path: "/websites", label: "Sites", module: null },
-    { path: "/crm", label: "CRM", module: "crm" as const },
-    { path: "/outbound", label: "Outbound", module: null },
-    { path: "/reports", label: "Reports", module: null },
+  // Primary navigation items
+  const primaryNav = [
+    { path: "/dashboard", label: "Home", icon: Home },
+    { path: "/approvals", label: "Approve", icon: CheckSquare },
+    { path: "/reports", label: "Analytics", icon: BarChart3 },
+    { path: "/crm", label: "CRM", icon: Users, module: "crm" as const },
   ];
 
-  // Filter nav links based on module access
-  const navLinks = allNavLinks.filter((link) => {
-    if (!link.module) return true;
-    return modules[link.module];
-  });
+  // Create dropdown items
+  const createItems = [
+    { path: "/new-campaign", label: "New Campaign", icon: Plus },
+    { path: "/assets", label: "Asset Catalog", icon: FileText },
+    { path: "/assets/new", label: "New Asset", icon: PenSquare },
+    { path: "/video", label: "Video", icon: Video },
+    { path: "/email", label: "Email", icon: Mail },
+    { path: "/social", label: "Social", icon: Globe },
+    { path: "/landing-pages", label: "Landing Pages", icon: Layout },
+    { path: "/voice-agents", label: "Voice Agents", icon: Phone },
+  ];
 
-  const isActive = (path: string) => location.pathname === path;
+  // Deploy/Campaigns dropdown items
+  const deployItems = [
+    { path: "/outbound", label: "Outbound", icon: Rocket },
+    { path: "/websites", label: "Sites", icon: Globe },
+    { path: "/automation", label: "Automation", icon: Workflow },
+  ];
+
+  // Admin items (shown conditionally)
+  const adminItems = modules.os_admin ? [
+    { path: "/os", label: "OS Dashboard", icon: Database },
+  ] : [];
+
+  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
+  const isInGroup = (paths: string[]) => paths.some(p => isActive(p));
 
   const getRoleBadgeColor = () => {
     if (isAdmin) return "bg-red-500/10 text-red-500";
@@ -84,26 +98,99 @@ const NavBar = () => {
     return "User";
   };
 
+  const filteredPrimaryNav = primaryNav.filter((link) => {
+    if (!link.module) return true;
+    return modules[link.module];
+  });
+
   return (
     <nav className="border-b border-border bg-card">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <Link to="/dashboard" className="flex-shrink-0">
-              <Logo className="h-8" />
+              <Logo className="h-8" showCompanyName />
             </Link>
             <div className="hidden md:block ml-10">
-              <div className="flex items-baseline space-x-4">
-                {navLinks.map((link) => (
+              <div className="flex items-baseline space-x-1">
+                {/* Primary nav items */}
+                {filteredPrimaryNav.map((link) => (
                   <Link
                     key={link.path}
                     to={link.path}
-                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
                       isActive(link.path)
                         ? "bg-secondary text-foreground"
                         : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                     }`}
                   >
+                    <link.icon className="h-4 w-4" />
+                    {link.label}
+                  </Link>
+                ))}
+
+                {/* Create Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                        isInGroup(createItems.map(i => i.path))
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      }`}
+                    >
+                      <PenSquare className="h-4 w-4" />
+                      Create
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    {createItems.map((item) => (
+                      <DropdownMenuItem key={item.path} onClick={() => navigate(item.path)}>
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Deploy Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                        isInGroup(deployItems.map(i => i.path))
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      }`}
+                    >
+                      <Rocket className="h-4 w-4" />
+                      Deploy
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    {deployItems.map((item) => (
+                      <DropdownMenuItem key={item.path} onClick={() => navigate(item.path)}>
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Admin items if enabled */}
+                {adminItems.map((link) => (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                      isActive(link.path)
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    }`}
+                  >
+                    <link.icon className="h-4 w-4" />
                     {link.label}
                   </Link>
                 ))}
@@ -143,7 +230,7 @@ const NavBar = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/profile")}>
                   <User className="mr-2 h-4 w-4" />
-                  Profile
+                  User Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
@@ -209,20 +296,82 @@ const NavBar = () => {
               <Plus className="mr-2 h-4 w-4" />
               New Campaign
             </Button>
-            {navLinks.map((link) => (
+            
+            {/* Primary nav */}
+            {filteredPrimaryNav.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                className={`block px-3 py-2 rounded-md text-base font-medium transition-colors flex items-center gap-2 ${
                   isActive(link.path)
                     ? "bg-secondary text-foreground"
                     : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                 }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <link.icon className="h-4 w-4" />
                 {link.label}
               </Link>
             ))}
+
+            {/* Create section */}
+            <div className="pt-2 pb-1 px-3 text-xs font-semibold text-muted-foreground uppercase">Create</div>
+            {createItems.slice(0, 4).map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`block px-3 py-2 rounded-md text-base font-medium transition-colors flex items-center gap-2 ${
+                  isActive(item.path)
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            ))}
+
+            {/* Deploy section */}
+            <div className="pt-2 pb-1 px-3 text-xs font-semibold text-muted-foreground uppercase">Deploy</div>
+            {deployItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`block px-3 py-2 rounded-md text-base font-medium transition-colors flex items-center gap-2 ${
+                  isActive(item.path)
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            ))}
+
+            {/* Admin items */}
+            {adminItems.length > 0 && (
+              <>
+                <div className="pt-2 pb-1 px-3 text-xs font-semibold text-muted-foreground uppercase">Admin</div>
+                {adminItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors flex items-center gap-2 ${
+                      isActive(item.path)
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                ))}
+              </>
+            )}
+
             <Button
               variant="ghost"
               size="sm"

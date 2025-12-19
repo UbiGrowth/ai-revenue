@@ -55,7 +55,7 @@ const Dashboard = () => {
   const [showSampleData, setShowSampleData] = useState(true);
   const [showTour, setShowTour] = useState(false);
 
-  // Sample data for demonstration
+  // Demo data for demonstration
   const sampleRevenueData = [
     { month: "Jan", revenue: 12500, cost: 4200 },
     { month: "Feb", revenue: 18900, cost: 5100 },
@@ -342,12 +342,12 @@ const Dashboard = () => {
                     <div>
                       <CardTitle className="text-foreground text-xl">Platform Preview Mode</CardTitle>
                       <CardDescription>
-                        View sample metrics to explore the platform's analytics capabilities
+                        View demo metrics to explore the platform's analytics capabilities
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-3">
                       <Label htmlFor="sample-data-toggle" className="text-sm font-medium cursor-pointer">
-                        {showSampleData ? "Hide Sample Data" : "Show Sample Data"}
+                        {showSampleData ? "Hide Demo Data" : "Show Demo Data"}
                       </Label>
                       <Switch
                         id="sample-data-toggle"
@@ -369,7 +369,7 @@ const Dashboard = () => {
                         <LineChart className="h-5 w-5 text-primary" />
                         Revenue vs Cost Trend
                       </CardTitle>
-                      <CardDescription>Monthly performance over 6 months (Sample Data)</CardDescription>
+                      <CardDescription>Monthly performance over 6 months (Demo Data)</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
@@ -411,7 +411,7 @@ const Dashboard = () => {
                         <BarChart3 className="h-5 w-5 text-primary" />
                         Engagement Metrics
                       </CardTitle>
-                      <CardDescription>Clicks vs Impressions by week (Sample Data)</CardDescription>
+                      <CardDescription>Clicks vs Impressions by week (Demo Data)</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
