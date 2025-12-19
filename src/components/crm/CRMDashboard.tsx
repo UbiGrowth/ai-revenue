@@ -230,7 +230,7 @@ export default function CRMDashboard({ leads, showSampleData, onToggleSampleData
             onCheckedChange={onToggleSampleData}
           />
           <Label htmlFor="sample-data" className="text-sm text-muted-foreground">
-            Sample data
+            Demo Data
           </Label>
         </div>
       </div>
@@ -657,7 +657,7 @@ export default function CRMDashboard({ leads, showSampleData, onToggleSampleData
 
       {showSampleData && leads.length === 0 && (
         <p className="text-center text-sm text-muted-foreground">
-          Showing sample data. Import real leads to see your actual metrics.
+          Showing demo data. Import real leads to see your actual metrics.
         </p>
       )}
 

@@ -2,18 +2,18 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Building2 } from "lucide-react";
 import { getWorkspaceId } from "@/hooks/useWorkspace";
+import ubigrowthLogo from "@/assets/ubigrowth-logo.png";
 
 interface LogoProps {
   className?: string;
-  showTagline?: boolean;
+  showCompanyName?: boolean;
 }
 
 interface BusinessProfile {
   business_name: string | null;
-  logo_url: string | null;
 }
 
-const Logo = ({ className = "h-8", showTagline = false }: LogoProps) => {
+const Logo = ({ className = "h-8", showCompanyName = false }: LogoProps) => {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ const Logo = ({ className = "h-8", showTagline = false }: LogoProps) => {
 
       const { data } = await supabase
         .from("business_profiles")
-        .select("business_name, logo_url")
+        .select("business_name")
         .eq("workspace_id", workspaceId)
         .maybeSingle();
 
@@ -35,29 +35,22 @@ const Logo = ({ className = "h-8", showTagline = false }: LogoProps) => {
     fetchProfile();
   }, []);
 
-  const businessName = profile?.business_name || "Marketing Platform";
-  const logoUrl = profile?.logo_url;
+  const companyName = profile?.business_name;
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {logoUrl ? (
-        <img 
-          src={logoUrl} 
-          alt={`${businessName} Logo`} 
-          className="h-full w-auto object-contain"
-        />
-      ) : (
-        <div className="h-full aspect-square bg-primary/10 rounded-md flex items-center justify-center">
-          <Building2 className="h-5 w-5 text-primary" />
-        </div>
-      )}
+    <div className={`flex items-center gap-3 ${className}`}>
+      <img 
+        src={ubigrowthLogo} 
+        alt="UbiGrowth CMO Logo" 
+        className="h-full w-auto object-contain"
+      />
       <div className="flex flex-col">
         <span className="text-xl font-bold tracking-tight text-foreground">
-          {businessName}
+          UbiGrowth CMO
         </span>
-        {showTagline && (
+        {showCompanyName && companyName && (
           <span className="text-xs text-muted-foreground">
-            AI-Powered Marketing Platform
+            {companyName}
           </span>
         )}
       </div>

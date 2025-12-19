@@ -1,4 +1,4 @@
-// Centralized sample data for demo purposes across the platform
+// Centralized demo data for demonstration purposes across the platform
 
 export const SAMPLE_LEADS = [
   { id: "sample-1", first_name: "Sarah", last_name: "Johnson", email: "sarah.johnson@techcorp.com", phone: "+1-555-0101", company: "TechCorp Solutions", job_title: "VP of Marketing", location: "Miami, FL", industry: "Technology", status: "qualified", score: 92, source: "website", vertical: "Technology & SaaS", created_at: "2024-11-20T10:00:00Z", tags: ["high-value", "enterprise"] },
