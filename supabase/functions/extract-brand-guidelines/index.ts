@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,16 @@ const corsHeaders = {
 interface BrandRequest {
   websiteUrl: string;
   logoImageBase64?: string;
+  forceRefresh?: boolean;
+}
+
+function extractDomain(url: string): string {
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return url.toLowerCase().replace(/[^a-z0-9.-]/g, "");
+  }
 }
 
 serve(async (req) => {
@@ -16,10 +27,12 @@ serve(async (req) => {
   }
 
   try {
-    const { websiteUrl, logoImageBase64 }: BrandRequest = await req.json();
+    const { websiteUrl, logoImageBase64, forceRefresh }: BrandRequest = await req.json();
     
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!FIRECRAWL_API_KEY) {
       throw new Error("FIRECRAWL_API_KEY is not configured");
@@ -28,9 +41,40 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    const domain = extractDomain(websiteUrl);
+    console.log("Extracting brand for domain:", domain);
+
+    // Check cache first (24h TTL)
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    
+    if (!forceRefresh) {
+      const { data: cached } = await supabase
+        .from("brand_extraction_cache")
+        .select("extracted_data, expires_at")
+        .eq("domain", domain)
+        .gt("expires_at", new Date().toISOString())
+        .single();
+      
+      if (cached?.extracted_data) {
+        console.log("Returning cached brand data for:", domain);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            brandGuidelines: cached.extracted_data,
+            cached: true,
+            websiteTitle: cached.extracted_data.brandName || domain,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
+      }
+    }
+
     console.log("Scraping website with Firecrawl:", websiteUrl);
 
-    // Use Firecrawl REST API directly instead of SDK
+    // Use Firecrawl REST API with branding format for consistent extraction
     const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
@@ -38,8 +82,8 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        url: websiteUrl,
-        formats: ['markdown'],
+        url: websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`,
+        formats: ['markdown', 'branding'],
         onlyMainContent: true,
         timeout: 30000,
       }),
@@ -56,59 +100,50 @@ serve(async (req) => {
 
     const markdownContent = scrapeResult.data?.markdown || "";
     const metadata = scrapeResult.data?.metadata || {};
+    const branding = scrapeResult.data?.branding || {};
 
-    // Start with default brand data
+    // Start with Firecrawl branding data if available
     let parsedBrandData: any = {
-      brandName: metadata.title || "Unknown",
-      primaryColor: "#000000",
-      secondaryColor: "#666666",
-      accentColor: "#0066cc",
-      backgroundColor: "#ffffff",
-      textColor: "#000000",
-      primaryFont: "Inter",
-      secondaryFont: "Inter",
+      brandName: metadata.title || branding.name || domain,
+      primaryColor: branding.colors?.primary || "#000000",
+      secondaryColor: branding.colors?.secondary || "#666666",
+      accentColor: branding.colors?.accent || branding.colors?.background || "#0066cc",
+      backgroundColor: branding.colors?.background || "#ffffff",
+      textColor: branding.colors?.textPrimary || "#000000",
+      headingFont: branding.typography?.fontFamilies?.heading || branding.fonts?.[0]?.family || "Inter",
+      bodyFont: branding.typography?.fontFamilies?.primary || branding.fonts?.[1]?.family || "Inter",
       brandVoice: "",
-      keyMessaging: [],
+      brandTone: "",
+      messagingPillars: [],
       industry: "",
-      logo: "",
-      favicon: "",
-      colorScheme: "light",
+      logo: branding.images?.logo || "",
+      favicon: branding.images?.favicon || metadata.favicon || "",
+      colorScheme: branding.colorScheme || "light",
     };
 
-    // Use AI to analyze brand from website content
+    // Use AI to analyze brand voice and industry (deterministic prompt)
     console.log("Analyzing brand with AI...");
 
-    const analysisPrompt = `Analyze this website content and extract comprehensive brand guidelines:
+    const analysisPrompt = `Analyze this website content and extract brand voice and industry.
 
-Website: ${metadata.title || "Unknown"}
+Website: ${metadata.title || domain}
 URL: ${websiteUrl}
-Content: ${markdownContent.substring(0, 8000)}
+Content (truncated): ${markdownContent.substring(0, 6000)}
 
-Extract and return ONLY a valid JSON object with this exact structure:
+You must return ONLY a valid JSON object with exactly this structure (no extra fields):
 {
-  "brandName": "Company name",
-  "primaryColor": "#hexcode for main brand color",
-  "secondaryColor": "#hexcode for secondary color",
-  "accentColor": "#hexcode for accent/CTA color",
-  "backgroundColor": "#hexcode for background",
-  "textColor": "#hexcode for main text",
-  "primaryFont": "Main font family name",
-  "secondaryFont": "Secondary font family name",
-  "brandVoice": "Brief description of brand voice and tone (2-3 sentences)",
-  "keyMessaging": ["Message point 1", "Message point 2", "Message point 3", "Message point 4"],
-  "industry": "Industry vertical",
-  "colorScheme": "light or dark"
+  "brandVoice": "2-3 sentence description of brand voice and communication style",
+  "brandTone": "Single word or short phrase describing tone (e.g., Professional, Friendly, Bold)",
+  "messagingPillars": ["Key message 1", "Key message 2", "Key message 3"],
+  "industry": "Single industry vertical name"
 }
 
 Guidelines:
-- Extract actual colors used on the website if mentioned
-- Identify fonts from any typography references
-- Describe brand voice based on content tone, language style, and messaging approach
-- Extract 3-4 key value propositions or messaging points
-- Identify the primary industry vertical
-- Make educated guesses based on content if specific values aren't found
+- For brandVoice: describe how they communicate (formal/casual, technical/simple, etc.)
+- For industry: pick ONE from this list: Accounting & Finance, Advertising & Marketing, Aerospace & Defense, Agriculture & Farming, Automotive, Banking & Financial Services, Biotechnology & Pharmaceuticals, Construction & Engineering, Consulting & Professional Services, Consumer Goods & Retail, E-commerce, Education & Training, Energy & Utilities, Entertainment & Media, Environmental Services, Food & Beverage, Government & Public Sector, Healthcare & Medical, Hospitality & Tourism, Human Resources & Staffing, Information Technology, Insurance, Legal Services, Logistics & Transportation, Manufacturing, Non-Profit & NGO, Real Estate & Property, Restaurants & Food Service, SaaS & Software, Sports & Recreation, Telecommunications, Travel & Leisure, Other
+- For messagingPillars: extract 3 key value propositions
 
-Return ONLY valid JSON, no markdown, no explanation.`;
+Return ONLY the JSON object, no markdown code blocks, no explanation.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -118,12 +153,8 @@ Return ONLY valid JSON, no markdown, no explanation.`;
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: analysisPrompt
-          }
-        ],
+        messages: [{ role: "user", content: analysisPrompt }],
+        temperature: 0.1, // Low temperature for determinism
       }),
     });
 
@@ -134,7 +165,10 @@ Return ONLY valid JSON, no markdown, no explanation.`;
       
       try {
         const analysis = JSON.parse(analysisData);
-        parsedBrandData = { ...parsedBrandData, ...analysis };
+        parsedBrandData.brandVoice = analysis.brandVoice || parsedBrandData.brandVoice;
+        parsedBrandData.brandTone = analysis.brandTone || parsedBrandData.brandTone;
+        parsedBrandData.messagingPillars = analysis.messagingPillars || parsedBrandData.messagingPillars;
+        parsedBrandData.industry = analysis.industry || parsedBrandData.industry;
         console.log("AI brand analysis successful");
       } catch (e) {
         console.error("Failed to parse AI analysis:", e);
@@ -143,18 +177,16 @@ Return ONLY valid JSON, no markdown, no explanation.`;
       console.error("AI analysis failed:", aiResponse.status);
     }
 
-    // Analyze logo if provided
-    let logoColors = null;
+    // Analyze logo if provided (override colors)
     if (logoImageBase64) {
       console.log("Analyzing logo colors...");
       
-      const logoAnalysisPrompt = `Analyze this logo image and extract the main colors used. Return ONLY a valid JSON object with this structure:
+      const logoAnalysisPrompt = `Analyze this logo image and extract the exact colors used. Return ONLY a valid JSON object:
 {
   "dominantColor": "#hexcode",
-  "accentColors": ["#hexcode1", "#hexcode2", "#hexcode3"]
+  "accentColors": ["#hexcode1", "#hexcode2"]
 }
-
-Return ONLY valid JSON, no markdown, no explanation.`;
+Return ONLY JSON, no markdown.`;
 
       const logoResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -164,15 +196,14 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: logoAnalysisPrompt },
-                { type: "image_url", image_url: { url: logoImageBase64 } }
-              ]
-            }
-          ],
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: logoAnalysisPrompt },
+              { type: "image_url", image_url: { url: logoImageBase64.startsWith("data:") ? logoImageBase64 : `data:image/png;base64,${logoImageBase64}` } }
+            ]
+          }],
+          temperature: 0.1,
         }),
       });
 
@@ -182,12 +213,11 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         logoColorsRaw = logoColorsRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         
         try {
-          logoColors = JSON.parse(logoColorsRaw);
-          // Override colors with logo colors if available
+          const logoColors = JSON.parse(logoColorsRaw);
           if (logoColors.dominantColor) {
             parsedBrandData.primaryColor = logoColors.dominantColor;
           }
-          if (logoColors.accentColors && logoColors.accentColors.length > 0) {
+          if (logoColors.accentColors?.length > 0) {
             parsedBrandData.secondaryColor = logoColors.accentColors[0];
             if (logoColors.accentColors.length > 1) {
               parsedBrandData.accentColor = logoColors.accentColors[1];
@@ -200,14 +230,23 @@ Return ONLY valid JSON, no markdown, no explanation.`;
       }
     }
 
-    console.log("Brand extraction successful");
+    // Save to cache
+    await supabase
+      .from("brand_extraction_cache")
+      .upsert({
+        domain,
+        extracted_data: parsedBrandData,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      }, { onConflict: "domain" });
+
+    console.log("Brand extraction successful, cached for 24h");
 
     return new Response(
       JSON.stringify({
         success: true,
         brandGuidelines: parsedBrandData,
-        logoColors: logoColors,
-        websiteTitle: metadata.title || "Unknown",
+        cached: false,
+        websiteTitle: metadata.title || domain,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -3090,6 +3090,27 @@ export type Database = {
           },
         ]
       }
+      industry_verticals: {
+        Row: {
+          aliases: string[] | null
+          created_at: string
+          id: number
+          name: string
+        }
+        Insert: {
+          aliases?: string[] | null
+          created_at?: string
+          id?: number
+          name: string
+        }
+        Update: {
+          aliases?: string[] | null
+          created_at?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
       integration_audit_log: {
         Row: {
           action: string
