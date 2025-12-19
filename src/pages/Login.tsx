@@ -53,7 +53,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: 'https://cmo.ubigrowth.ai/',
         },
       });
 
@@ -151,7 +151,7 @@ const Login = () => {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(result.data, {
-        redirectTo: `${window.location.origin}/change-password`,
+        redirectTo: 'https://cmo.ubigrowth.ai/change-password',
       });
 
       if (error) {
