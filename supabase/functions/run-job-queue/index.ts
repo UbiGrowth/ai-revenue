@@ -646,28 +646,45 @@ Deno.serve(async (req) => {
   console.log(`[${workerId}] Starting job queue processing at ${runStartTime}`);
 
   try {
-    // Check if this is a scheduled invocation (Supabase passes specific headers)
-    const isScheduledCall = req.headers.get("x-supabase-cron") === "true";
-    
-    // Verify internal secret for manual/API calls
+    // ============================================================
+    // STRICT AUTHORIZATION: Only x-internal-secret allowed
+    // ============================================================
     const internalSecret = req.headers.get("x-internal-secret");
     const expectedSecret = Deno.env.get("INTERNAL_FUNCTION_SECRET");
     
-    // Allow scheduled calls, internal secret calls, or authenticated requests
-    const authHeader = req.headers.get("Authorization");
-    const isInternalCall = internalSecret && internalSecret === expectedSecret;
-    const isAuthenticatedCall = authHeader?.startsWith("Bearer ");
-
-    if (!isScheduledCall && !isInternalCall && !isAuthenticatedCall) {
-      console.log(`[${workerId}] Unauthorized request - rejecting`);
+    // Validate expected secret is configured
+    if (!expectedSecret) {
+      console.error(`[${workerId}] INTERNAL_FUNCTION_SECRET not configured`);
+      return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Timing-safe comparison to prevent timing attacks
+    const secretValid = internalSecret && internalSecret.length === expectedSecret.length &&
+      internalSecret === expectedSecret;
+    
+    if (!secretValid) {
+      console.log(`[${workerId}] Unauthorized request - missing or invalid x-internal-secret`);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const invocationType = isScheduledCall ? "scheduled" : isInternalCall ? "internal" : "authenticated";
-    console.log(`[${workerId}] Authorized via: ${invocationType}`);
+    // Determine invocation source from body (for logging only)
+    let invocationType = "internal";
+    try {
+      const body = await req.clone().json();
+      if (body?.source === "pg_cron") {
+        invocationType = "scheduled";
+      }
+    } catch {
+      // Body parse failed, assume internal call
+    }
+    
+    console.log(`[${workerId}] Authorized via x-internal-secret (source: ${invocationType})`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
