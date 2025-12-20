@@ -4,8 +4,10 @@
  * Uses React Query mutations for automatic cache invalidation
  */
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
@@ -15,9 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Bot, Target, Users, Calendar, Sparkles } from 'lucide-react';
+import { Bot, Target, Users, Calendar, Sparkles, Activity } from 'lucide-react';
 import type { CMOCampaign, CampaignGoal } from '@/lib/cmo/types';
 import { useToggleCampaignAutopilot, useUpdateCampaignGoal } from '@/hooks/useCMO';
+import { CampaignRunDetailsDrawer } from '@/components/campaigns/CampaignRunDetailsDrawer';
 import { toast } from 'sonner';
 
 interface CMOCampaignCardProps {
@@ -40,6 +43,7 @@ const GOAL_OPTIONS: { value: CampaignGoal; label: string }[] = [
 ];
 
 export function CMOCampaignCard({ campaign, onUpdate }: CMOCampaignCardProps) {
+  const [showRunDetails, setShowRunDetails] = useState(false);
   const toggleAutopilot = useToggleCampaignAutopilot();
   const updateGoal = useUpdateCampaignGoal();
   
@@ -172,7 +176,30 @@ export function CMOCampaignCard({ campaign, onUpdate }: CMOCampaignCardProps) {
             )}
           </div>
         )}
+
+        {/* Run Details Button - show for deployed/active campaigns */}
+        {(campaign.status === 'active' || campaign.status === 'deployed' || campaign.status === 'completed') && (
+          <div className="border-t pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={() => setShowRunDetails(true)}
+            >
+              <Activity className="h-4 w-4" />
+              View Run Details
+            </Button>
+          </div>
+        )}
       </CardContent>
+
+      {/* Run Details Drawer */}
+      <CampaignRunDetailsDrawer
+        campaignId={campaign.id}
+        campaignName={campaign.campaign_name}
+        open={showRunDetails}
+        onOpenChange={setShowRunDetails}
+      />
     </Card>
   );
 }
