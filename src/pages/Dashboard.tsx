@@ -26,6 +26,12 @@ interface CampaignMetrics {
   activeCampaigns: number;
 }
 
+interface QueueMetrics {
+  queuedJobs: number;
+  lockedJobs: number;
+  oldestQueuedAgeSeconds: number;
+}
+
 interface CampaignPerformance {
   id: string;
   name: string;
@@ -59,6 +65,7 @@ const Dashboard = () => {
   const [showTour, setShowTour] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [selectedCampaignForRun, setSelectedCampaignForRun] = useState<{ id: string; name: string } | null>(null);
+  const [queueMetrics, setQueueMetrics] = useState<QueueMetrics>({ queuedJobs: 0, lockedJobs: 0, oldestQueuedAgeSeconds: 0 });
 
   // Demo data for demonstration
   const sampleRevenueData = [
@@ -85,12 +92,14 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardMetrics();
+    fetchQueueMetrics();
     checkIntegrations();
 
     // Auto-refresh metrics every 30 seconds for real-time tracking
     const interval = setInterval(() => {
       console.log('Auto-refreshing dashboard metrics...');
       fetchDashboardMetrics();
+      fetchQueueMetrics();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -146,6 +155,39 @@ const Dashboard = () => {
         .single();
 
       setMetricsMode((tenant?.metrics_mode as 'real' | 'demo') || 'real');
+    }
+  };
+
+  const fetchQueueMetrics = async () => {
+    try {
+      const { data: queueStats } = await supabase
+        .from("job_queue")
+        .select("status, created_at")
+        .in("status", ["queued", "locked"]);
+
+      let queuedJobs = 0;
+      let lockedJobs = 0;
+      let oldestQueuedTime: Date | null = null;
+
+      for (const job of queueStats || []) {
+        if (job.status === "queued") {
+          queuedJobs++;
+          const jobTime = new Date(job.created_at);
+          if (!oldestQueuedTime || jobTime < oldestQueuedTime) {
+            oldestQueuedTime = jobTime;
+          }
+        } else if (job.status === "locked") {
+          lockedJobs++;
+        }
+      }
+
+      const oldestQueuedAgeSeconds = oldestQueuedTime 
+        ? Math.floor((Date.now() - oldestQueuedTime.getTime()) / 1000)
+        : 0;
+
+      setQueueMetrics({ queuedJobs, lockedJobs, oldestQueuedAgeSeconds });
+    } catch (error) {
+      console.error("Error fetching queue metrics:", error);
     }
   };
 
@@ -551,6 +593,30 @@ const Dashboard = () => {
                     <p className="mt-1 text-xs text-muted-foreground">
                       Currently running
                     </p>
+                  </CardContent>
+                </Card>
+
+                {/* Queue Metrics Card */}
+                <Card className="border-border bg-card">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Job Queue
+                    </CardTitle>
+                    <Activity className="h-5 w-5 text-blue-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-foreground">
+                      {queueMetrics.queuedJobs}
+                    </div>
+                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                      <p>{queueMetrics.lockedJobs} processing</p>
+                      {queueMetrics.oldestQueuedAgeSeconds > 0 && (
+                        <p className={queueMetrics.oldestQueuedAgeSeconds > 120 ? "text-destructive" : ""}>
+                          Oldest: {queueMetrics.oldestQueuedAgeSeconds}s ago
+                          {queueMetrics.oldestQueuedAgeSeconds > 120 && " ⚠️"}
+                        </p>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>

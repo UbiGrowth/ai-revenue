@@ -59,6 +59,7 @@ interface QueueStats {
   completed: number;
   failed: number;
   dead: number;
+  oldest_queued_age_seconds?: number;
 }
 
 // Result from batch processing with partial success tracking
@@ -71,6 +72,20 @@ interface BatchResult {
   failed?: number;
   skipped?: number; // idempotency: already processed
   error?: string;
+}
+
+// Backpressure configuration
+const MAX_JOBS_PER_TICK = 50; // Cap jobs per tick overall
+const MAX_JOBS_PER_TENANT_PER_TICK = 10; // Cap jobs per tenant per tick
+const BASE_BACKOFF_MS = 1000; // Base backoff for failures
+const MAX_BACKOFF_MS = 60000; // Max backoff (1 minute)
+
+// Calculate backoff with jitter for failed jobs
+function calculateBackoff(attempts: number): number {
+  const exponentialDelay = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempts), MAX_BACKOFF_MS);
+  // Add jitter: random value between 0-25% of the delay
+  const jitter = Math.random() * 0.25 * exponentialDelay;
+  return Math.floor(exponentialDelay + jitter);
 }
 
 // Generate idempotency key using SHA-256
@@ -910,31 +925,50 @@ Deno.serve(async (req) => {
     const vapiPrivateKey = Deno.env.get("VAPI_PRIVATE_KEY") || "";
     const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY") || "";
 
-    // Get job queue stats before processing
+    // Get job queue stats before processing (including oldest queued age)
     const { data: queueStats } = await supabase
       .from("job_queue")
-      .select("status")
+      .select("status, created_at")
       .in("status", ["queued", "locked", "completed", "failed", "dead"]);
     
-    const statusCounts = {
+    const statusCounts: QueueStats = {
       queued: 0,
       locked: 0,
       completed: 0,
       failed: 0,
       dead: 0,
+      oldest_queued_age_seconds: 0,
     };
     
+    let oldestQueuedTime: Date | null = null;
+    
     for (const job of queueStats || []) {
-      const status = job.status as keyof typeof statusCounts;
-      if (status in statusCounts) {
-        statusCounts[status]++;
+      const status = job.status as string;
+      if (status === "queued") statusCounts.queued++;
+      else if (status === "locked") statusCounts.locked++;
+      else if (status === "completed") statusCounts.completed++;
+      else if (status === "failed") statusCounts.failed++;
+      else if (status === "dead") statusCounts.dead++;
+      // Track oldest queued job
+      if (job.status === "queued" && job.created_at) {
+        const jobTime = new Date(job.created_at);
+        if (!oldestQueuedTime || jobTime < oldestQueuedTime) {
+          oldestQueuedTime = jobTime;
+        }
       }
     }
+    
+    // Calculate oldest queued age in seconds
+    if (oldestQueuedTime) {
+      statusCounts.oldest_queued_age_seconds = Math.floor(
+        (Date.now() - oldestQueuedTime.getTime()) / 1000
+      );
+    }
 
-    // Claim queued jobs
+    // Claim queued jobs with backpressure limit
     const { data: jobs, error: claimError } = await supabase.rpc("claim_queued_jobs", {
       p_worker_id: workerId,
-      p_limit: 5,
+      p_limit: MAX_JOBS_PER_TICK,
     });
 
     if (claimError) {
@@ -969,9 +1003,43 @@ Deno.serve(async (req) => {
 
     console.log(`[${workerId}] Processing ${jobs.length} jobs`);
 
-    const results: Array<{ job_id: string; job_type: string; success: boolean; partial?: boolean; error?: string }> = [];
+    const results: Array<{ job_id: string; job_type: string; success: boolean; partial?: boolean; error?: string; skipped_throttle?: boolean }> = [];
+    
+    // Per-tenant job counter for backpressure
+    const tenantJobCounts: Map<string, number> = new Map();
 
     for (const job of jobs as Job[]) {
+      // Backpressure: Skip if this tenant already hit per-tick limit
+      const tenantKey = `${job.tenant_id}:${job.workspace_id}`;
+      const currentCount = tenantJobCounts.get(tenantKey) || 0;
+      
+      if (currentCount >= MAX_JOBS_PER_TENANT_PER_TICK) {
+        console.log(`[${workerId}] Throttling job ${job.id} - tenant ${tenantKey} hit limit (${MAX_JOBS_PER_TENANT_PER_TICK})`);
+        
+        // Release the lock so it can be picked up next tick
+        await supabase
+          .from("job_queue")
+          .update({ 
+            status: "queued", 
+            locked_at: null, 
+            locked_by: null,
+            // Add backoff delay for the next attempt
+            scheduled_for: new Date(Date.now() + calculateBackoff(job.attempts)).toISOString(),
+          } as never)
+          .eq("id", job.id);
+        
+        results.push({
+          job_id: job.id,
+          job_type: job.job_type,
+          success: false,
+          skipped_throttle: true,
+          error: `Throttled: tenant limit ${MAX_JOBS_PER_TENANT_PER_TICK}/tick`,
+        });
+        continue;
+      }
+      
+      // Increment tenant counter
+      tenantJobCounts.set(tenantKey, currentCount + 1);
       console.log(`[${workerId}] Processing job ${job.id} (${job.job_type})`);
 
       // Update run status to running via SECURITY DEFINER RPC (Single Writer Rule)
@@ -1080,7 +1148,8 @@ Deno.serve(async (req) => {
           p_completed_at: new Date().toISOString(),
         });
 
-        // Log failure audit
+        // Log failure audit with backoff info
+        const backoffMs = calculateBackoff(job.attempts + 1);
         await supabase.from("campaign_audit_log").insert({
           tenant_id: job.tenant_id,
           workspace_id: job.workspace_id,
@@ -1088,7 +1157,11 @@ Deno.serve(async (req) => {
           job_id: job.id,
           event_type: "job_failed",
           actor_type: "system",
-          details: { error: result.error, attempt: job.attempts + 1 },
+          details: { 
+            error: result.error, 
+            attempt: job.attempts + 1,
+            next_retry_backoff_ms: backoffMs,
+          },
         } as never);
       }
 
