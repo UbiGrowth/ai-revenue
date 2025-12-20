@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { TrendingUp, CheckCircle, Clock, Eye, PlayCircle, Mail, Phone, Layout, DollarSign, Target, AlertCircle, Settings, Plus, BarChart3, LineChart, HelpCircle } from "lucide-react";
+import { TrendingUp, CheckCircle, Clock, Eye, PlayCircle, Mail, Phone, Layout, DollarSign, Target, AlertCircle, Settings, Plus, BarChart3, LineChart, HelpCircle, Activity } from "lucide-react";
+import { CampaignRunDetailsDrawer } from "@/components/campaigns/CampaignRunDetailsDrawer";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -57,6 +58,7 @@ const Dashboard = () => {
   const [showDemoData, setShowDemoData] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [selectedCampaignForRun, setSelectedCampaignForRun] = useState<{ id: string; name: string } | null>(null);
 
   // Demo data for demonstration
   const sampleRevenueData = [
@@ -624,6 +626,9 @@ const Dashboard = () => {
                             <th className="pb-3 text-right text-sm font-medium text-muted-foreground">
                               ROI
                             </th>
+                            <th className="pb-3 text-center text-sm font-medium text-muted-foreground">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -663,6 +668,20 @@ const Dashboard = () => {
                                     {campaign.roi.toFixed(1)}%
                                   </span>
                                 </td>
+                                <td className="py-4 text-center">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedCampaignForRun({ id: campaign.id, name: campaign.name });
+                                    }}
+                                    className="gap-1"
+                                  >
+                                    <Activity className="h-4 w-4" />
+                                    <span className="sr-only md:not-sr-only">Runs</span>
+                                  </Button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -677,6 +696,16 @@ const Dashboard = () => {
         </main>
         <Footer />
         <AIWalkthrough forceShow={showTour} onClose={() => setShowTour(false)} />
+
+        {/* Campaign Run Details Drawer */}
+        {selectedCampaignForRun && (
+          <CampaignRunDetailsDrawer
+            campaignId={selectedCampaignForRun.id}
+            campaignName={selectedCampaignForRun.name}
+            open={!!selectedCampaignForRun}
+            onOpenChange={(open) => !open && setSelectedCampaignForRun(null)}
+          />
+        )}
       </div>
     </ProtectedRoute>
   );
