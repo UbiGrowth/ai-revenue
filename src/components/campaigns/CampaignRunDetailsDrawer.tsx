@@ -164,10 +164,19 @@ export function CampaignRunDetailsDrawer({
     }
   };
 
+  // Fetch on open and poll every 5 seconds while drawer is open
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    
+    // Initial fetch
+    fetchData();
+    
+    // Poll every 5 seconds
+    const pollInterval = setInterval(() => {
       fetchData();
-    }
+    }, 5000);
+    
+    return () => clearInterval(pollInterval);
   }, [open, campaignId]);
 
   const handleRetryLaunch = async () => {
@@ -228,7 +237,11 @@ export function CampaignRunDetailsDrawer({
   };
 
   const latestRun = runs[0];
-  const hasFailedRun = latestRun?.status === "failed" || jobs.some((j) => j.status === "failed" || j.status === "dead");
+  const deadJobs = jobs.filter((j) => j.status === "dead");
+  const canRetry = 
+    latestRun?.status === "failed" || 
+    latestRun?.status === "partial" || 
+    deadJobs.length > 0;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
@@ -278,7 +291,7 @@ export function CampaignRunDetailsDrawer({
             <div className="space-y-4">
               {/* Action Buttons */}
               <div className="flex gap-2">
-                {hasFailedRun && (
+                {canRetry && (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -291,6 +304,7 @@ export function CampaignRunDetailsDrawer({
                       <RefreshCw className="h-4 w-4 mr-1" />
                     )}
                     Retry Launch
+                    {deadJobs.length > 0 && ` (${deadJobs.length} dead)`}
                   </Button>
                 )}
                 <Button
