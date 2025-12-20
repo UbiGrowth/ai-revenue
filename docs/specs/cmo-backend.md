@@ -121,6 +121,47 @@ Implemented via `check_and_increment_rate_limit()` SQL function:
 - Scoped by endpoint + tenant + IP
 - Fail-closed on any error
 
+## Job Queue Invocation Security
+
+### `run-job-queue` Edge Function
+
+**Authorization**: ONLY accepts `x-internal-secret` header matching `INTERNAL_FUNCTION_SECRET` env var.
+
+| Caller | Allowed | How |
+|--------|---------|-----|
+| pg_cron (scheduler) | ✅ | `run_job_queue_cron()` passes secret from vault |
+| Admin edge function | ✅ | Must include `x-internal-secret` header |
+| Public curl | ❌ | Returns 401 Unauthorized |
+| Authenticated user | ❌ | Returns 401 (Bearer tokens not accepted) |
+| Anonymous request | ❌ | Returns 401 |
+
+**Secret Configuration**:
+- Edge function reads: `Deno.env.get("INTERNAL_FUNCTION_SECRET")`
+- Scheduler reads: `vault.decrypted_secrets WHERE name = 'INTERNAL_FUNCTION_SECRET'`
+
+**Service Role for DB**:
+- Function creates Supabase client with `SUPABASE_SERVICE_ROLE_KEY`
+- All DB writes (job status, audit logs, outbox) use service_role
+- Enables calling `update_campaign_run_status()` which requires service_role
+
+### Scheduler Invocation Flow
+```
+pg_cron (every minute)
+  → run_job_queue_cron() [SECURITY DEFINER]
+  → vault.decrypted_secrets → INTERNAL_FUNCTION_SECRET
+  → net.http_post(run-job-queue, x-internal-secret: <secret>)
+  → edge function validates secret
+  → processes jobs with service_role
+```
+
+### Audit Logging
+Every tick logs `job_queue_tick` event to `campaign_audit_log`:
+- `worker_id`: Unique worker identifier
+- `invocation_type`: "scheduled" or "internal"
+- `queue_stats`: Counts by status (queued, locked, completed, failed, dead)
+- `jobs_processed`: Number of jobs processed this tick
+- `error`: Any error message
+
 ## Campaign Run Status Updates
 
 ### Who Can Call `update_campaign_run_status()`
