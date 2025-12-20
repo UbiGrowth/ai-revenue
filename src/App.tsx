@@ -52,6 +52,7 @@ import SettingsIntegrations from "./pages/SettingsIntegrations";
 import LandingPages from "./pages/LandingPages";
 import LeadsPage from "./pages/cmo/LeadsPage";
 import PlatformAdmin from "./pages/PlatformAdmin";
+import TenantIsolationQA from "./pages/platform-admin/TenantIsolationQA";
 import SystemBanner from "./components/SystemBanner";
 
 const queryClient = new QueryClient();
@@ -159,6 +160,7 @@ const AppContent = () => {
         <Route path="/landing-pages" element={<LandingPages />} />
         <Route path="/cmo/leads" element={<LeadsPage />} />
         <Route path="/platform-admin" element={<PlatformAdmin />} />
+        <Route path="/platform-admin/qa/tenant-isolation" element={<TenantIsolationQA />} />
         <Route path="/profile" element={<Profile />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
