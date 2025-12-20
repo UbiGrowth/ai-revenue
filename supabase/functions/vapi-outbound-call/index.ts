@@ -1,9 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Generate idempotency key using SHA-256
+async function generateIdempotencyKey(parts: string[]): Promise<string> {
+  const data = parts.filter(Boolean).join("|");
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,7 +32,30 @@ serve(async (req) => {
       );
     }
 
-    const { assistantId, phoneNumberId, customerNumber, customerName, leadId } = await req.json();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    // Create clients
+    const authHeader = req.headers.get("Authorization");
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader! } }
+    });
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Get user for tenant context
+    const { data: { user } } = await supabaseClient.auth.getUser();
+
+    const { 
+      assistantId, 
+      phoneNumberId, 
+      customerNumber, 
+      customerName, 
+      leadId,
+      tenantId,
+      workspaceId,
+      campaignId 
+    } = await req.json();
 
     if (!assistantId || !customerNumber) {
       return new Response(
@@ -30,10 +64,14 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Initiating outbound call to ${customerNumber} with assistant ${assistantId}`);
+    // Derive tenant context
+    const effectiveTenantId = tenantId || user?.id || "unknown";
+    const effectiveWorkspaceId = workspaceId || effectiveTenantId;
+
+    console.log(`[vapi-outbound-call] Initiating call to ${customerNumber} with assistant ${assistantId}`);
 
     // Build the call payload
-    const callPayload: any = {
+    const callPayload: Record<string, unknown> = {
       assistantId,
       customer: {
         number: customerNumber,
@@ -46,6 +84,63 @@ serve(async (req) => {
       callPayload.phoneNumberId = phoneNumberId;
     }
 
+    // Generate idempotency key for this call
+    const idempotencyKey = await generateIdempotencyKey([
+      effectiveTenantId,
+      leadId || customerNumber,
+      assistantId,
+      new Date().toISOString().slice(0, 10), // Daily uniqueness
+    ]);
+
+    // IDEMPOTENCY: Insert outbox entry BEFORE provider call with status 'queued'
+    const { data: insertedOutbox, error: insertError } = await serviceClient
+      .from("channel_outbox")
+      .insert({
+        tenant_id: effectiveTenantId,
+        workspace_id: effectiveWorkspaceId,
+        channel: "voice",
+        provider: "vapi",
+        recipient_id: leadId || null,
+        recipient_phone: customerNumber,
+        payload: { 
+          assistant_id: assistantId,
+          phone_number_id: phoneNumberId,
+          customer_name: customerName,
+          campaign_id: campaignId,
+        },
+        status: "queued",
+        idempotency_key: idempotencyKey,
+        skipped: false,
+      })
+      .select("id")
+      .single();
+
+    // If insert failed due to unique constraint (idempotent replay), skip call
+    if (insertError) {
+      if (insertError.code === "23505") {
+        console.log(`[vapi-outbound-call] Idempotent skip - call already queued for ${customerNumber}`);
+        await serviceClient
+          .from("channel_outbox")
+          .update({ skipped: true, skip_reason: "idempotent_replay" })
+          .eq("tenant_id", effectiveTenantId)
+          .eq("workspace_id", effectiveWorkspaceId)
+          .eq("idempotency_key", idempotencyKey);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            skipped: true,
+            reason: "Duplicate call prevented by idempotency check",
+            message: `Call to ${customerNumber} already attempted today` 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.error("[vapi-outbound-call] Failed to insert outbox:", insertError);
+    }
+
+    const outboxId = insertedOutbox?.id;
+
     // Make the outbound call via Vapi API
     const response = await fetch('https://api.vapi.ai/call/phone', {
       method: 'POST',
@@ -57,7 +152,7 @@ serve(async (req) => {
     });
 
     const responseText = await response.text();
-    console.log('Vapi API response:', response.status, responseText);
+    console.log('[vapi-outbound-call] Vapi API response:', response.status, responseText);
 
     if (!response.ok) {
       let errorMessage = 'Failed to initiate call';
@@ -68,6 +163,17 @@ serve(async (req) => {
         errorMessage = responseText || errorMessage;
       }
       
+      // Update outbox with failure
+      if (outboxId) {
+        await serviceClient
+          .from("channel_outbox")
+          .update({
+            status: "failed",
+            error: errorMessage,
+          })
+          .eq("id", outboxId);
+      }
+      
       return new Response(
         JSON.stringify({ error: errorMessage, status: response.status }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -75,12 +181,25 @@ serve(async (req) => {
     }
 
     const callData = JSON.parse(responseText);
-    console.log('Call initiated successfully:', callData.id);
+    console.log('[vapi-outbound-call] Call initiated successfully, provider_message_id:', callData.id);
+
+    // Update outbox with success and provider_message_id (V1 requirement)
+    if (outboxId) {
+      await serviceClient
+        .from("channel_outbox")
+        .update({
+          status: "called",
+          provider_message_id: callData.id,
+          provider_response: callData,
+        })
+        .eq("id", outboxId);
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         callId: callData.id,
+        provider_message_id: callData.id,
         status: callData.status,
         message: `Call initiated to ${customerNumber}` 
       }),
@@ -88,7 +207,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in vapi-outbound-call:', error);
+    console.error('[vapi-outbound-call] Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

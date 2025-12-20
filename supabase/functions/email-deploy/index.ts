@@ -6,6 +6,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Generate idempotency key using SHA-256
+async function generateIdempotencyKey(parts: string[]): Promise<string> {
+  const data = parts.filter(Boolean).join("|");
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 // Function to replace personalization tags with actual lead data
 function personalizeContent(content: string, lead: any): string {
   if (!content || !lead) return content;
@@ -58,6 +68,12 @@ serve(async (req) => {
           headers: { Authorization: req.headers.get("Authorization")! },
         },
       }
+    );
+
+    // Service client for channel_outbox writes (bypasses RLS)
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     // Fetch the asset details
@@ -219,12 +235,68 @@ serve(async (req) => {
     // Send emails via Resend REST API
     let sentCount = 0;
     let failedCount = 0;
+    let skippedCount = 0;
+    const sentMessages: Array<{ email: string; messageId: string }> = [];
+    
+    // Derive tenantId for channel_outbox
+    const tenantId = workspaceId || user?.id || "unknown";
     
     // Process each recipient with personalization
     const emailPromises = recipientList.map(async (recipientEmail: string) => {
       try {
         // Find the lead data for this recipient
         const linkedLead = targetLeads.find((lead: any) => lead.email === recipientEmail);
+        const leadId = linkedLead?.id || null;
+        
+        // Generate idempotency key
+        const idempotencyKey = await generateIdempotencyKey([
+          campaign.id,
+          leadId || recipientEmail,
+          assetId,
+          new Date().toISOString().slice(0, 10), // Daily uniqueness
+        ]);
+        
+        // IDEMPOTENCY: Insert outbox entry BEFORE provider call with status 'queued'
+        const { data: insertedOutbox, error: insertError } = await serviceClient
+          .from("channel_outbox")
+          .insert({
+            tenant_id: tenantId,
+            workspace_id: workspaceId,
+            channel: "email",
+            provider: "resend",
+            recipient_id: leadId,
+            recipient_email: recipientEmail,
+            payload: { 
+              campaign_id: campaign.id, 
+              asset_id: assetId,
+              subject: subjectTemplate,
+            },
+            status: "queued",
+            idempotency_key: idempotencyKey,
+            skipped: false,
+          })
+          .select("id")
+          .single();
+        
+        // If insert failed due to unique constraint (idempotent replay), skip
+        if (insertError) {
+          if (insertError.code === "23505") { // Unique violation
+            console.log(`[email-deploy] Idempotent skip for ${recipientEmail} - already in outbox`);
+            await serviceClient
+              .from("channel_outbox")
+              .update({ skipped: true, skip_reason: "idempotent_replay" })
+              .eq("tenant_id", tenantId)
+              .eq("workspace_id", workspaceId)
+              .eq("idempotency_key", idempotencyKey);
+            skippedCount++;
+            return;
+          }
+          console.error(`[email-deploy] Failed to insert outbox for ${recipientEmail}:`, insertError);
+          failedCount++;
+          return;
+        }
+        
+        const outboxId = insertedOutbox?.id;
         
         // Personalize subject and body with lead data
         const personalizedSubject = personalizeContent(subjectTemplate, linkedLead || { email: recipientEmail });
@@ -254,12 +326,35 @@ serve(async (req) => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`Resend API error for ${recipientEmail}:`, response.status, errorText);
-          throw new Error(`Resend API error: ${response.status}`);
+          
+          // Update outbox with failure
+          await serviceClient
+            .from("channel_outbox")
+            .update({
+              status: "failed",
+              error: `Resend API error: ${response.status} - ${errorText}`,
+            })
+            .eq("id", outboxId);
+          
+          failedCount++;
+          return;
         }
         
         const result = await response.json();
-        console.log(`Email sent successfully to ${recipientEmail}, id: ${result.id}`);
+        console.log(`Email sent successfully to ${recipientEmail}, provider_message_id: ${result.id}`);
+        
+        // Update outbox with success and provider_message_id (E1 requirement)
+        await serviceClient
+          .from("channel_outbox")
+          .update({
+            status: "sent",
+            provider_message_id: result.id,
+            provider_response: result,
+          })
+          .eq("id", outboxId);
+        
         sentCount++;
+        sentMessages.push({ email: recipientEmail, messageId: result.id });
         
         // Log lead activity if this email came from a linked lead
         if (linkedLead && linkedLead.id) {
@@ -273,7 +368,8 @@ serve(async (req) => {
                 campaignId: campaign.id, 
                 assetId, 
                 subject: personalizedSubject,
-                resendId: result.id 
+                resendId: result.id,
+                provider_message_id: result.id,
               },
             });
           } catch (e) {
@@ -335,7 +431,7 @@ serve(async (req) => {
         .eq("id", assetId);
     }
 
-    console.log(`Email campaign deployed: ${sentCount} sent, ${failedCount} failed`);
+    console.log(`Email campaign deployed: ${sentCount} sent, ${failedCount} failed, ${skippedCount} skipped`);
 
     return new Response(
       JSON.stringify({
@@ -343,7 +439,10 @@ serve(async (req) => {
         campaignId: campaign.id,
         sentCount,
         failedCount,
-        message: `Successfully sent ${sentCount} personalized emails`,
+        skippedCount,
+        // E1 proof: Return provider_message_ids for verification
+        sentMessages: sentMessages.slice(0, 10), // First 10 for logging
+        message: `Successfully sent ${sentCount} personalized emails${skippedCount > 0 ? ` (${skippedCount} skipped as duplicates)` : ""}`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
