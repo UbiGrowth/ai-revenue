@@ -143,8 +143,8 @@ export function CampaignRunDetailsDrawer({
         if (jobsError) throw jobsError;
         setJobs((jobsData || []) as JobQueueItem[]);
 
-        // Fetch channel outbox items
-        const { data: outboxData, error: outboxError } = await supabase
+        // Fetch channel outbox items by run_id
+        const { data: outboxByRun, error: outboxError } = await supabase
           .from("channel_outbox")
           .select("*")
           .in("run_id", runIds)
@@ -152,10 +152,42 @@ export function CampaignRunDetailsDrawer({
           .limit(50);
 
         if (outboxError) throw outboxError;
-        setOutbox((outboxData || []) as ChannelOutboxItem[]);
+        
+        // Also fetch direct deploys not linked to runs (by campaign_id in payload)
+        const { data: directOutboxData } = await supabase
+          .from("channel_outbox")
+          .select("*")
+          .is("run_id", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        
+        const directCampaignOutbox = (directOutboxData || []).filter((item: any) => {
+          const payload = item.payload as Record<string, unknown>;
+          return payload?.campaign_id === campaignId;
+        });
+        
+        // Merge and dedupe by id
+        const allOutbox = [...(outboxByRun || []), ...directCampaignOutbox];
+        const uniqueOutbox = allOutbox.filter((item, idx, arr) => 
+          arr.findIndex(x => x.id === item.id) === idx
+        );
+        
+        setOutbox(uniqueOutbox as ChannelOutboxItem[]);
       } else {
         setJobs([]);
-        setOutbox([]);
+        // Fetch outbox items by campaign_id in payload for direct deploys
+        const { data: directOutboxData } = await supabase
+          .from("channel_outbox")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50);
+        
+        const campaignOutbox = (directOutboxData || []).filter((item: any) => {
+          const payload = item.payload as Record<string, unknown>;
+          return payload?.campaign_id === campaignId;
+        });
+        
+        setOutbox(campaignOutbox as ChannelOutboxItem[]);
       }
     } catch (error) {
       console.error("Error fetching run details:", error);
@@ -432,6 +464,102 @@ export function CampaignRunDetailsDrawer({
                 </Card>
               )}
 
+              {/* E2E Provider Verification Summary */}
+              {outbox.length > 0 && (
+                <Card className="border-2 border-primary/20">
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      E2E Provider Verification
+                      {(() => {
+                        const emailItems = outbox.filter(i => i.channel === "email");
+                        const voiceItems = outbox.filter(i => i.channel === "voice");
+                        const emailWithId = emailItems.filter(i => i.provider_message_id && i.status === "sent");
+                        const voiceWithId = voiceItems.filter(i => i.provider_message_id && i.status === "called");
+                        const e1Pass = emailItems.length > 0 && emailWithId.length > 0;
+                        const v1Pass = voiceItems.length > 0 && voiceWithId.length > 0;
+                        const hasEmail = emailItems.length > 0;
+                        const hasVoice = voiceItems.length > 0;
+                        
+                        if ((hasEmail && e1Pass) || (hasVoice && v1Pass)) {
+                          return <CheckCircle className="h-4 w-4 text-green-500" />;
+                        }
+                        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+                      })()}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* E1: Email verification */}
+                    {(() => {
+                      const emailItems = outbox.filter(i => i.channel === "email");
+                      const emailWithId = emailItems.filter(i => i.provider_message_id && i.status === "sent");
+                      const e1Pass = emailItems.length > 0 && emailWithId.length > 0;
+                      
+                      return emailItems.length > 0 ? (
+                        <div className={`p-2 rounded border ${e1Pass ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            {e1Pass ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-yellow-500" />
+                            )}
+                            <span>E1: Email E2E</span>
+                            <Badge variant={e1Pass ? "default" : "secondary"} className="text-xs ml-auto">
+                              {e1Pass ? "PASS" : "PENDING"}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {emailWithId.length}/{emailItems.length} emails with provider_message_id stored
+                          </div>
+                          {emailWithId.length > 0 && (
+                            <div className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                              Sample ID: {emailWithId[0].provider_message_id}
+                            </div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
+                    
+                    {/* V1: Voice verification */}
+                    {(() => {
+                      const voiceItems = outbox.filter(i => i.channel === "voice");
+                      const voiceWithId = voiceItems.filter(i => i.provider_message_id && i.status === "called");
+                      const v1Pass = voiceItems.length > 0 && voiceWithId.length > 0;
+                      
+                      return voiceItems.length > 0 ? (
+                        <div className={`p-2 rounded border ${v1Pass ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            {v1Pass ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-yellow-500" />
+                            )}
+                            <span>V1: Voice E2E</span>
+                            <Badge variant={v1Pass ? "default" : "secondary"} className="text-xs ml-auto">
+                              {v1Pass ? "PASS" : "PENDING"}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {voiceWithId.length}/{voiceItems.length} calls with provider response stored
+                          </div>
+                          {voiceWithId.length > 0 && (
+                            <div className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                              Sample Call ID: {voiceWithId[0].provider_message_id}
+                            </div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
+                    
+                    {/* No email or voice items */}
+                    {outbox.filter(i => i.channel === "email" || i.channel === "voice").length === 0 && (
+                      <div className="text-xs text-muted-foreground text-center py-2">
+                        No email or voice items in outbox yet
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Channel Outbox */}
               {outbox.length > 0 && (
                 <Card>
@@ -469,8 +597,9 @@ export function CampaignRunDetailsDrawer({
                             {item.recipient_email || item.recipient_phone || "—"}
                           </div>
                           {item.provider_message_id && (
-                            <div className="text-muted-foreground truncate">
-                              ID: {item.provider_message_id}
+                            <div className="text-muted-foreground truncate flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                              <span className="font-mono">ID: {item.provider_message_id}</span>
                             </div>
                           )}
                           {item.skip_reason && (
