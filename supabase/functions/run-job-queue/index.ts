@@ -975,6 +975,68 @@ Deno.serve(async (req) => {
       tenantJobCounts.set(tenantKey, currentCount + 1);
       console.log(`[${workerId}] Processing job ${job.id} (${job.job_type})`);
 
+      // ============================================================
+      // COST CONTROL: Check tenant rate limits BEFORE processing
+      // ============================================================
+      const jobChannel = job.job_type === "email_send_batch" ? "email" 
+        : job.job_type === "voice_call_batch" ? "voice" 
+        : null;
+      
+      if (jobChannel) {
+        const { data: rateLimitCheck, error: rlError } = await supabase.rpc("check_tenant_rate_limit", {
+          p_tenant_id: job.tenant_id,
+          p_channel: jobChannel,
+          p_amount: 1,
+        });
+        
+        if (rlError) {
+          console.error(`[${workerId}] Rate limit check failed:`, rlError);
+          // Continue processing - don't block on rate limit check failures
+        } else if (rateLimitCheck && !rateLimitCheck.allowed) {
+          console.warn(`[${workerId}] Rate limit exceeded for tenant ${job.tenant_id}: ${rateLimitCheck.reason}`);
+          
+          // Mark job as rate limited - soft fail with clear error
+          await supabase.rpc("complete_job", {
+            p_job_id: job.id,
+            p_success: false,
+            p_error: rateLimitCheck.reason,
+          });
+          
+          // Update run status with rate limit error
+          await supabase.rpc("update_campaign_run_status", {
+            p_run_id: job.run_id,
+            p_status: "rate_limited",
+            p_error_message: rateLimitCheck.reason,
+            p_completed_at: new Date().toISOString(),
+          });
+          
+          // Log rate limit event
+          await supabase.from("campaign_audit_log").insert({
+            tenant_id: job.tenant_id,
+            workspace_id: job.workspace_id,
+            run_id: job.run_id,
+            job_id: job.id,
+            event_type: "rate_limit_exceeded",
+            actor_type: "system",
+            details: { 
+              channel: jobChannel,
+              limit_type: rateLimitCheck.limit_type,
+              current_usage: rateLimitCheck.current_usage,
+              limit_value: rateLimitCheck.limit_value,
+              resets_at: rateLimitCheck.resets_at,
+            },
+          } as never);
+          
+          results.push({
+            job_id: job.id,
+            job_type: job.job_type,
+            success: false,
+            error: rateLimitCheck.reason,
+          });
+          continue;
+        }
+      }
+
       // Update run status to running via SECURITY DEFINER RPC (Single Writer Rule)
       await supabase.rpc("update_campaign_run_status", {
         p_run_id: job.run_id,

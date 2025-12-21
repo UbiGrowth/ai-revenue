@@ -4788,6 +4788,53 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limit_events: {
+        Row: {
+          channel: string
+          created_at: string
+          current_usage: number
+          event_type: string
+          id: string
+          job_id: string | null
+          limit_type: string
+          limit_value: number
+          run_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          current_usage: number
+          event_type: string
+          id?: string
+          job_id?: string | null
+          limit_type: string
+          limit_value: number
+          run_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          current_usage?: number
+          event_type?: string
+          id?: string
+          job_id?: string | null
+          limit_type?: string
+          limit_value?: number
+          run_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_limit_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       release_notes: {
         Row: {
           body_md: string
@@ -5605,6 +5652,71 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_rate_limits: {
+        Row: {
+          created_at: string
+          daily_reset_at: string
+          email_daily_limit: number
+          email_daily_used: number
+          email_hourly_limit: number
+          email_hourly_used: number
+          hourly_reset_at: string
+          id: string
+          notify_at_percentage: number
+          soft_cap_enabled: boolean
+          tenant_id: string
+          updated_at: string
+          voice_daily_minutes: number
+          voice_daily_minutes_used: number
+          voice_hourly_minutes: number
+          voice_hourly_minutes_used: number
+        }
+        Insert: {
+          created_at?: string
+          daily_reset_at?: string
+          email_daily_limit?: number
+          email_daily_used?: number
+          email_hourly_limit?: number
+          email_hourly_used?: number
+          hourly_reset_at?: string
+          id?: string
+          notify_at_percentage?: number
+          soft_cap_enabled?: boolean
+          tenant_id: string
+          updated_at?: string
+          voice_daily_minutes?: number
+          voice_daily_minutes_used?: number
+          voice_hourly_minutes?: number
+          voice_hourly_minutes_used?: number
+        }
+        Update: {
+          created_at?: string
+          daily_reset_at?: string
+          email_daily_limit?: number
+          email_daily_used?: number
+          email_hourly_limit?: number
+          email_hourly_used?: number
+          hourly_reset_at?: string
+          id?: string
+          notify_at_percentage?: number
+          soft_cap_enabled?: boolean
+          tenant_id?: string
+          updated_at?: string
+          voice_daily_minutes?: number
+          voice_daily_minutes_used?: number
+          voice_hourly_minutes?: number
+          voice_hourly_minutes_used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_rate_limits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_segments: {
         Row: {
           code: string
@@ -6187,6 +6299,10 @@ export type Database = {
         Args: { p_campaign_id: string; p_tenant_id: string }
         Returns: Json
       }
+      check_tenant_rate_limit: {
+        Args: { p_amount?: number; p_channel: string; p_tenant_id: string }
+        Returns: Json
+      }
       check_workspace_form_password: {
         Args: { _password: string; _workspace_id: string }
         Returns: boolean
@@ -6275,6 +6391,10 @@ export type Database = {
       get_tenant_metrics_mode: {
         Args: { p_tenant_id: string }
         Returns: string
+      }
+      get_tenant_rate_limit_status: {
+        Args: { p_tenant_id: string }
+        Returns: Json
       }
       get_user_by_email: {
         Args: { _email: string }
@@ -6384,18 +6504,29 @@ export type Database = {
         Args: { p_user_id: string; p_workspace_id: string }
         Returns: undefined
       }
-      update_campaign_run_status: {
-        Args: {
-          p_completed_at?: string
-          p_error_code?: string
-          p_error_message?: string
-          p_metrics_snapshot?: Json
-          p_run_id: string
-          p_started_at?: string
-          p_status: string
-        }
-        Returns: Json
-      }
+      update_campaign_run_status:
+        | {
+            Args: {
+              p_completed_at?: string
+              p_error_message?: string
+              p_run_id: string
+              p_started_at?: string
+              p_status: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_completed_at?: string
+              p_error_code?: string
+              p_error_message?: string
+              p_metrics_snapshot?: Json
+              p_run_id: string
+              p_started_at?: string
+              p_status: string
+            }
+            Returns: Json
+          }
       upsert_campaign_daily_stat: {
         Args: {
           p_campaign_id: string

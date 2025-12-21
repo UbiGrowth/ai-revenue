@@ -55,6 +55,7 @@ import PlatformAdmin from "./pages/PlatformAdmin";
 import TenantIsolationQA from "./pages/platform-admin/TenantIsolationQA";
 import ExecutionCertQA from "./pages/platform-admin/ExecutionCertQA";
 import SLODashboard from "./pages/platform-admin/SLODashboard";
+import TenantRateLimits from "./pages/platform-admin/TenantRateLimits";
 import SystemBanner from "./components/SystemBanner";
 
 const queryClient = new QueryClient();
@@ -165,6 +166,7 @@ const AppContent = () => {
         <Route path="/platform-admin/qa/tenant-isolation" element={<TenantIsolationQA />} />
         <Route path="/platform-admin/qa/execution-cert" element={<ExecutionCertQA />} />
         <Route path="/platform-admin/slo" element={<SLODashboard />} />
+        <Route path="/platform-admin/rate-limits" element={<TenantRateLimits />} />
         <Route path="/profile" element={<Profile />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
