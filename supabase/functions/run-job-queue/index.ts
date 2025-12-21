@@ -108,9 +108,9 @@ interface WorkerTickMetrics {
   error: string | null;
 }
 
-// Backpressure configuration
-const MAX_JOBS_PER_TICK = 50; // Cap jobs per tick overall
-const MAX_JOBS_PER_TENANT_PER_TICK = 10; // Cap jobs per tenant per tick
+// Backpressure configuration - matches claim_queued_jobs() defaults
+const MAX_JOBS_PER_TICK = 200; // FAIR2: Global cap per tick
+const MAX_JOBS_PER_TENANT_PER_TICK = 25; // FAIR1: No tenant >25 jobs per tick
 const BASE_BACKOFF_MS = 1000; // Base backoff for failures
 const MAX_BACKOFF_MS = 60000; // Max backoff (1 minute)
 
