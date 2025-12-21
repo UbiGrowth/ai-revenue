@@ -68,6 +68,12 @@ serve(async (req) => {
       return await exportEvidence(supabase, testConfig);
     case "get_outbox_summary":
       return await getOutboxSummary(supabase, testConfig);
+    case "create_launch_test_campaign":
+      return await createLaunchTestCampaign(supabase, testConfig);
+    case "deploy_launch_test":
+      return await deployLaunchTest(supabase, testConfig);
+    case "get_launch_status":
+      return await getLaunchStatus(supabase, testConfig);
     default:
       return new Response(JSON.stringify({ error: "Unknown action" }), {
         status: 400,
@@ -542,6 +548,320 @@ async function exportEvidence(
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Export failed" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+// Launch Validation Functions
+async function createLaunchTestCampaign(
+  supabase: AnySupabaseClient,
+  config: { channel: string; leadCount: number }
+) {
+  const timestamp = Date.now();
+  const testTenantId = `launch-test-tenant-${timestamp}`;
+  const testWorkspaceId = `launch-test-workspace-${timestamp}`;
+
+  try {
+    // Create test tenant
+    const { data: tenant, error: tenantError } = await supabase
+      .from("tenants")
+      .insert({
+        id: testTenantId,
+        name: `Launch Test - ${timestamp}`,
+        slug: `launch-${timestamp}`,
+        status: "active",
+      })
+      .select()
+      .single();
+
+    if (tenantError) throw tenantError;
+
+    // Get a platform admin user for owner
+    const { data: anyUser } = await supabase
+      .from("platform_admins")
+      .select("user_id")
+      .limit(1)
+      .single();
+
+    const { data: workspace, error: wsError } = await supabase
+      .from("workspaces")
+      .insert({
+        id: testWorkspaceId,
+        name: `Launch Test WS - ${timestamp}`,
+        slug: `launch-ws-${timestamp}`,
+        owner_id: anyUser?.user_id || "00000000-0000-0000-0000-000000000000",
+      })
+      .select()
+      .single();
+
+    if (wsError) throw wsError;
+
+    // Create test leads
+    const leads = [];
+    for (let i = 0; i < (config.leadCount || 3); i++) {
+      leads.push({
+        tenant_id: testTenantId,
+        workspace_id: testWorkspaceId,
+        email: `launch-test-${i}@qa-sandbox.local`,
+        phone: `+1555999${i.toString().padStart(4, "0")}`,
+        first_name: `Test${i}`,
+        last_name: `Lead${i}`,
+        status: "new",
+        source: "qa_launch_test",
+      });
+    }
+
+    const { data: createdLeads, error: leadError } = await supabase
+      .from("leads")
+      .insert(leads)
+      .select();
+
+    if (leadError) throw leadError;
+
+    // Create campaign
+    const { data: campaign, error: campError } = await supabase
+      .from("cmo_campaigns")
+      .insert({
+        tenant_id: testTenantId,
+        workspace_id: testWorkspaceId,
+        campaign_name: `Launch Validation Test - ${config.channel} - ${timestamp}`,
+        campaign_type: config.channel,
+        status: "draft",
+      })
+      .select()
+      .single();
+
+    if (campError) throw campError;
+
+    // Create campaign_run (pending)
+    const { data: run, error: runError } = await supabase
+      .from("campaign_runs")
+      .insert({
+        campaign_id: campaign.id,
+        tenant_id: testTenantId,
+        workspace_id: testWorkspaceId,
+        status: "pending",
+        channel: config.channel,
+      })
+      .select()
+      .single();
+
+    if (runError) throw runError;
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          tenantId: testTenantId,
+          workspaceId: testWorkspaceId,
+          campaignId: campaign.id,
+          runId: run.id,
+          leadIds: createdLeads?.map((l: { id: string }) => l.id) || [],
+          leadCount: config.leadCount || 3,
+        },
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Create launch test error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Failed to create test campaign" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+async function deployLaunchTest(
+  supabase: AnySupabaseClient,
+  config: { campaignId: string; runId: string }
+) {
+  try {
+    // Update campaign status to active
+    await supabase
+      .from("cmo_campaigns")
+      .update({ status: "active" })
+      .eq("id", config.campaignId);
+
+    // Update run status to running
+    await supabase
+      .from("campaign_runs")
+      .update({ 
+        status: "running",
+        started_at: new Date().toISOString(),
+      })
+      .eq("id", config.runId);
+
+    // Get run details for tenant/workspace
+    const { data: run } = await supabase
+      .from("campaign_runs")
+      .select("*")
+      .eq("id", config.runId)
+      .single();
+
+    if (!run) throw new Error("Run not found");
+
+    // Get leads for this tenant/workspace
+    const { data: leads } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("tenant_id", run.tenant_id)
+      .eq("workspace_id", run.workspace_id)
+      .eq("source", "qa_launch_test")
+      .limit(10);
+
+    // Create job_queue entries for each lead
+    const jobs = (leads || []).map((lead: { id: string; email: string; phone: string }) => ({
+      tenant_id: run.tenant_id,
+      workspace_id: run.workspace_id,
+      job_type: run.channel,
+      status: "queued",
+      payload: {
+        run_id: config.runId,
+        campaign_id: config.campaignId,
+        lead_id: lead.id,
+        recipient_email: lead.email,
+        recipient_phone: lead.phone,
+        subject: `Launch Test - ${run.channel}`,
+        body: `This is a launch validation test for ${run.channel}`,
+        test_mode: true,
+      },
+      priority: 5,
+      run_at: new Date().toISOString(),
+    }));
+
+    if (jobs.length > 0) {
+      const { error: jobError } = await supabase
+        .from("job_queue")
+        .insert(jobs);
+
+      if (jobError) throw jobError;
+    }
+
+    // Also create outbox entries directly for immediate processing
+    const outboxEntries = (leads || []).map((lead: { id: string; email: string; phone: string }) => ({
+      tenant_id: run.tenant_id,
+      workspace_id: run.workspace_id,
+      run_id: config.runId,
+      channel: run.channel,
+      provider: "sandbox",
+      payload: {
+        lead_id: lead.id,
+        subject: `Launch Test - ${run.channel}`,
+        body: `Launch validation test`,
+      },
+      idempotency_key: `${config.runId}:${run.channel}:${lead.email || lead.phone}`,
+      status: "pending",
+      recipient_email: lead.email,
+      recipient_phone: lead.phone,
+    }));
+
+    if (outboxEntries.length > 0) {
+      const { data: outbox, error: outboxError } = await supabase
+        .from("channel_outbox")
+        .insert(outboxEntries)
+        .select();
+
+      if (outboxError) throw outboxError;
+
+      // Simulate provider calls (sandbox mode)
+      for (const row of (outbox || [])) {
+        await supabase
+          .from("channel_outbox")
+          .update({
+            status: run.channel === "voice" ? "called" : "sent",
+            provider_message_id: `sandbox-${Date.now()}-${row.id.slice(0, 8)}`,
+            provider_response: { sandbox: true, timestamp: new Date().toISOString() },
+          })
+          .eq("id", row.id);
+      }
+    }
+
+    // Mark run as completed
+    await supabase
+      .from("campaign_runs")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", config.runId);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          runId: config.runId,
+          jobsCreated: jobs.length,
+          outboxCreated: outboxEntries.length,
+        },
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Deploy launch test error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Deployment failed" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+async function getLaunchStatus(
+  supabase: AnySupabaseClient,
+  config: { runId: string }
+) {
+  try {
+    // Get campaign run
+    const { data: campaignRun } = await supabase
+      .from("campaign_runs")
+      .select("*")
+      .eq("id", config.runId)
+      .single();
+
+    // Get job queue entries
+    const { data: jobQueue } = await supabase
+      .from("job_queue")
+      .select("id, status, created_at, locked_at, completed_at, error")
+      .eq("tenant_id", campaignRun?.tenant_id)
+      .eq("workspace_id", campaignRun?.workspace_id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    // Get outbox rows
+    const { data: outboxRows } = await supabase
+      .from("channel_outbox")
+      .select("id, status, provider_message_id, error, recipient_email, recipient_phone, idempotency_key, created_at")
+      .eq("run_id", config.runId)
+      .order("created_at", { ascending: true });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          campaignRun: campaignRun ? {
+            id: campaignRun.id,
+            status: campaignRun.status,
+            started_at: campaignRun.started_at,
+            completed_at: campaignRun.completed_at,
+            error_message: campaignRun.error_message,
+          } : null,
+          jobQueue: (jobQueue || []).map((j: { id: string; status: string; created_at: string; locked_at: string | null; completed_at: string | null; error: string | null }) => ({
+            id: j.id,
+            status: j.status,
+            created_at: j.created_at,
+            locked_at: j.locked_at,
+            completed_at: j.completed_at,
+            error_message: j.error,
+          })),
+          outboxRows: outboxRows || [],
+        },
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Get launch status error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Failed to get status" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

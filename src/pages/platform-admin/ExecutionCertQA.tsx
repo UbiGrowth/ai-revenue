@@ -13,7 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { 
   Shield, CheckCircle2, XCircle, Play, Download, Loader2, 
-  Clock, AlertTriangle, Database, Zap, Users, Activity
+  Clock, AlertTriangle, Database, Zap, Users, Activity,
+  Rocket, Mail, Phone, RefreshCw
 } from 'lucide-react';
 
 interface TestResult {
@@ -65,6 +66,42 @@ interface HorizontalScalingMetrics {
   };
 }
 
+interface LaunchValidationResult {
+  campaignId: string;
+  runId: string;
+  channel: 'email' | 'voice';
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  campaignRun: {
+    id: string;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    error_message: string | null;
+  } | null;
+  jobQueue: Array<{
+    id: string;
+    status: string;
+    created_at: string;
+    locked_at: string | null;
+    completed_at: string | null;
+    error_message: string | null;
+  }>;
+  outboxRows: Array<{
+    id: string;
+    status: string;
+    provider_message_id: string | null;
+    error: string | null;
+    recipient_email: string | null;
+    recipient_phone: string | null;
+    created_at: string;
+  }>;
+  passCriteria: {
+    L1_provider_ids: boolean;
+    L2_failure_visible: boolean;
+    L3_no_duplicates: boolean;
+  };
+}
+
 interface OutboxRow {
   id: string;
   channel: string;
@@ -101,6 +138,13 @@ export default function ExecutionCertQA() {
   const [outboxRows, setOutboxRows] = useState<OutboxRow[]>([]);
   const [hsMetrics, setHsMetrics] = useState<HorizontalScalingMetrics | null>(null);
   const [loadingHsMetrics, setLoadingHsMetrics] = useState(false);
+  
+  // Launch Validation
+  const [launchChannel, setLaunchChannel] = useState<'email' | 'voice'>('email');
+  const [creatingLaunchTest, setCreatingLaunchTest] = useState(false);
+  const [deployingLaunchTest, setDeployingLaunchTest] = useState(false);
+  const [launchResult, setLaunchResult] = useState<LaunchValidationResult | null>(null);
+  const [refreshingLaunchStatus, setRefreshingLaunchStatus] = useState(false);
 
   useEffect(() => {
     checkPlatformAdmin();
@@ -288,8 +332,110 @@ export default function ExecutionCertQA() {
     }
   };
 
+  // Launch Validation Functions
+  const createLaunchTestCampaign = async () => {
+    setCreatingLaunchTest(true);
+    try {
+      const result = await callQAFunction('create_launch_test_campaign', {
+        channel: launchChannel,
+        leadCount: 3,
+      });
+      
+      if (result.success) {
+        setLaunchResult({
+          campaignId: result.data.campaignId,
+          runId: result.data.runId,
+          channel: launchChannel,
+          status: 'pending',
+          campaignRun: null,
+          jobQueue: [],
+          outboxRows: [],
+          passCriteria: {
+            L1_provider_ids: false,
+            L2_failure_visible: true,
+            L3_no_duplicates: true,
+          },
+        });
+        toast.success(`Test campaign created with 3 leads for ${launchChannel}`);
+      } else {
+        throw new Error(result.error || 'Failed to create test campaign');
+      }
+    } catch (error) {
+      console.error('Create launch test error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create test campaign');
+    } finally {
+      setCreatingLaunchTest(false);
+    }
+  };
+
+  const deployLaunchTest = async () => {
+    if (!launchResult) return;
+    
+    setDeployingLaunchTest(true);
+    try {
+      const result = await callQAFunction('deploy_launch_test', {
+        campaignId: launchResult.campaignId,
+        runId: launchResult.runId,
+      });
+      
+      if (result.success) {
+        setLaunchResult(prev => prev ? { ...prev, status: 'running' } : null);
+        toast.success('Campaign deployed - monitoring...');
+        
+        // Start polling for status
+        setTimeout(() => refreshLaunchStatus(), 3000);
+      } else {
+        throw new Error(result.error || 'Deployment failed');
+      }
+    } catch (error) {
+      console.error('Deploy launch test error:', error);
+      toast.error(error instanceof Error ? error.message : 'Deployment failed');
+    } finally {
+      setDeployingLaunchTest(false);
+    }
+  };
+
+  const refreshLaunchStatus = async () => {
+    if (!launchResult) return;
+    
+    setRefreshingLaunchStatus(true);
+    try {
+      const result = await callQAFunction('get_launch_status', {
+        runId: launchResult.runId,
+      });
+      
+      if (result.success) {
+        const data = result.data;
+        
+        // Calculate pass criteria
+        const outboxWithProviderIds = data.outboxRows.filter((r: { provider_message_id: string | null }) => r.provider_message_id);
+        const outboxWithErrors = data.outboxRows.filter((r: { error: string | null }) => r.error);
+        const duplicateKeys = new Set(data.outboxRows.map((r: { idempotency_key: string }) => r.idempotency_key));
+        
+        setLaunchResult(prev => prev ? {
+          ...prev,
+          status: data.campaignRun?.status === 'completed' ? 'completed' : 
+                  data.campaignRun?.status === 'failed' ? 'failed' : 'running',
+          campaignRun: data.campaignRun,
+          jobQueue: data.jobQueue,
+          outboxRows: data.outboxRows,
+          passCriteria: {
+            L1_provider_ids: outboxWithProviderIds.length > 0 || data.outboxRows.some((r: { status: string }) => r.status === 'sent' || r.status === 'called'),
+            L2_failure_visible: outboxWithErrors.length === 0 || outboxWithErrors.every((r: { error: string | null }) => r.error !== null),
+            L3_no_duplicates: duplicateKeys.size === data.outboxRows.length,
+          },
+        } : null);
+      }
+    } catch (error) {
+      console.error('Refresh launch status error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to refresh status');
+    } finally {
+      setRefreshingLaunchStatus(false);
+    }
+  };
+
   const getOverallStatus = () => {
-    const hasResults = concurrencyResults.length > 0 || slaResult !== null || hsMetrics !== null;
+    const hasResults = concurrencyResults.length > 0 || slaResult !== null || hsMetrics !== null || launchResult !== null;
     if (!hasResults) return 'pending';
     
     const concurrencyPassed = concurrencyResults.length === 0 || concurrencyResults.every(r => r.passed);
@@ -299,8 +445,13 @@ export default function ExecutionCertQA() {
       hsMetrics.pass_criteria.HS2_duplicates_zero &&
       hsMetrics.pass_criteria.HS3_oldest_under_180s
     );
+    const launchPassed = launchResult === null || (
+      launchResult.passCriteria.L1_provider_ids &&
+      launchResult.passCriteria.L2_failure_visible &&
+      launchResult.passCriteria.L3_no_duplicates
+    );
     
-    return concurrencyPassed && slaPassed && hsPassed ? 'pass' : 'fail';
+    return concurrencyPassed && slaPassed && hsPassed && launchPassed ? 'pass' : 'fail';
   };
 
   if (loading) {
@@ -581,7 +732,7 @@ export default function ExecutionCertQA() {
                     <span className="font-medium text-sm">HS1: Workers Active</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">{hsMetrics.workers.length}</p>
-                  <p className="text-xs text-muted-foreground">Target: ≥2</p>
+                  <p className="text-xs text-muted-foreground">Target: ≥4</p>
                 </div>
 
                 <div className={`p-3 rounded-lg border ${hsMetrics.pass_criteria.HS2_duplicates_zero ? 'border-green-500/50 bg-green-500/10' : 'border-red-500/50 bg-red-500/10'}`}>
@@ -679,12 +830,258 @@ export default function ExecutionCertQA() {
         </CardContent>
       </Card>
 
-      {/* Section 5: Evidence Export */}
+      {/* Section 5: Launch Validation (L1/L2/L3) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Rocket className="h-5 w-5" />
+            5. Launch Validation (E2E)
+          </CardTitle>
+          <CardDescription>
+            Create and deploy a 3-lead test campaign, verify provider dispatch, failure transparency, and scale safety
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Setup */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Channel</Label>
+              <Select value={launchChannel} onValueChange={(v) => setLaunchChannel(v as 'email' | 'voice')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="voice">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Voice
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={createLaunchTestCampaign} 
+                disabled={creatingLaunchTest}
+                className="w-full"
+              >
+                {creatingLaunchTest ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+                Create 3-Lead Test
+              </Button>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={deployLaunchTest} 
+                disabled={!launchResult || deployingLaunchTest || launchResult.status !== 'pending'}
+                variant="default"
+                className="w-full"
+              >
+                {deployingLaunchTest ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
+                Deploy Now
+              </Button>
+            </div>
+          </div>
+
+          {launchResult && (
+            <>
+              <Separator />
+              
+              {/* Status & Refresh */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge 
+                    variant={
+                      launchResult.status === 'completed' ? 'default' : 
+                      launchResult.status === 'failed' ? 'destructive' : 
+                      'secondary'
+                    }
+                    className="text-sm"
+                  >
+                    {launchResult.status.toUpperCase()}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Run: <code className="ml-1">{launchResult.runId.slice(0, 8)}...</code>
+                  </span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refreshLaunchStatus}
+                  disabled={refreshingLaunchStatus}
+                >
+                  {refreshingLaunchStatus ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Refresh
+                </Button>
+              </div>
+
+              {/* Pass Criteria Badges */}
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className={`p-3 rounded-lg border ${launchResult.passCriteria.L1_provider_ids ? 'border-green-500/50 bg-green-500/10' : 'border-yellow-500/50 bg-yellow-500/10'}`}>
+                  <div className="flex items-center gap-2">
+                    {launchResult.passCriteria.L1_provider_ids ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    )}
+                    <span className="font-medium text-sm">L1: Provider IDs</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Outbox rows have provider_message_id</p>
+                </div>
+
+                <div className={`p-3 rounded-lg border ${launchResult.passCriteria.L2_failure_visible ? 'border-green-500/50 bg-green-500/10' : 'border-red-500/50 bg-red-500/10'}`}>
+                  <div className="flex items-center gap-2">
+                    {launchResult.passCriteria.L2_failure_visible ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className="font-medium text-sm">L2: Failures Visible</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Errors surfaced in outbox</p>
+                </div>
+
+                <div className={`p-3 rounded-lg border ${launchResult.passCriteria.L3_no_duplicates ? 'border-green-500/50 bg-green-500/10' : 'border-red-500/50 bg-red-500/10'}`}>
+                  <div className="flex items-center gap-2">
+                    {launchResult.passCriteria.L3_no_duplicates ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className="font-medium text-sm">L3: No Duplicates</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Unique idempotency keys</p>
+                </div>
+              </div>
+
+              {/* Campaign Run Details */}
+              {launchResult.campaignRun && (
+                <div className="p-4 rounded-lg border bg-muted/50">
+                  <h4 className="font-medium mb-3">Campaign Run</h4>
+                  <div className="grid gap-2 text-sm md:grid-cols-4">
+                    <div>
+                      <span className="text-muted-foreground">Status:</span>
+                      <Badge className="ml-2" variant={launchResult.campaignRun.status === 'completed' ? 'default' : 'secondary'}>
+                        {launchResult.campaignRun.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Started:</span>
+                      <span className="ml-2">{launchResult.campaignRun.started_at ? new Date(launchResult.campaignRun.started_at).toLocaleTimeString() : '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Completed:</span>
+                      <span className="ml-2">{launchResult.campaignRun.completed_at ? new Date(launchResult.campaignRun.completed_at).toLocaleTimeString() : '-'}</span>
+                    </div>
+                    {launchResult.campaignRun.error_message && (
+                      <div className="md:col-span-4">
+                        <span className="text-muted-foreground">Error:</span>
+                        <span className="ml-2 text-red-600">{launchResult.campaignRun.error_message}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Job Queue */}
+              {launchResult.jobQueue.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Job Queue ({launchResult.jobQueue.length})</h4>
+                  <div className="rounded-md border overflow-auto max-h-48">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Locked</TableHead>
+                          <TableHead>Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {launchResult.jobQueue.map((job) => (
+                          <TableRow key={job.id}>
+                            <TableCell className="font-mono text-xs">{job.id.slice(0, 8)}...</TableCell>
+                            <TableCell>
+                              <Badge variant={job.status === 'completed' ? 'default' : job.status === 'failed' ? 'destructive' : 'secondary'}>
+                                {job.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{new Date(job.created_at).toLocaleTimeString()}</TableCell>
+                            <TableCell className="text-xs">{job.locked_at ? new Date(job.locked_at).toLocaleTimeString() : '-'}</TableCell>
+                            <TableCell className="text-xs text-red-600 max-w-[200px] truncate">{job.error_message || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Outbox Rows */}
+              {launchResult.outboxRows.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Channel Outbox ({launchResult.outboxRows.length})</h4>
+                  <div className="rounded-md border overflow-auto max-h-48">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Provider ID</TableHead>
+                          <TableHead>Recipient</TableHead>
+                          <TableHead>Error</TableHead>
+                          <TableHead>Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {launchResult.outboxRows.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell>
+                              <Badge variant={row.status === 'sent' || row.status === 'called' ? 'default' : row.status === 'failed' ? 'destructive' : 'secondary'}>
+                                {row.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{row.provider_message_id || '-'}</TableCell>
+                            <TableCell className="text-sm">{row.recipient_email || row.recipient_phone || '-'}</TableCell>
+                            <TableCell className="text-xs text-red-600 max-w-[200px] truncate">{row.error || '-'}</TableCell>
+                            <TableCell className="text-xs">{new Date(row.created_at).toLocaleTimeString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {launchResult.status === 'pending' && (
+                <div className="p-4 rounded-lg border bg-muted/50 text-center">
+                  <p className="text-muted-foreground">Click "Deploy Now" to start the campaign</p>
+                </div>
+              )}
+
+              {launchResult.status === 'running' && launchResult.outboxRows.length === 0 && (
+                <div className="p-4 rounded-lg border bg-muted/50 text-center">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
+                  <p className="text-muted-foreground">Campaign running... click Refresh to see progress</p>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 6: Evidence Export */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            5. Evidence Export
+            6. Evidence Export
           </CardTitle>
           <CardDescription>
             Export JSON report with run IDs, job IDs, outbox entries, statuses, and timings
