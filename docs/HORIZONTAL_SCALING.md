@@ -46,22 +46,28 @@ Workers use PostgreSQL's `FOR UPDATE SKIP LOCKED` pattern:
 ### Per-Tick Limits
 | Limit | Value | Purpose |
 |-------|-------|---------|
-| `MAX_JOBS_PER_TICK` | 50 | Overall cap per worker tick |
-| `MAX_JOBS_PER_TENANT_PER_TICK` | 10 | Prevent noisy neighbor |
+| `MAX_JOBS_PER_TICK` | 200 | Global cap per worker tick |
+| `MAX_JOBS_PER_TENANT_PER_TICK` | 25 | Prevent noisy neighbor |
+
+### Pass Criteria
+- **FAIR1**: No single tenant can consume >25 jobs per tick even with 1000 queued
+- **FAIR2**: Multiple tenants progress each minute via interleaved ordering
 
 ### Fair Distribution Algorithm
 ```sql
 WITH ranked_jobs AS (
   SELECT id, tenant_id,
-    ROW_NUMBER() OVER (PARTITION BY tenant_id ORDER BY created_at) as tenant_rank
+    ROW_NUMBER() OVER (PARTITION BY tenant_id ORDER BY scheduled_for, created_at) as tenant_rank
   FROM job_queue WHERE status = 'queued'
+  FOR UPDATE SKIP LOCKED
 ),
 fair_jobs AS (
   SELECT id FROM ranked_jobs
-  WHERE tenant_rank <= 10  -- Max per tenant
-  LIMIT 50  -- Max overall
+  WHERE tenant_rank <= 25  -- FAIR1: Max per tenant
+  ORDER BY tenant_rank, scheduled_for  -- FAIR2: Interleave tenants
+  LIMIT 200  -- Global cap
 )
-UPDATE job_queue SET status = 'locked' ...
+UPDATE job_queue SET status = 'locked', locked_by = p_worker_id ...
 ```
 
 ### Throttled Jobs
