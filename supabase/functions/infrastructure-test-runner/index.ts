@@ -36,6 +36,7 @@ interface ITROutput {
   overall: 'PASS' | 'FAIL';
   mode: TestMode;
   certified: boolean;
+  blocking_reasons: string[];
   timestamp: string;
   duration_ms: number;
   disclaimer: string;
@@ -156,6 +157,7 @@ Deno.serve(async (req) => {
     overall: 'PASS',
     mode,
     certified: false,
+    blocking_reasons: [],
     disclaimer: mode === 'simulation' 
       ? '⚠️ SIMULATION MODE: Schema-level tests only. This does NOT certify production readiness.'
       : '🔒 LIVE MODE: Real execution through worker pipeline. Results certify production readiness.',
@@ -1008,6 +1010,24 @@ Deno.serve(async (req) => {
 
     output.overall = (allPassedOrSkipped && atLeastOnePassed) ? 'PASS' : 'FAIL';
     output.duration_ms = Date.now() - startTime;
+    
+    // Build blocking_reasons summary for FAIL cases
+    const blockingReasons: string[] = [];
+    
+    if (output.tests.email_e2e.status === 'FAIL') {
+      blockingReasons.push(`L1 Email: ${output.tests.email_e2e.reason || 'E2E pipeline failed'}`);
+    }
+    if (output.tests.voice_e2e.status === 'FAIL') {
+      blockingReasons.push(`L1 Voice: ${output.tests.voice_e2e.reason || 'E2E pipeline failed'}`);
+    }
+    if (output.tests.failure_transparency.status === 'FAIL') {
+      blockingReasons.push(`L2 Transparency: ${output.tests.failure_transparency.reason || 'Silent failure detected'}`);
+    }
+    if (output.tests.scale_safety.status === 'FAIL') {
+      blockingReasons.push(`L3 Scale: ${output.tests.scale_safety.reason || 'Horizontal scaling not proven'}`);
+    }
+    
+    output.blocking_reasons = blockingReasons;
     
     // Only certify if LIVE mode AND all tests pass
     output.certified = mode === 'live' && output.overall === 'PASS';
