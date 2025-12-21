@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, Building2, Plus, Search, Eye } from 'lucide-react';
+import { Shield, Users, Building2, Plus, Search, Eye, Activity, Gauge } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Link } from 'react-router-dom';
 
 interface PlatformAdmin {
   id: string;
@@ -180,6 +181,62 @@ export default function PlatformAdmin() {
           <h1 className="text-3xl font-bold">Platform Administration</h1>
           <p className="text-muted-foreground">Manage UbiGrowth platform admins and access all tenants</p>
         </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Link to="/platform-admin/qa/tenant-isolation">
+          <Card className="hover:border-primary transition-colors cursor-pointer">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Shield className="h-8 w-8 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Tenant Isolation QA</p>
+                  <p className="text-sm text-muted-foreground">Test data isolation</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/platform-admin/qa/execution-cert">
+          <Card className="hover:border-primary transition-colors cursor-pointer">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Activity className="h-8 w-8 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Execution Cert QA</p>
+                  <p className="text-sm text-muted-foreground">Validate kernel</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/platform-admin/slo">
+          <Card className="hover:border-primary transition-colors cursor-pointer">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Activity className="h-8 w-8 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">SLO Dashboard</p>
+                  <p className="text-sm text-muted-foreground">Monitor SLOs & alerts</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/platform-admin/rate-limits">
+          <Card className="hover:border-primary transition-colors cursor-pointer">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Gauge className="h-8 w-8 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Rate Limits</p>
+                  <p className="text-sm text-muted-foreground">Cost & rate controls</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Platform Admins Section */}
