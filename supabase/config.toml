@@ -303,3 +303,9 @@ verify_jwt = false
 
 [functions.channel-outbox-webhook]
 verify_jwt = false
+
+[functions.qa-execution-cert]
+verify_jwt = true
+
+[functions.slo-monitor]
+verify_jwt = true

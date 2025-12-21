@@ -5002,6 +5002,144 @@ export type Database = {
           },
         ]
       }
+      slo_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          created_at: string
+          details: Json | null
+          id: string
+          message: string
+          metric_name: string | null
+          metric_value: number | null
+          resolved_at: string | null
+          severity: string
+          tenant_id: string | null
+          threshold: number | null
+          workspace_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          message: string
+          metric_name?: string | null
+          metric_value?: number | null
+          resolved_at?: string | null
+          severity?: string
+          tenant_id?: string | null
+          threshold?: number | null
+          workspace_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          message?: string
+          metric_name?: string | null
+          metric_value?: number | null
+          resolved_at?: string | null
+          severity?: string
+          tenant_id?: string | null
+          threshold?: number | null
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      slo_config: {
+        Row: {
+          alert_severity: string | null
+          comparison: string
+          created_at: string
+          description: string | null
+          display_name: string
+          enabled: boolean | null
+          id: string
+          is_hard_slo: boolean | null
+          metric_name: string
+          threshold: number
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          alert_severity?: string | null
+          comparison?: string
+          created_at?: string
+          description?: string | null
+          display_name: string
+          enabled?: boolean | null
+          id?: string
+          is_hard_slo?: boolean | null
+          metric_name: string
+          threshold: number
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          alert_severity?: string | null
+          comparison?: string
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          enabled?: boolean | null
+          id?: string
+          is_hard_slo?: boolean | null
+          metric_name?: string
+          threshold?: number
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      slo_metrics: {
+        Row: {
+          details: Json | null
+          id: string
+          is_breached: boolean
+          measured_at: string
+          metric_name: string
+          metric_value: number
+          tenant_id: string | null
+          threshold: number
+          window_end: string
+          window_start: string
+          workspace_id: string | null
+        }
+        Insert: {
+          details?: Json | null
+          id?: string
+          is_breached?: boolean
+          measured_at?: string
+          metric_name: string
+          metric_value: number
+          tenant_id?: string | null
+          threshold: number
+          window_end: string
+          window_start: string
+          workspace_id?: string | null
+        }
+        Update: {
+          details?: Json | null
+          id?: string
+          is_breached?: boolean
+          measured_at?: string
+          metric_name?: string
+          metric_value?: number
+          tenant_id?: string | null
+          threshold?: number
+          window_end?: string
+          window_start?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       social_integrations: {
         Row: {
           access_token: string
