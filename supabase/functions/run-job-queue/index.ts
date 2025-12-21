@@ -84,6 +84,21 @@ interface BatchResult {
   error?: string;
 }
 
+// Worker tick metrics for observability
+interface WorkerTickMetrics {
+  workerId: string;
+  tickStartedAt: Date;
+  jobsClaimed: number;
+  jobsProcessed: number;
+  jobsSucceeded: number;
+  jobsFailed: number;
+  jobsThrottled: number;
+  lockContentionCount: number;
+  tenantJobs: Record<string, number>;
+  queueDepth: number;
+  error: string | null;
+}
+
 // Backpressure configuration
 const MAX_JOBS_PER_TICK = 50; // Cap jobs per tick overall
 const MAX_JOBS_PER_TENANT_PER_TICK = 10; // Cap jobs per tenant per tick
@@ -96,6 +111,30 @@ function calculateBackoff(attempts: number): number {
   // Add jitter: random value between 0-25% of the delay
   const jitter = Math.random() * 0.25 * exponentialDelay;
   return Math.floor(exponentialDelay + jitter);
+}
+
+// Record worker tick metrics for observability
+async function recordWorkerTickMetrics(
+  supabase: any,
+  metrics: WorkerTickMetrics
+): Promise<void> {
+  try {
+    await supabase.rpc("record_worker_tick", {
+      p_worker_id: metrics.workerId,
+      p_tick_started_at: metrics.tickStartedAt.toISOString(),
+      p_jobs_claimed: metrics.jobsClaimed,
+      p_jobs_processed: metrics.jobsProcessed,
+      p_jobs_succeeded: metrics.jobsSucceeded,
+      p_jobs_failed: metrics.jobsFailed,
+      p_jobs_throttled: metrics.jobsThrottled,
+      p_lock_contention: metrics.lockContentionCount,
+      p_tenant_jobs: metrics.tenantJobs,
+      p_queue_depth: metrics.queueDepth,
+      p_error: metrics.error,
+    });
+  } catch (err) {
+    console.error(`[${metrics.workerId}] Failed to record tick metrics:`, err);
+  }
 }
 
 // Note: generateIdempotencyKey is now imported from outbox-contract.ts
@@ -1171,9 +1210,33 @@ Deno.serve(async (req) => {
 
     console.log(`[${workerId}] Completed processing ${results.length} jobs`);
 
-    // Log the tick with results
+    // Calculate metrics
     const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    const failCount = results.filter(r => !r.success && !r.skipped_throttle).length;
+    const throttleCount = results.filter(r => r.skipped_throttle).length;
+    
+    // Convert tenant job counts to object for JSON storage
+    const tenantJobsObj: Record<string, number> = {};
+    tenantJobCounts.forEach((count, key) => {
+      tenantJobsObj[key] = count;
+    });
+
+    // Record worker tick metrics for observability (Phase A)
+    await recordWorkerTickMetrics(supabase, {
+      workerId,
+      tickStartedAt: new Date(runStartTime),
+      jobsClaimed: claimedCount,
+      jobsProcessed: results.length,
+      jobsSucceeded: successCount,
+      jobsFailed: failCount,
+      jobsThrottled: throttleCount,
+      lockContentionCount: 0, // Lock contention is handled by SKIP LOCKED
+      tenantJobs: tenantJobsObj,
+      queueDepth: statusCounts.queued,
+      error: null,
+    });
+
+    // Log the tick with results (legacy audit log)
     statusCounts.completed += successCount;
     statusCounts.failed += failCount;
     await logJobQueueTick(supabase, workerId, invocationType, statusCounts, results.length, null);
@@ -1183,6 +1246,14 @@ Deno.serve(async (req) => {
         message: `Processed ${results.length} jobs`,
         worker_id: workerId,
         queue_stats: statusCounts,
+        metrics: {
+          claimed: claimedCount,
+          processed: results.length,
+          succeeded: successCount,
+          failed: failCount,
+          throttled: throttleCount,
+          tenant_distribution: tenantJobsObj,
+        },
         results,
       }),
       {
@@ -1192,6 +1263,29 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     console.error(`[${workerId}] Fatal error:`, err);
+    
+    // Record error metrics if possible
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      await recordWorkerTickMetrics(supabase, {
+        workerId,
+        tickStartedAt: new Date(runStartTime),
+        jobsClaimed: 0,
+        jobsProcessed: 0,
+        jobsSucceeded: 0,
+        jobsFailed: 0,
+        jobsThrottled: 0,
+        lockContentionCount: 0,
+        tenantJobs: {},
+        queueDepth: 0,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    } catch {
+      // Ignore metrics recording errors
+    }
+    
     return new Response(
       JSON.stringify({
         error: "Internal server error",
