@@ -49,9 +49,12 @@ interface ITROutput {
     scale_safety: TestResult;
   };
   evidence: {
+    itr_run_id: string;
     campaign_run_ids: string[];
-    outbox_rows: number;
+    outbox_row_ids: string[];
+    outbox_final_statuses: Record<string, string>;
     provider_ids: string[];
+    simulated_provider_ids: string[];
     worker_ids: string[];
     errors: string[];
   };
@@ -170,9 +173,12 @@ Deno.serve(async (req) => {
       scale_safety: { status: 'SKIPPED', duration_ms: 0, evidence: {} },
     },
     evidence: {
+      itr_run_id: crypto.randomUUID(),
       campaign_run_ids: [],
-      outbox_rows: 0,
+      outbox_row_ids: [],
+      outbox_final_statuses: {},
       provider_ids: [],
+      simulated_provider_ids: [],
       worker_ids: [],
       errors: [],
     },
@@ -268,6 +274,8 @@ Deno.serve(async (req) => {
           for (const row of outbox || []) {
             const providerId = `sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
             providerIds.push(providerId);
+            output.evidence.outbox_row_ids.push(row.id);
+            output.evidence.outbox_final_statuses[row.id] = 'sent';
             await supabase
               .from('channel_outbox')
               .update({ 
@@ -277,7 +285,7 @@ Deno.serve(async (req) => {
               })
               .eq('id', row.id);
           }
-          output.evidence.provider_ids.push(...providerIds);
+          output.evidence.simulated_provider_ids.push(...providerIds);
 
           // Mark run as completed
           await supabase
@@ -287,7 +295,6 @@ Deno.serve(async (req) => {
 
           testEvidence.simulated = true;
           testEvidence.outbox_count = outbox?.length || 0;
-          output.evidence.outbox_rows += outbox?.length || 0;
 
         } else {
           // LIVE: Create job queue entry and let workers process
@@ -344,7 +351,12 @@ Deno.serve(async (req) => {
           testEvidence.run_terminal = runResult.success;
           testEvidence.outbox_count = outboxResult.rows.length;
           testEvidence.run_status = runResult.run?.status;
-          output.evidence.outbox_rows += outboxResult.rows.length;
+          
+          // Collect evidence
+          for (const row of outboxResult.rows) {
+            output.evidence.outbox_row_ids.push(row.id);
+            output.evidence.outbox_final_statuses[row.id] = row.status;
+          }
 
           // Extract provider IDs
           const providerIds = outboxResult.rows
@@ -507,6 +519,8 @@ Deno.serve(async (req) => {
             for (const row of outbox || []) {
               const callId = `call_sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
               callIds.push(callId);
+              output.evidence.outbox_row_ids.push(row.id);
+              output.evidence.outbox_final_statuses[row.id] = 'called';
               await supabase
                 .from('channel_outbox')
                 .update({ 
@@ -516,7 +530,7 @@ Deno.serve(async (req) => {
                 })
                 .eq('id', row.id);
             }
-            output.evidence.provider_ids.push(...callIds);
+            output.evidence.simulated_provider_ids.push(...callIds);
 
             await supabase
               .from('campaign_runs')
@@ -525,7 +539,6 @@ Deno.serve(async (req) => {
 
             testEvidence.simulated = true;
             testEvidence.outbox_count = outbox?.length || 0;
-            output.evidence.outbox_rows += outbox?.length || 0;
 
           } else {
             // LIVE: Create job and let workers process
@@ -576,7 +589,12 @@ Deno.serve(async (req) => {
             const outboxResult = await waitForOutboxTerminal(supabase, run.id, 3, liveTimeoutMs);
             testEvidence.outbox_terminal = outboxResult.success;
             testEvidence.outbox_count = outboxResult.rows.length;
-            output.evidence.outbox_rows += outboxResult.rows.length;
+            
+            // Collect evidence
+            for (const row of outboxResult.rows) {
+              output.evidence.outbox_row_ids.push(row.id);
+              output.evidence.outbox_final_statuses[row.id] = row.status;
+            }
 
             const providerIds = outboxResult.rows
               .map(r => r.provider_message_id)
@@ -1043,7 +1061,7 @@ Deno.serve(async (req) => {
         ),
         evidence: {
           campaign_run_ids: output.evidence.campaign_run_ids,
-          outbox_rows: output.evidence.outbox_rows,
+          outbox_row_ids: output.evidence.outbox_row_ids.length,
           provider_ids: output.evidence.provider_ids.length,
           worker_ids: output.evidence.worker_ids,
         },
