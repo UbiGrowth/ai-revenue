@@ -212,6 +212,9 @@ export default function ExecutionCertQA() {
     overall: 'PASS' | 'FAIL';
     mode: 'simulation' | 'live';
     certified: boolean;
+    blocking_reasons: string[];
+    certification_hash?: string;
+    certification_version?: string;
     disclaimer: string;
     timestamp: string;
     duration_ms: number;
@@ -222,9 +225,12 @@ export default function ExecutionCertQA() {
       scale_safety: { status: 'PASS' | 'FAIL' | 'SKIPPED' | 'TIMEOUT'; reason?: string; duration_ms: number; evidence: Record<string, unknown> };
     };
     evidence: {
+      itr_run_id: string;
       campaign_run_ids: string[];
-      outbox_rows: number;
+      outbox_row_ids: string[];
+      outbox_final_statuses: Record<string, string>;
       provider_ids: string[];
+      simulated_provider_ids: string[];
       worker_ids: string[];
       errors: string[];
     };
@@ -2468,13 +2474,32 @@ export default function ExecutionCertQA() {
           </div>
             
           {itrResult && (
-            <div className="flex items-center gap-4">
-              <Badge 
-                variant={itrResult.certified ? 'default' : itrResult.overall === 'PASS' ? 'secondary' : 'destructive'}
-                className="text-lg px-4 py-2"
-              >
-                {itrResult.certified ? '🔒 CERTIFIED' : itrResult.overall} ({itrResult.mode})
-              </Badge>
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <Badge 
+                  variant={itrResult.certified ? 'default' : itrResult.overall === 'PASS' ? 'secondary' : 'destructive'}
+                  className="text-lg px-4 py-2"
+                >
+                  {itrResult.certified ? '🔒 CERTIFIED' : itrResult.overall} ({itrResult.mode})
+                </Badge>
+                {itrResult.certification_hash && (
+                  <span className="text-xs font-mono text-muted-foreground">
+                    Hash: {itrResult.certification_hash}
+                  </span>
+                )}
+              </div>
+              
+              {/* Blocking Reasons - shown on FAIL */}
+              {itrResult.blocking_reasons.length > 0 && (
+                <div className="p-3 rounded-lg border border-red-500 bg-red-500/10">
+                  <p className="font-medium text-red-600 mb-2">🚫 Blocking Reasons:</p>
+                  <ul className="text-sm space-y-1">
+                    {itrResult.blocking_reasons.map((reason, idx) => (
+                      <li key={idx} className="text-red-600 font-mono">• {reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
@@ -2493,11 +2518,11 @@ export default function ExecutionCertQA() {
                   <p className="text-xs text-muted-foreground">Campaign Runs</p>
                 </div>
                 <div className="p-4 rounded-lg border bg-muted/50 text-center">
-                  <p className="text-2xl font-bold">{itrResult.evidence.outbox_rows}</p>
+                  <p className="text-2xl font-bold">{itrResult.evidence.outbox_row_ids.length}</p>
                   <p className="text-xs text-muted-foreground">Outbox Rows</p>
                 </div>
                 <div className="p-4 rounded-lg border bg-muted/50 text-center">
-                  <p className="text-2xl font-bold">{itrResult.evidence.provider_ids.length}</p>
+                  <p className="text-2xl font-bold">{itrResult.evidence.provider_ids.length + itrResult.evidence.simulated_provider_ids.length}</p>
                   <p className="text-xs text-muted-foreground">Provider IDs</p>
                 </div>
               </div>
@@ -2608,6 +2633,149 @@ export default function ExecutionCertQA() {
                   </ul>
                 </div>
               )}
+
+              {/* Evidence Accordion */}
+              <details className="border rounded-lg">
+                <summary className="px-4 py-3 cursor-pointer font-medium flex items-center gap-2 hover:bg-muted/50">
+                  <Database className="h-4 w-4" />
+                  Evidence Details (Latest ITR Run)
+                </summary>
+                <div className="p-4 border-t space-y-4 text-sm">
+                  {/* Core Identifiers */}
+                  <div className="grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium w-40">ITR Run ID:</span>
+                      <code className="font-mono text-xs bg-muted px-2 py-1 rounded">{itrResult.evidence.itr_run_id}</code>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium w-40">Mode:</span>
+                      <Badge variant={itrResult.mode === 'live' ? 'default' : 'secondary'}>{itrResult.mode}</Badge>
+                    </div>
+                    {itrResult.certification_version && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium w-40">Version:</span>
+                        <code className="font-mono text-xs bg-muted px-2 py-1 rounded">{itrResult.certification_version}</code>
+                      </div>
+                    )}
+                    {itrResult.certification_hash && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium w-40">Certification Hash:</span>
+                        <code className="font-mono text-xs bg-muted px-2 py-1 rounded">{itrResult.certification_hash}</code>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Campaign Run IDs */}
+                  <div>
+                    <p className="font-medium mb-2">Campaign Run IDs ({itrResult.evidence.campaign_run_ids.length}):</p>
+                    <div className="flex flex-wrap gap-1">
+                      {itrResult.evidence.campaign_run_ids.map(id => (
+                        <code key={id} className="font-mono text-xs bg-muted px-2 py-1 rounded">{id.slice(0, 8)}...</code>
+                      ))}
+                      {itrResult.evidence.campaign_run_ids.length === 0 && (
+                        <span className="text-muted-foreground italic">None</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Outbox Row IDs + Statuses */}
+                  <div>
+                    <p className="font-medium mb-2">Outbox Rows ({itrResult.evidence.outbox_row_ids.length}):</p>
+                    {itrResult.evidence.outbox_row_ids.length > 0 ? (
+                      <div className="max-h-40 overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Row ID</TableHead>
+                              <TableHead className="text-xs">Final Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {itrResult.evidence.outbox_row_ids.map(id => (
+                              <TableRow key={id}>
+                                <TableCell className="font-mono text-xs">{id.slice(0, 8)}...</TableCell>
+                                <TableCell>
+                                  <Badge variant={
+                                    itrResult.evidence.outbox_final_statuses[id] === 'sent' || 
+                                    itrResult.evidence.outbox_final_statuses[id] === 'called' ||
+                                    itrResult.evidence.outbox_final_statuses[id] === 'delivered' ? 'default' :
+                                    itrResult.evidence.outbox_final_statuses[id] === 'failed' ? 'destructive' : 'secondary'
+                                  }>
+                                    {itrResult.evidence.outbox_final_statuses[id] || 'unknown'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground italic">None</span>
+                    )}
+                  </div>
+
+                  {/* Provider IDs */}
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <p className="font-medium mb-2">Real Provider IDs ({itrResult.evidence.provider_ids.length}):</p>
+                      <div className="flex flex-wrap gap-1 max-h-20 overflow-auto">
+                        {itrResult.evidence.provider_ids.map((id, idx) => (
+                          <code key={idx} className="font-mono text-xs bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">{id.slice(0, 12)}...</code>
+                        ))}
+                        {itrResult.evidence.provider_ids.length === 0 && (
+                          <span className="text-muted-foreground italic">None</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-medium mb-2">Simulated Provider IDs ({itrResult.evidence.simulated_provider_ids.length}):</p>
+                      <div className="flex flex-wrap gap-1 max-h-20 overflow-auto">
+                        {itrResult.evidence.simulated_provider_ids.map((id, idx) => (
+                          <code key={idx} className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded">{id.slice(0, 12)}...</code>
+                        ))}
+                        {itrResult.evidence.simulated_provider_ids.length === 0 && (
+                          <span className="text-muted-foreground italic">None</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Worker IDs */}
+                  <div>
+                    <p className="font-medium mb-2">Distinct Worker IDs ({itrResult.evidence.worker_ids.length}):</p>
+                    <div className="flex flex-wrap gap-1">
+                      {itrResult.evidence.worker_ids.map((id, idx) => (
+                        <code key={idx} className="font-mono text-xs bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">{id}</code>
+                      ))}
+                      {itrResult.evidence.worker_ids.length === 0 && (
+                        <span className="text-muted-foreground italic">None (simulation or no workers claimed)</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Blocking Reasons */}
+                  {itrResult.blocking_reasons.length > 0 && (
+                    <div>
+                      <p className="font-medium mb-2 text-red-600">Blocking Reasons ({itrResult.blocking_reasons.length}):</p>
+                      <ul className="space-y-1">
+                        {itrResult.blocking_reasons.map((reason, idx) => (
+                          <li key={idx} className="font-mono text-xs text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                            {reason}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Timestamps */}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                    <span>Timestamp: {new Date(itrResult.timestamp).toISOString()}</span>
+                    <span>Duration: {itrResult.duration_ms}ms</span>
+                  </div>
+                </div>
+              </details>
 
               {/* JSON Export */}
               <div className="flex items-center gap-4">
