@@ -205,6 +205,27 @@ export default function ExecutionCertQA() {
   const [deployingL3Test, setDeployingL3Test] = useState(false);
   const [refreshingL3Metrics, setRefreshingL3Metrics] = useState(false);
 
+  // ITR (Infrastructure Test Runner) state
+  const [itrRunning, setItrRunning] = useState(false);
+  const [itrResult, setItrResult] = useState<{
+    overall: 'PASS' | 'FAIL';
+    timestamp: string;
+    duration_ms: number;
+    tests: {
+      email_e2e: { status: 'PASS' | 'FAIL' | 'SKIPPED'; reason?: string; duration_ms: number; evidence: Record<string, unknown> };
+      voice_e2e: { status: 'PASS' | 'FAIL' | 'SKIPPED'; reason?: string; duration_ms: number; evidence: Record<string, unknown> };
+      failure_transparency: { status: 'PASS' | 'FAIL' | 'SKIPPED'; reason?: string; duration_ms: number; evidence: Record<string, unknown> };
+      scale_safety: { status: 'PASS' | 'FAIL' | 'SKIPPED'; reason?: string; duration_ms: number; evidence: Record<string, unknown> };
+    };
+    evidence: {
+      campaign_run_ids: string[];
+      outbox_rows: number;
+      provider_ids: string[];
+      worker_ids: string[];
+      errors: string[];
+    };
+  } | null>(null);
+
   useEffect(() => {
     checkPlatformAdmin();
   }, [user]);
@@ -980,6 +1001,59 @@ export default function ExecutionCertQA() {
     }
     
     return concurrencyPassed && slaPassed && hsPassed && l1Passed && l2Passed && l3Passed && idempotencyPassed ? 'pass' : 'fail';
+  };
+
+  // Infrastructure Test Runner
+  const runInfrastructureTestRunner = async () => {
+    setItrRunning(true);
+    setItrResult(null);
+    
+    try {
+      // Get current user's tenant and workspace
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('Not authenticated');
+      
+      const { data: tenantData } = await supabase
+        .from('user_tenants')
+        .select('tenant_id')
+        .eq('user_id', userData.user.id)
+        .limit(1)
+        .single();
+      
+      if (!tenantData) throw new Error('No tenant found');
+      
+      const { data: workspaceData } = await supabase
+        .from('workspaces')
+        .select('id')
+        .or(`owner_id.eq.${userData.user.id}`)
+        .limit(1)
+        .single();
+      
+      if (!workspaceData) throw new Error('No workspace found');
+      
+      const response = await supabase.functions.invoke('infrastructure-test-runner', {
+        body: {
+          tenant_id: tenantData.tenant_id,
+          workspace_id: workspaceData.id,
+          tests: ['email_e2e', 'voice_e2e', 'failure_transparency', 'scale_safety'],
+        },
+      });
+      
+      if (response.error) throw new Error(response.error.message);
+      
+      setItrResult(response.data);
+      
+      if (response.data.overall === 'PASS') {
+        toast.success('Infrastructure Test Runner: ALL TESTS PASSED');
+      } else {
+        toast.error('Infrastructure Test Runner: SOME TESTS FAILED');
+      }
+    } catch (error) {
+      console.error('ITR error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to run ITR');
+    } finally {
+      setItrRunning(false);
+    }
   };
 
   if (loading) {
@@ -2330,12 +2404,202 @@ export default function ExecutionCertQA() {
         </CardContent>
       </Card>
 
-      {/* Section 8: Evidence Export */}
+      {/* Section 8: Infrastructure Test Runner */}
+      <Card className="border-2 border-primary/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            8. Infrastructure Test Runner (ITR)
+          </CardTitle>
+          <CardDescription>
+            Automated end-to-end certification - executes real tests and produces structured evidence
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={runInfrastructureTestRunner} 
+              disabled={itrRunning} 
+              size="lg"
+              className="px-8"
+            >
+              {itrRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+              Run Full Certification
+            </Button>
+            
+            {itrResult && (
+              <Badge 
+                variant={itrResult.overall === 'PASS' ? 'default' : 'destructive'}
+                className="text-lg px-4 py-2"
+              >
+                {itrResult.overall}
+              </Badge>
+            )}
+          </div>
+
+          {itrResult && (
+            <>
+              <Separator />
+              
+              {/* Summary Stats */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="p-4 rounded-lg border bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{itrResult.duration_ms}ms</p>
+                  <p className="text-xs text-muted-foreground">Total Duration</p>
+                </div>
+                <div className="p-4 rounded-lg border bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{itrResult.evidence.campaign_run_ids.length}</p>
+                  <p className="text-xs text-muted-foreground">Campaign Runs</p>
+                </div>
+                <div className="p-4 rounded-lg border bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{itrResult.evidence.outbox_rows}</p>
+                  <p className="text-xs text-muted-foreground">Outbox Rows</p>
+                </div>
+                <div className="p-4 rounded-lg border bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{itrResult.evidence.provider_ids.length}</p>
+                  <p className="text-xs text-muted-foreground">Provider IDs</p>
+                </div>
+              </div>
+
+              {/* Test Results Grid */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Email E2E */}
+                <div className={`p-4 rounded-lg border ${
+                  itrResult.tests.email_e2e.status === 'PASS' ? 'border-green-500 bg-green-500/10' :
+                  itrResult.tests.email_e2e.status === 'FAIL' ? 'border-red-500 bg-red-500/10' :
+                  'border-muted bg-muted/30'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {itrResult.tests.email_e2e.status === 'PASS' ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : itrResult.tests.email_e2e.status === 'FAIL' ? (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className="font-medium">Email E2E</span>
+                    <Badge variant="secondary" className="ml-auto">{itrResult.tests.email_e2e.status}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Duration: {itrResult.tests.email_e2e.duration_ms}ms
+                    {itrResult.tests.email_e2e.reason && <span className="block text-red-600 mt-1">{itrResult.tests.email_e2e.reason}</span>}
+                  </p>
+                </div>
+
+                {/* Voice E2E */}
+                <div className={`p-4 rounded-lg border ${
+                  itrResult.tests.voice_e2e.status === 'PASS' ? 'border-green-500 bg-green-500/10' :
+                  itrResult.tests.voice_e2e.status === 'FAIL' ? 'border-red-500 bg-red-500/10' :
+                  'border-muted bg-muted/30'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {itrResult.tests.voice_e2e.status === 'PASS' ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : itrResult.tests.voice_e2e.status === 'FAIL' ? (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className="font-medium">Voice E2E</span>
+                    <Badge variant="secondary" className="ml-auto">{itrResult.tests.voice_e2e.status}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Duration: {itrResult.tests.voice_e2e.duration_ms}ms
+                    {itrResult.tests.voice_e2e.reason && <span className="block text-yellow-600 mt-1">{itrResult.tests.voice_e2e.reason}</span>}
+                  </p>
+                </div>
+
+                {/* Failure Transparency */}
+                <div className={`p-4 rounded-lg border ${
+                  itrResult.tests.failure_transparency.status === 'PASS' ? 'border-green-500 bg-green-500/10' :
+                  itrResult.tests.failure_transparency.status === 'FAIL' ? 'border-red-500 bg-red-500/10' :
+                  'border-muted bg-muted/30'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {itrResult.tests.failure_transparency.status === 'PASS' ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : itrResult.tests.failure_transparency.status === 'FAIL' ? (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className="font-medium">Failure Transparency</span>
+                    <Badge variant="secondary" className="ml-auto">{itrResult.tests.failure_transparency.status}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Duration: {itrResult.tests.failure_transparency.duration_ms}ms
+                    {itrResult.tests.failure_transparency.reason && <span className="block text-red-600 mt-1">{itrResult.tests.failure_transparency.reason}</span>}
+                  </p>
+                </div>
+
+                {/* Scale Safety */}
+                <div className={`p-4 rounded-lg border ${
+                  itrResult.tests.scale_safety.status === 'PASS' ? 'border-green-500 bg-green-500/10' :
+                  itrResult.tests.scale_safety.status === 'FAIL' ? 'border-red-500 bg-red-500/10' :
+                  'border-muted bg-muted/30'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {itrResult.tests.scale_safety.status === 'PASS' ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : itrResult.tests.scale_safety.status === 'FAIL' ? (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className="font-medium">Scale Safety</span>
+                    <Badge variant="secondary" className="ml-auto">{itrResult.tests.scale_safety.status}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Duration: {itrResult.tests.scale_safety.duration_ms}ms
+                    {itrResult.tests.scale_safety.reason && <span className="block text-red-600 mt-1">{itrResult.tests.scale_safety.reason}</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Errors */}
+              {itrResult.evidence.errors.length > 0 && (
+                <div className="p-4 rounded-lg border border-red-500 bg-red-500/10">
+                  <p className="font-medium text-red-600 mb-2">Errors:</p>
+                  <ul className="text-sm space-y-1">
+                    {itrResult.evidence.errors.map((err, idx) => (
+                      <li key={idx} className="text-red-600">• {err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* JSON Export */}
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(itrResult, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `itr-result-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export ITR Evidence
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Ran at: {new Date(itrResult.timestamp).toLocaleString()}
+                </span>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 9: Evidence Export */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            8. Evidence Export
+            9. Evidence Export
           </CardTitle>
           <CardDescription>
             Export JSON report with run IDs, job IDs, outbox entries, statuses, and timings
