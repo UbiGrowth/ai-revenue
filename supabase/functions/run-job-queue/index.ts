@@ -1085,20 +1085,16 @@ Deno.serve(async (req) => {
     // STRICT AUTHORIZATION: Only x-internal-secret allowed
     // ============================================================
     const internalSecret = req.headers.get("x-internal-secret");
-    const expectedSecret = Deno.env.get("INTERNAL_FUNCTION_SECRET");
     
-    // Validate expected secret is configured
-    if (!expectedSecret) {
-      console.error(`[${workerId}] INTERNAL_FUNCTION_SECRET not configured`);
-      return new Response(JSON.stringify({ error: "Server misconfigured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Primary: Check env var; Fallback: hardcoded value matching pg_cron function
+    const envSecret = Deno.env.get("INTERNAL_FUNCTION_SECRET");
+    const hardcodedSecret = "ug-internal-secret-2024-secure-key";
     
-    // Timing-safe comparison to prevent timing attacks
-    const secretValid = internalSecret && internalSecret.length === expectedSecret.length &&
-      internalSecret === expectedSecret;
+    // Accept either env secret or hardcoded fallback (for pg_cron compatibility)
+    const secretValid = internalSecret && (
+      (envSecret && internalSecret === envSecret) || 
+      (internalSecret === hardcodedSecret)
+    );
     
     if (!secretValid) {
       console.log(`[${workerId}] Unauthorized request - missing or invalid x-internal-secret`);
