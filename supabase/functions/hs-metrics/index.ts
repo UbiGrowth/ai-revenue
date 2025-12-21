@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Restrict CORS to allowed origins
+// Restrict CORS to allowed origins only
 const ALLOWED_ORIGINS = [
   "https://cmo.ubigrowth.ai",
   "https://ubigrowth.ai",
@@ -9,10 +9,13 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3000",
 ];
 
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+function getCorsHeaders(origin: string | null): Record<string, string> | null {
+  // If origin is not in allowlist, return null (no CORS headers)
+  if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
+    return null;
+  }
   return {
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
@@ -22,17 +25,27 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
   const corsHeaders = getCorsHeaders(origin);
 
+  // For preflight, only allow if origin is valid
   if (req.method === "OPTIONS") {
+    if (!corsHeaders) {
+      return new Response(null, { status: 403 });
+    }
     return new Response(null, { headers: corsHeaders });
   }
 
-  // 1. Check Authorization header
+  // Build response headers (may be empty if origin not allowed)
+  const responseHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(corsHeaders || {}),
+  };
+
+  // 1. Check Authorization header - must return 401 if missing
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     console.warn("hs-metrics: Missing authorization header");
     return new Response(
       JSON.stringify({ error: "Missing authorization header" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 401, headers: responseHeaders }
     );
   }
 
@@ -46,14 +59,15 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // 3. Check if user is platform admin
+    // 3. Check if user is platform admin - must return 403 if not
     const { data: isAdmin, error: adminError } = await userClient.rpc("is_platform_admin");
     
     if (adminError) {
       console.error("hs-metrics: Admin check error:", adminError.message);
+      // Auth error means not authorized - return 403
       return new Response(
-        JSON.stringify({ error: "Failed to verify admin status" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Access denied - authentication failed" }),
+        { status: 403, headers: responseHeaders }
       );
     }
 
@@ -61,7 +75,7 @@ Deno.serve(async (req) => {
       console.warn("hs-metrics: Access denied - not platform admin");
       return new Response(
         JSON.stringify({ error: "Access denied - platform admin required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: responseHeaders }
       );
     }
 
@@ -87,7 +101,7 @@ Deno.serve(async (req) => {
       console.error("hs-metrics: RPC error:", error.message);
       return new Response(
         JSON.stringify({ error: error.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: responseHeaders }
       );
     }
 
@@ -100,13 +114,13 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, data }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: responseHeaders }
     );
   } catch (err) {
     console.error("hs-metrics: Unexpected error:", err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: responseHeaders }
     );
   }
 });
