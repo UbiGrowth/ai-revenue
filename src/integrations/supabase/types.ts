@@ -6323,6 +6323,60 @@ export type Database = {
         }
         Relationships: []
       }
+      worker_tick_metrics: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          jobs_claimed: number | null
+          jobs_failed: number | null
+          jobs_processed: number | null
+          jobs_succeeded: number | null
+          jobs_throttled: number | null
+          lock_contention_count: number | null
+          queue_depth_at_start: number | null
+          tenant_jobs: Json | null
+          tick_completed_at: string | null
+          tick_duration_ms: number | null
+          tick_started_at: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          jobs_claimed?: number | null
+          jobs_failed?: number | null
+          jobs_processed?: number | null
+          jobs_succeeded?: number | null
+          jobs_throttled?: number | null
+          lock_contention_count?: number | null
+          queue_depth_at_start?: number | null
+          tenant_jobs?: Json | null
+          tick_completed_at?: string | null
+          tick_duration_ms?: number | null
+          tick_started_at?: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          jobs_claimed?: number | null
+          jobs_failed?: number | null
+          jobs_processed?: number | null
+          jobs_succeeded?: number | null
+          jobs_throttled?: number | null
+          lock_contention_count?: number | null
+          queue_depth_at_start?: number | null
+          tenant_jobs?: Json | null
+          tick_completed_at?: string | null
+          tick_duration_ms?: number | null
+          tick_started_at?: string
+          worker_id?: string
+        }
+        Relationships: []
+      }
       workspace_members: {
         Row: {
           created_at: string
@@ -6393,7 +6447,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      worker_health_summary: {
+        Row: {
+          avg_tick_duration_ms: number | null
+          last_tick_at: string | null
+          max_tick_duration_ms: number | null
+          seconds_since_last_tick: number | null
+          tick_count: number | null
+          total_jobs_claimed: number | null
+          total_jobs_failed: number | null
+          total_jobs_processed: number | null
+          total_jobs_succeeded: number | null
+          total_jobs_throttled: number | null
+          total_lock_contentions: number | null
+          worker_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_team_invitation: {
@@ -6619,6 +6689,22 @@ export type Database = {
           p_workspace_id: string
         }
         Returns: undefined
+      }
+      record_worker_tick: {
+        Args: {
+          p_error?: string
+          p_jobs_claimed: number
+          p_jobs_failed: number
+          p_jobs_processed: number
+          p_jobs_succeeded: number
+          p_jobs_throttled: number
+          p_lock_contention: number
+          p_queue_depth: number
+          p_tenant_jobs: Json
+          p_tick_started_at: string
+          p_worker_id: string
+        }
+        Returns: string
       }
       recover_stale_jobs: {
         Args: { p_timeout_minutes?: number }
