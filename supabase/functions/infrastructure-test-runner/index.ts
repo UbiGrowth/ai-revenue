@@ -1382,7 +1382,7 @@ Deno.serve(async (req) => {
             .from('job_queue')
             .select('id')
             .in('status', ['completed', 'failed'])
-            .gte('completed_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+            .gte('updated_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
             .limit(1);
           
           const workersOnline = (recentLockedJobs?.length || 0) > 0 || (recentCompletedJobs?.length || 0) > 0;
@@ -1400,7 +1400,7 @@ Deno.serve(async (req) => {
             
             await supabase
               .from('campaign_runs')
-              .update({ status: 'skipped', completed_at: new Date().toISOString(), error_message: 'Workers offline - scale test skipped' })
+              .update({ status: 'failed', completed_at: new Date().toISOString(), error_message: 'Workers offline - scale test skipped' })
               .eq('id', run.id);
             
             output.tests.scale_safety = {
