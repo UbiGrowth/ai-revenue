@@ -6,6 +6,43 @@
 
 ---
 
+## 0. Execution Order (Non-Negotiable)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. Canary + SLOs          ✅ ACTIVE                        │
+│     └─► Must be live before ANY scaling work                │
+├─────────────────────────────────────────────────────────────┤
+│  2. Horizontal Scaling     ✅ COMPLETE                      │
+│     └─► Multi-worker job queue with fairness               │
+│     └─► FOR UPDATE SKIP LOCKED + per-tenant caps           │
+│     └─► worker_tick_metrics observability                  │
+├─────────────────────────────────────────────────────────────┤
+│  3. Provider Batching      ✅ COMPLETE                      │
+│     └─► Batch at provider boundary, not job boundary       │
+│     └─► One outbox row per item (sacred)                   │
+│     └─► Partial failure isolation                          │
+├─────────────────────────────────────────────────────────────┤
+│  4. New Channels / AI      🔒 BLOCKED                       │
+│     └─► CANNOT proceed until 1-3 are stable                │
+│     └─► Social channels: Coming Soon (UX Contract)         │
+│     └─► AI optimizations: After batching proven            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Gate Enforcement
+
+| Gate | Prerequisites | Status |
+|------|---------------|--------|
+| **Gate 1: SLOs** | slo_monitor running, slo_metrics receiving data, 24h baseline | Active |
+| **Gate 2: HS** | worker_tick_metrics stable, no duplicates, lock contention < 5% | Complete |
+| **Gate 3: Batching** | Fan-out correct, partial failure isolated, cost reduction measured | Complete |
+| **Gate 4: New Features** | All gates passed, 4+ workers tested, SLO > 99.5% for 7 days | Blocked |
+
+**Violation Protocol**: Revert → RCA → Fix gate → Re-deploy
+
+---
+
 > **This is the architecture line in the sand.**
 >
 > A campaign is "launched" only if:
