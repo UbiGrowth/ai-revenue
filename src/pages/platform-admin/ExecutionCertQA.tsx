@@ -848,15 +848,59 @@ export default function ExecutionCertQA() {
 
   const getL2Status = (): 'pass' | 'pending' | 'fail' => {
     if (!l2TestResult) return 'pending';
-    if (l2TestResult.passCriteria.L2_run_status_failed && l2TestResult.passCriteria.L2_outbox_error_readable) return 'pass';
-    if (l2TestResult.status === 'completed' || l2TestResult.status === 'running') return 'pending';
+    
+    const { L2_run_status_failed, L2_outbox_error_readable } = l2TestResult.passCriteria;
+    
+    // PASS: run is failed/partial AND errors are readable
+    if (L2_run_status_failed && L2_outbox_error_readable) return 'pass';
+    
+    // FAIL: run is failed but errors are NOT readable (empty/missing last_error)
+    if (L2_run_status_failed && !L2_outbox_error_readable) return 'fail';
+    
+    // FAIL: outbox has failed rows but no readable error
+    const failedOutbox = l2TestResult.outboxRows.filter(r => r.status === 'failed');
+    if (failedOutbox.length > 0 && failedOutbox.some(r => !r.error || r.error.trim().length === 0)) {
+      return 'fail';
+    }
+    
+    // Still running or pending
     return 'pending';
   };
 
   const getL3Status = (): 'pass' | 'pending' | 'fail' => {
+    // Use l3TestResult.hsMetrics as the single source of truth for L3 scoped tests
     if (!l3TestResult?.hsMetrics) return 'pending';
-    if (l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok && l3TestResult.l3c_workers_active) return 'pass';
-    if (l3TestResult.l3a_no_duplicates === false || l3TestResult.l3b_queue_age_ok === false) return 'fail';
+    
+    const { l3a_no_duplicates, l3b_queue_age_ok, l3c_workers_active } = l3TestResult;
+    
+    if (l3a_no_duplicates && l3b_queue_age_ok && l3c_workers_active) return 'pass';
+    if (l3a_no_duplicates === false || l3b_queue_age_ok === false || l3c_workers_active === false) return 'fail';
+    return 'pending';
+  };
+
+  // Idempotency check - tri-state logic
+  const getIdempotencyStatus = (): 'pass' | 'pending' | 'fail' => {
+    const hasL1Test = launchResult !== null;
+    const hasL3Test = l3TestResult?.hsMetrics !== null;
+    const hasHsMetrics = hsMetrics !== null;
+    
+    // Not tested
+    if (!hasL1Test && !hasL3Test && !hasHsMetrics) return 'pending';
+    
+    // Check for duplicates - FAIL if any source shows duplicates
+    const l1Duplicates = hasL1Test && !launchResult?.passCriteria.L3_no_duplicates;
+    const l3Duplicates = l3TestResult?.l3a_no_duplicates === false;
+    const hsDuplicates = hasHsMetrics && (hsMetrics?.duplicate_groups_last_hour ?? 0) > 0;
+    
+    if (l1Duplicates || l3Duplicates || hsDuplicates) return 'fail';
+    
+    // PASS if tested and no duplicates
+    if ((hasL1Test && launchResult?.passCriteria.L3_no_duplicates) || 
+        (hasL3Test && l3TestResult?.l3a_no_duplicates) ||
+        (hasHsMetrics && hsMetrics?.duplicate_groups_last_hour === 0)) {
+      return 'pass';
+    }
+    
     return 'pending';
   };
 
@@ -871,8 +915,49 @@ export default function ExecutionCertQA() {
     return 'pending';
   };
 
+  // Get list of blocking gates for UI display
+  const getBlockingGates = (): string[] => {
+    const blocking: string[] = [];
+    
+    if (getL1Status() === 'fail') {
+      if (launchResult) {
+        if (!launchResult.passCriteria.L1_run_terminal) blocking.push('L1: Run not terminal');
+        else if (!launchResult.passCriteria.L1_outbox_exists) blocking.push('L1: No outbox rows');
+        else if (!launchResult.passCriteria.L1_all_terminal) blocking.push('L1: Not all outbox terminal');
+        else blocking.push('L1: Provider dispatch failed');
+      } else {
+        blocking.push('L1: Not tested');
+      }
+    }
+    
+    if (getL2Status() === 'fail') {
+      if (l2TestResult) {
+        if (!l2TestResult.passCriteria.L2_outbox_error_readable) blocking.push('L2: Missing readable last_error');
+        else blocking.push('L2: Failure transparency issue');
+      } else {
+        blocking.push('L2: Not tested');
+      }
+    }
+    
+    if (getL3Status() === 'fail') {
+      if (l3TestResult) {
+        if (!l3TestResult.l3a_no_duplicates) blocking.push('L3: Duplicates detected');
+        if (!l3TestResult.l3b_queue_age_ok) blocking.push('L3: Queue age > 180s');
+        if (!l3TestResult.l3c_workers_active) blocking.push('L3: < 4 active workers');
+      } else {
+        blocking.push('L3: Not tested');
+      }
+    }
+    
+    if (getIdempotencyStatus() === 'fail') {
+      blocking.push('Idempotency: Duplicate sends detected');
+    }
+    
+    return blocking;
+  };
+
   const getOverallStatus = () => {
-    const hasResults = concurrencyResults.length > 0 || slaResult !== null || hsMetrics !== null || launchResult !== null;
+    const hasResults = concurrencyResults.length > 0 || slaResult !== null || hsMetrics !== null || launchResult !== null || l2TestResult !== null || l3TestResult !== null;
     if (!hasResults) return 'pending';
     
     const concurrencyPassed = concurrencyResults.length === 0 || concurrencyResults.every(r => r.passed);
@@ -882,13 +967,19 @@ export default function ExecutionCertQA() {
       hsMetrics.pass_criteria.HS2_duplicates_zero &&
       hsMetrics.pass_criteria.HS3_oldest_under_180s
     );
-    const launchPassed = launchResult === null || (
-      launchResult.passCriteria.L1_provider_ids &&
-      launchResult.passCriteria.L2_failure_visible &&
-      launchResult.passCriteria.L3_no_duplicates
-    );
     
-    return concurrencyPassed && slaPassed && hsPassed && launchPassed ? 'pass' : 'fail';
+    // Use explicit L1/L2/L3 status functions
+    const l1Passed = getL1Status() === 'pass' || getL1Status() === 'pending';
+    const l2Passed = getL2Status() === 'pass' || getL2Status() === 'pending';
+    const l3Passed = getL3Status() === 'pass' || getL3Status() === 'pending';
+    const idempotencyPassed = getIdempotencyStatus() !== 'fail';
+    
+    // Any explicit failure = fail
+    if (getL1Status() === 'fail' || getL2Status() === 'fail' || getL3Status() === 'fail' || getIdempotencyStatus() === 'fail') {
+      return 'fail';
+    }
+    
+    return concurrencyPassed && slaPassed && hsPassed && l1Passed && l2Passed && l3Passed && idempotencyPassed ? 'pass' : 'fail';
   };
 
   if (loading) {
@@ -1298,9 +1389,18 @@ export default function ExecutionCertQA() {
                     {getGateMasterStatus() === 'pending' && '◌ PENDING'}
                     {getGateMasterStatus() === 'fail' && '✗ GATES FAILING'}
                   </Badge>
-                  <p className="text-xs text-muted-foreground">
-                    Platform is {getGateMasterStatus() === 'pass' ? 'production-ready' : 'not yet verified'}
-                  </p>
+                  {getGateMasterStatus() === 'pass' ? (
+                    <p className="text-xs text-green-600 font-medium">Platform is production-ready</p>
+                  ) : getGateMasterStatus() === 'fail' ? (
+                    <div className="text-right">
+                      <p className="text-xs text-destructive font-medium">Blocked by:</p>
+                      {getBlockingGates().slice(0, 3).map((gate, i) => (
+                        <p key={i} className="text-xs text-destructive">{gate}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Platform not yet verified</p>
+                  )}
                 </>
               )}
             </div>
@@ -1364,19 +1464,26 @@ export default function ExecutionCertQA() {
             </div>
 
             <div className={`p-4 rounded-lg border-2 ${
-              (launchResult?.passCriteria.L3_no_duplicates && l3TestResult?.l3a_no_duplicates) ? 'border-green-500 bg-green-500/10' : 
-              (!launchResult && !l3TestResult) ? 'border-muted' : 
-              'border-yellow-500 bg-yellow-500/10'
+              getIdempotencyStatus() === 'pass' ? 'border-green-500 bg-green-500/10' : 
+              getIdempotencyStatus() === 'pending' ? 'border-muted' : 
+              'border-red-500 bg-red-500/10'
             }`}>
               <div className="flex items-center gap-2 mb-2">
                 <Database className="h-4 w-4" />
                 <span className="font-semibold">Idempotency</span>
-                <Badge variant={(launchResult?.passCriteria.L3_no_duplicates && l3TestResult?.l3a_no_duplicates) ? 'default' : 'secondary'} className="ml-auto">
-                  {(launchResult?.passCriteria.L3_no_duplicates && l3TestResult?.l3a_no_duplicates) ? 'PASS' : 'PENDING'}
+                <Badge variant={
+                  getIdempotencyStatus() === 'pass' ? 'default' : 
+                  getIdempotencyStatus() === 'fail' ? 'destructive' : 'secondary'
+                } className="ml-auto">
+                  {getIdempotencyStatus().toUpperCase()}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">No Duplicate Sends</p>
-              <p className="text-xs mt-1">Unique idempotency keys</p>
+              <p className="text-xs mt-1">
+                {getIdempotencyStatus() === 'fail' 
+                  ? `Duplicates: ${(hsMetrics?.duplicate_groups_last_hour ?? 0) + (l3TestResult?.hsMetrics?.duplicates ?? 0)}`
+                  : 'Unique idempotency keys'}
+              </p>
             </div>
           </div>
 
@@ -1586,6 +1693,78 @@ export default function ExecutionCertQA() {
                     <p className="text-xs text-muted-foreground mt-1">
                       channel_outbox.status = posted with provider_post_id stored
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Terminal Reconciliation Widget */}
+              {launchResult.l1Metrics && (
+                <div className="p-4 rounded-lg border bg-muted/50">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Terminal Reconciliation
+                  </h4>
+                  <div className="space-y-3">
+                    {/* Progress bar */}
+                    <div className="relative h-6 bg-muted rounded-full overflow-hidden flex">
+                      {launchResult.l1Metrics.successCount > 0 && (
+                        <div 
+                          className="h-full bg-green-500 flex items-center justify-center text-xs text-white font-medium"
+                          style={{ width: `${(launchResult.l1Metrics.successCount / launchResult.expectedCount) * 100}%` }}
+                        >
+                          {launchResult.l1Metrics.successCount > 0 && `${launchResult.l1Metrics.successCount} sent`}
+                        </div>
+                      )}
+                      {launchResult.l1Metrics.failedOrSkippedCount > 0 && (
+                        <div 
+                          className="h-full bg-red-500 flex items-center justify-center text-xs text-white font-medium"
+                          style={{ width: `${(launchResult.l1Metrics.failedOrSkippedCount / launchResult.expectedCount) * 100}%` }}
+                        >
+                          {launchResult.l1Metrics.failedOrSkippedCount > 0 && `${launchResult.l1Metrics.failedOrSkippedCount} failed`}
+                        </div>
+                      )}
+                      {(launchResult.expectedCount - launchResult.l1Metrics.terminalCount) > 0 && (
+                        <div 
+                          className="h-full bg-yellow-500 flex items-center justify-center text-xs text-white font-medium"
+                          style={{ width: `${((launchResult.expectedCount - launchResult.l1Metrics.terminalCount) / launchResult.expectedCount) * 100}%` }}
+                        >
+                          {(launchResult.expectedCount - launchResult.l1Metrics.terminalCount) > 0 && `${launchResult.expectedCount - launchResult.l1Metrics.terminalCount} pending`}
+                        </div>
+                      )}
+                    </div>
+                    {/* Stats row */}
+                    <div className="grid gap-2 text-sm md:grid-cols-5">
+                      <div className="text-center p-2 rounded bg-background">
+                        <div className="text-lg font-bold">{launchResult.expectedCount}</div>
+                        <div className="text-xs text-muted-foreground">Expected</div>
+                      </div>
+                      <div className="text-center p-2 rounded bg-green-500/10">
+                        <div className="text-lg font-bold text-green-600">{launchResult.l1Metrics.successCount}</div>
+                        <div className="text-xs text-muted-foreground">Sent/Called</div>
+                      </div>
+                      <div className="text-center p-2 rounded bg-green-500/10">
+                        <div className="text-lg font-bold text-green-600">{launchResult.l1Metrics.providerIdCount}</div>
+                        <div className="text-xs text-muted-foreground">Provider IDs</div>
+                      </div>
+                      <div className="text-center p-2 rounded bg-red-500/10">
+                        <div className="text-lg font-bold text-red-600">{launchResult.l1Metrics.failedOrSkippedCount}</div>
+                        <div className="text-xs text-muted-foreground">Failed/Skipped</div>
+                      </div>
+                      <div className="text-center p-2 rounded bg-yellow-500/10">
+                        <div className="text-lg font-bold text-yellow-600">{launchResult.expectedCount - launchResult.l1Metrics.terminalCount}</div>
+                        <div className="text-xs text-muted-foreground">Still Pending</div>
+                      </div>
+                    </div>
+                    {/* Pass/Fail indicator */}
+                    <div className={`p-2 rounded text-center text-sm font-medium ${
+                      launchResult.l1Metrics.terminalCount === launchResult.expectedCount && launchResult.l1Metrics.providerIdCount >= launchResult.l1Metrics.successCount
+                        ? 'bg-green-500/20 text-green-700'
+                        : 'bg-yellow-500/20 text-yellow-700'
+                    }`}>
+                      {launchResult.l1Metrics.terminalCount === launchResult.expectedCount && launchResult.l1Metrics.providerIdCount >= launchResult.l1Metrics.successCount
+                        ? '✓ All outbox rows terminal, provider IDs valid'
+                        : `⏳ Waiting: ${launchResult.l1Metrics.terminalCount}/${launchResult.expectedCount} terminal`}
+                    </div>
                   </div>
                 </div>
               )}
