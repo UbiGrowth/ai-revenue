@@ -607,8 +607,9 @@ async function createLaunchTestCampaign(
   config: { channel: string; leadCount: number }
 ) {
   const timestamp = Date.now();
-  const testTenantId = `launch-test-tenant-${timestamp}`;
-  const testWorkspaceId = `launch-test-workspace-${timestamp}`;
+  // Use proper UUIDs for tenant and workspace (both tables require UUID type)
+  const testTenantId = crypto.randomUUID();
+  const testWorkspaceId = crypto.randomUUID();
 
   try {
     // Create test tenant
@@ -667,15 +668,29 @@ async function createLaunchTestCampaign(
 
     if (leadError) throw leadError;
 
-    // Create campaign
-    const { data: campaign, error: campError } = await supabase
-      .from("cmo_campaigns")
+    // Create test asset (required for campaigns table FK)
+    const { data: asset, error: assetError } = await supabase
+      .from("assets")
       .insert({
-        tenant_id: testTenantId,
+        name: `Launch Test Asset - ${config.channel} - ${timestamp}`,
+        type: config.channel === "email" ? "email" : config.channel === "voice" ? "voice_agent" : "social_post",
+        status: "approved",
         workspace_id: testWorkspaceId,
-        campaign_name: `Launch Validation Test - ${config.channel} - ${timestamp}`,
-        campaign_type: config.channel,
-        status: "draft",
+        channel: config.channel,
+      })
+      .select()
+      .single();
+
+    if (assetError) throw assetError;
+
+    // Create campaign in campaigns table (campaign_runs FK references campaigns, not cmo_campaigns)
+    const { data: campaign, error: campError } = await supabase
+      .from("campaigns")
+      .insert({
+        asset_id: asset.id,
+        workspace_id: testWorkspaceId,
+        channel: config.channel,
+        status: "active",
       })
       .select()
       .single();
@@ -728,9 +743,9 @@ async function deployLaunchTest(
   console.log(`Deploy launch test: runId=${config.runId}, liveMode=${isLiveMode}`);
 
   try {
-    // Update campaign status to active
+    // Update campaign status to active (campaigns table, not cmo_campaigns)
     await supabase
-      .from("cmo_campaigns")
+      .from("campaigns")
       .update({ status: "active" })
       .eq("id", config.campaignId);
 
@@ -1185,14 +1200,28 @@ async function createL2FailureTest(
 
     if (wsError) throw wsError;
 
-    // Create test campaign
-    const { data: campaign, error: campError } = await supabase
-      .from("cmo_campaigns")
+    // Create test asset (required for campaigns table FK)
+    const { data: asset, error: assetError } = await supabase
+      .from("assets")
       .insert({
-        tenant_id: testTenantId,
+        name: `L2 Failure Test Asset (${config.failureType}) - ${timestamp}`,
+        type: config.channel === "email" ? "email" : config.channel === "voice" ? "voice_agent" : "social_post",
+        status: "approved",
         workspace_id: testWorkspaceId,
-        campaign_name: `L2 Failure Test (${config.failureType}) - ${timestamp}`,
-        campaign_type: config.channel,
+        channel: config.channel,
+      })
+      .select()
+      .single();
+
+    if (assetError) throw assetError;
+
+    // Create test campaign in campaigns table (campaign_runs FK references campaigns, not cmo_campaigns)
+    const { data: campaign, error: campError } = await supabase
+      .from("campaigns")
+      .insert({
+        asset_id: asset.id,
+        workspace_id: testWorkspaceId,
+        channel: config.channel,
         status: "active",
       })
       .select()
