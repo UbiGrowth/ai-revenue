@@ -874,6 +874,16 @@ export default function ExecutionCertQA() {
 
   // Gate status helper functions
   const getL1Status = (): 'pass' | 'pending' | 'fail' => {
+    // Check ITR result first - if email_e2e PASSED, L1 is satisfied
+    if (itrResult?.tests.email_e2e.status === 'PASS') {
+      return 'pass';
+    }
+    // If ITR ran email_e2e and it failed, that's a fail
+    if (itrResult?.tests.email_e2e.status === 'FAIL') {
+      return 'fail';
+    }
+    
+    // Fallback to individual launch test result
     if (!launchResult) return 'pending';
     
     // L1 requires ALL three conditions:
@@ -896,6 +906,16 @@ export default function ExecutionCertQA() {
   };
 
   const getL2Status = (): 'pass' | 'pending' | 'fail' => {
+    // Check ITR result first - if failure_transparency PASSED, L2 is satisfied
+    if (itrResult?.tests.failure_transparency.status === 'PASS') {
+      return 'pass';
+    }
+    // If ITR ran failure_transparency and it failed, that's a fail
+    if (itrResult?.tests.failure_transparency.status === 'FAIL') {
+      return 'fail';
+    }
+    
+    // Fallback to individual L2 test result
     if (!l2TestResult) return 'pending';
     
     const { L2_run_status_failed, L2_outbox_error_readable } = l2TestResult.passCriteria;
@@ -1557,7 +1577,11 @@ export default function ExecutionCertQA() {
               </div>
               <p className="text-xs text-muted-foreground">Provider Dispatch</p>
               <p className="text-xs mt-1">
-                {launchResult ? `${launchResult.channel.toUpperCase()}: ${launchResult.outboxRows.filter(r => r.provider_message_id).length}/${launchResult.outboxRows.length} sent` : 'Not tested'}
+                {itrResult?.tests.email_e2e.status === 'PASS' 
+                  ? `EMAIL: ${itrResult.evidence.provider_ids.length} sent (ITR)`
+                  : launchResult 
+                    ? `${launchResult.channel.toUpperCase()}: ${launchResult.outboxRows.filter(r => r.provider_message_id).length}/${launchResult.outboxRows.length} sent` 
+                    : 'Not tested'}
               </p>
             </div>
 
@@ -1575,7 +1599,11 @@ export default function ExecutionCertQA() {
               </div>
               <p className="text-xs text-muted-foreground">Failure Transparency</p>
               <p className="text-xs mt-1">
-                {l2TestResult ? `Errors visible: ${l2TestResult.passCriteria.L2_outbox_error_readable ? 'Yes' : 'No'}` : 'Not tested'}
+                {itrResult?.tests.failure_transparency.status === 'PASS'
+                  ? 'Errors visible (ITR)'
+                  : l2TestResult 
+                    ? `Errors visible: ${l2TestResult.passCriteria.L2_outbox_error_readable ? 'Yes' : 'No'}` 
+                    : 'Not tested'}
               </p>
             </div>
 
