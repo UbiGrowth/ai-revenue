@@ -228,19 +228,24 @@ const Dashboard = () => {
       
       setLastRefresh(new Date());
 
-      // Calculate cost from campaign_metrics (not from views yet)
+      // GATED: Only show cost/revenue if Stripe connected OR in demo mode
+      const canShowRevenue = dataQualityStatus === 'LIVE_OK' || dataQualityStatus === 'DEMO_MODE';
+      
       let totalCost = 0;
-      campaignsData?.forEach((campaign: any) => {
-        const metrics = campaign.campaign_metrics?.[0];
-        if (metrics) {
-          totalCost += parseFloat(metrics.cost || 0);
-        }
-      });
+      if (canShowRevenue) {
+        campaignsData?.forEach((campaign: any) => {
+          const metrics = campaign.campaign_metrics?.[0];
+          if (metrics) {
+            totalCost += parseFloat(metrics.cost || 0);
+          }
+        });
+      }
 
-      const totalROI = totalCost > 0 ? ((viewRevenue - totalCost) / totalCost) * 100 : 0;
+      const gatedRevenue = canShowRevenue ? viewRevenue : 0;
+      const totalROI = canShowRevenue && totalCost > 0 ? ((gatedRevenue - totalCost) / totalCost) * 100 : 0;
 
       setMetrics({
-        totalRevenue: viewRevenue,
+        totalRevenue: gatedRevenue,
         totalCost,
         totalROI,
         totalImpressions: viewImpressions,
@@ -249,13 +254,14 @@ const Dashboard = () => {
         dataQualityStatus,
       });
 
-      // Map campaigns with individual metrics
+      // Map campaigns with individual metrics - GATED by dataQualityStatus
       const mappedCampaigns = (campaignsData || []).map((c: any) => {
         const metrics = c.campaign_metrics?.[0];
         const asset = c.assets;
-        const revenue = parseFloat(metrics?.revenue || 0);
-        const cost = parseFloat(metrics?.cost || 0);
-        const roi = cost > 0 ? ((revenue - cost) / cost) * 100 : 0;
+        // Zero out revenue/cost if no Stripe connected in live mode
+        const revenue = canShowRevenue ? parseFloat(metrics?.revenue || 0) : 0;
+        const cost = canShowRevenue ? parseFloat(metrics?.cost || 0) : 0;
+        const roi = canShowRevenue && cost > 0 ? ((revenue - cost) / cost) * 100 : 0;
 
         return {
           id: asset.id,
