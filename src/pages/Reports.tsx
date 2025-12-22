@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart3, TrendingUp, DollarSign, Eye, Users, Clock, Target, ArrowUpRight, Database } from "lucide-react";
+import { useDataIntegrity, validateDataIntegrity } from "@/hooks/useDataIntegrity";
+import { BarChart3, TrendingUp, DollarSign, Eye, Users, Clock, Target, ArrowUpRight, Database, ShieldAlert } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 interface CampaignReport {
@@ -71,6 +72,9 @@ const SAMPLE_VELOCITY = [
 ];
 
 const Reports = () => {
+  // DATA INTEGRITY: Use centralized hook for strict enforcement
+  const dataIntegrity = useDataIntegrity();
+  
   const [campaigns, setCampaigns] = useState<CampaignReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -89,25 +93,40 @@ const Reports = () => {
   }, []);
 
   useEffect(() => {
+    // RULE 1: If demo_mode = false, only fetch live data
+    // RULE 2: Demo data must never be shown in live mode
     if (showSampleData) {
-      // Apply sample data
-      setCampaigns(SAMPLE_CAMPAIGNS);
-      setPipelineMetrics(SAMPLE_PIPELINE);
-      setConversionData(SAMPLE_CONVERSION_DATA);
-      setVelocityData(SAMPLE_VELOCITY);
-      setTotalLeads(389);
-      setWonLeads(45);
-      setAvgConversionTime(18);
-      setTotalRevenue(SAMPLE_CAMPAIGNS.reduce((sum, c) => sum + c.revenue, 0));
-      setTotalImpressions(SAMPLE_CAMPAIGNS.reduce((sum, c) => sum + c.impressions, 0));
-      const avgROI = SAMPLE_CAMPAIGNS.reduce((sum, c) => sum + c.roi, 0) / SAMPLE_CAMPAIGNS.length;
-      setTotalROI(avgROI);
-      setLoading(false);
+      // DATA INTEGRITY CHECK: Block demo data in live mode
+      if (dataIntegrity.isLiveMode) {
+        console.warn("[DATA INTEGRITY] Demo data blocked in live mode");
+        setShowSampleData(false);
+        return;
+      }
+      
+      // Apply sample data only in demo mode
+      try {
+        validateDataIntegrity(dataIntegrity.metricsMode, "demo");
+        setCampaigns(SAMPLE_CAMPAIGNS);
+        setPipelineMetrics(SAMPLE_PIPELINE);
+        setConversionData(SAMPLE_CONVERSION_DATA);
+        setVelocityData(SAMPLE_VELOCITY);
+        setTotalLeads(389);
+        setWonLeads(45);
+        setAvgConversionTime(18);
+        setTotalRevenue(SAMPLE_CAMPAIGNS.reduce((sum, c) => sum + c.revenue, 0));
+        setTotalImpressions(SAMPLE_CAMPAIGNS.reduce((sum, c) => sum + c.impressions, 0));
+        const avgROI = SAMPLE_CAMPAIGNS.reduce((sum, c) => sum + c.roi, 0) / SAMPLE_CAMPAIGNS.length;
+        setTotalROI(avgROI);
+        setLoading(false);
+      } catch (error) {
+        console.error("[DATA INTEGRITY VIOLATION]", error);
+        setShowSampleData(false);
+      }
     } else {
       // Fetch real data
       fetchAllData();
     }
-  }, [showSampleData]);
+  }, [showSampleData, dataIntegrity.isLiveMode, dataIntegrity.metricsMode]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -276,20 +295,33 @@ const Reports = () => {
                 Lead conversion rates, pipeline velocity, and campaign performance
               </p>
             </div>
-            <div className="flex items-center gap-3 bg-muted/50 px-4 py-2 rounded-lg border border-border">
-              <Database className="h-4 w-4 text-muted-foreground" />
-              <Label htmlFor="sample-data" className="text-sm font-medium cursor-pointer">
-                Demo Data
-              </Label>
-              <Switch
-                id="sample-data"
-                checked={showSampleData}
-                onCheckedChange={setShowSampleData}
-              />
-            </div>
+            {/* RULE 2: Only show demo toggle if NOT in live mode */}
+            {!dataIntegrity.isLiveMode && (
+              <div className="flex items-center gap-3 bg-muted/50 px-4 py-2 rounded-lg border border-border">
+                <Database className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="sample-data" className="text-sm font-medium cursor-pointer">
+                  Demo Data
+                </Label>
+                <Switch
+                  id="sample-data"
+                  checked={showSampleData}
+                  onCheckedChange={setShowSampleData}
+                />
+              </div>
+            )}
           </div>
 
-          {showSampleData && (
+          {/* DATA INTEGRITY: Live mode indicator */}
+          {dataIntegrity.isLiveMode && (
+            <div className="mb-6 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4" />
+              <span className="font-medium">Live Mode Active</span> — All data is from connected integrations only. No demo/synthetic data shown.
+              {!dataIntegrity.integrations.stripe && " • Stripe not connected (revenue = $0)"}
+              {!dataIntegrity.shouldShowImpressions && " • Analytics not connected (impressions = 0)"}
+            </div>
+          )}
+
+          {showSampleData && !dataIntegrity.isLiveMode && (
             <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary flex items-center gap-2">
               <Database className="h-4 w-4" />
               Showing sample demo data. Toggle off to view real data.

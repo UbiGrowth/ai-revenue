@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { TrendingUp, CheckCircle, Clock, Eye, PlayCircle, Mail, Phone, Layout, DollarSign, Target, AlertCircle, Settings, Plus, BarChart3, LineChart, HelpCircle, Activity } from "lucide-react";
+import { useDataIntegrity, validateDataIntegrity } from "@/hooks/useDataIntegrity";
+import { TrendingUp, CheckCircle, Clock, Eye, PlayCircle, Mail, Phone, Layout, DollarSign, Target, AlertCircle, Settings, Plus, BarChart3, LineChart, HelpCircle, Activity, ShieldAlert } from "lucide-react";
 import { CampaignRunDetailsDrawer } from "@/components/campaigns/CampaignRunDetailsDrawer";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
@@ -48,6 +49,10 @@ interface CampaignPerformance {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // DATA INTEGRITY: Use centralized hook for strict enforcement
+  const dataIntegrity = useDataIntegrity();
+  
   const [metrics, setMetrics] = useState<CampaignMetrics>({
     totalRevenue: 0,
     totalCost: 0,
@@ -58,9 +63,7 @@ const Dashboard = () => {
   });
   const [campaigns, setCampaigns] = useState<CampaignPerformance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasIntegrations, setHasIntegrations] = useState(false);
   const [hasRealData, setHasRealData] = useState(false);
-  const [metricsMode, setMetricsMode] = useState<'real' | 'demo'>('real');
   const [showDemoData, setShowDemoData] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -93,7 +96,6 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardMetrics();
     fetchQueueMetrics();
-    checkIntegrations();
 
     // Auto-refresh metrics every 30 seconds for real-time tracking
     const interval = setInterval(() => {
@@ -104,59 +106,6 @@ const Dashboard = () => {
 
     return () => clearInterval(interval);
   }, []);
-
-  const checkIntegrations = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Get workspace ID
-    const { data: ownedWorkspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
-
-    let wsId = ownedWorkspace?.id;
-
-    if (!wsId) {
-      const { data: membership } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      wsId = membership?.workspace_id;
-    }
-
-    if (!wsId) return;
-
-    // Check for active integrations
-    const { data } = await supabase
-      .from("social_integrations")
-      .select("id")
-      .eq("workspace_id", wsId)
-      .eq("is_active", true)
-      .limit(1);
-
-    setHasIntegrations((data?.length || 0) > 0);
-
-    // Check tenant metrics_mode
-    const { data: userTenant } = await supabase
-      .from("user_tenants")
-      .select("tenant_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (userTenant?.tenant_id) {
-      const { data: tenant } = await supabase
-        .from("tenants")
-        .select("metrics_mode")
-        .eq("id", userTenant.tenant_id)
-        .single();
-
-      setMetricsMode((tenant?.metrics_mode as 'real' | 'demo') || 'real');
-    }
-  };
 
   const fetchQueueMetrics = async () => {
     try {
@@ -361,7 +310,7 @@ const Dashboard = () => {
           ) : (
             <>
               {/* DEMO MODE - Show warning when in demo mode */}
-              {metricsMode === 'demo' && campaigns.length > 0 && (
+              {dataIntegrity.isDemoMode && campaigns.length > 0 && (
                 <Card className="mb-8 border-amber-500/50 bg-amber-500/10">
                   <CardHeader>
                     <div className="flex items-start gap-4">
@@ -391,8 +340,8 @@ const Dashboard = () => {
                 </Card>
               )}
 
-              {/* REAL MODE with no integrations - Show empty state + CTA */}
-              {metricsMode === 'real' && campaigns.length > 0 && !hasIntegrations && (
+              {/* DATA INTEGRITY: Live mode with missing integrations - show enforcement notice */}
+              {dataIntegrity.isLiveMode && campaigns.length > 0 && !dataIntegrity.shouldShowImpressions && (
                 <Card className="mb-8 border-blue-500/50 bg-blue-500/10">
                   <CardHeader>
                     <div className="flex items-start gap-4">
@@ -526,7 +475,7 @@ const Dashboard = () => {
                 </div>
               )}
 
-              {/* Rollup Metrics */}
+              {/* Rollup Metrics - DATA INTEGRITY ENFORCED */}
               <div className="mb-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <Card className="border-border bg-card">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -537,10 +486,15 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-foreground">
-                      ${metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      {/* RULE 3: If Stripe not connected in live mode, show $0 */}
+                      {dataIntegrity.formatRevenue(
+                        dataIntegrity.shouldShowRevenue ? metrics.totalRevenue : 0
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Across all campaigns
+                      {dataIntegrity.isLiveMode && !dataIntegrity.integrations.stripe 
+                        ? "Connect Stripe to track revenue"
+                        : "Across all campaigns"}
                     </p>
                   </CardContent>
                 </Card>
@@ -571,10 +525,15 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-foreground">
-                      {metrics.totalROI.toFixed(1)}%
+                      {/* RULE 3: If Stripe not connected in live mode, show "—" */}
+                      {dataIntegrity.formatROI(
+                        dataIntegrity.shouldShowRevenue ? metrics.totalROI : 0
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Return on investment
+                      {dataIntegrity.isLiveMode && !dataIntegrity.integrations.stripe 
+                        ? "Connect Stripe to calculate ROI"
+                        : "Return on investment"}
                     </p>
                   </CardContent>
                 </Card>
