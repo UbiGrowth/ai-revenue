@@ -1649,25 +1649,46 @@ Deno.serve(async (req) => {
                   },
                   body: JSON.stringify({ source: 'itr-scale-test', worker_index: i }),
                 });
-                const result = await resp.text();
-                console.log(`[ITR Scale Safety] Worker ${i} response: ${resp.status} - ${result.substring(0, 200)}`);
-                return { index: i, status: resp.status, ok: resp.ok };
+
+                const text = await resp.text();
+                let parsed: any = null;
+                try {
+                  parsed = JSON.parse(text);
+                } catch {
+                  // ignore
+                }
+
+                const workerIdFromResp = parsed?.worker_id || parsed?.workerId || null;
+
+                console.log(
+                  `[ITR Scale Safety] Worker ${i} response: ${resp.status} - ${text.substring(0, 200)}`
+                );
+
+                return { index: i, status: resp.status, ok: resp.ok, worker_id: workerIdFromResp };
               } catch (err) {
                 console.error(`[ITR Scale Safety] Worker ${i} invocation failed:`, err);
-                return { index: i, status: 0, ok: false, error: err };
+                return { index: i, status: 0, ok: false, worker_id: null, error: String(err) };
               }
             });
-            
-            // Wait for all workers to complete (up to 15s)
+
+            // Wait for all workers to complete
             const workerResults = await Promise.allSettled(workerPromises);
-            testEvidence.worker_invocations = workerResults.map(r => 
-              r.status === 'fulfilled' ? r.value : { error: 'promise rejected' }
+            const workerInvocations = workerResults.map((r) =>
+              r.status === 'fulfilled' ? r.value : { ok: false, worker_id: null, error: 'promise rejected' }
             );
+            testEvidence.worker_invocations = workerInvocations;
+
+            const invokedWorkerIds = workerInvocations
+              .map((w: any) => w.worker_id)
+              .filter((w: any) => typeof w === 'string' && w.length > 0);
+
+            testEvidence.invoked_worker_ids = invokedWorkerIds;
             console.log(`[ITR Scale Safety] Worker invocations completed`);
-            
+
             const waitStart = Date.now();
             let uniqueWorkers: string[] = [];
-            let allWorkersSeen: Set<string> = new Set();
+            // Seed worker set with the workers we invoked (workers may clear locked_by on completion)
+            let allWorkersSeen: Set<string> = new Set(invokedWorkerIds);
             let oldestQueuedSeconds = 0;
             let pollCount = 0;
             let currentSnapshot: QueueSnapshot = t0Snapshot;
