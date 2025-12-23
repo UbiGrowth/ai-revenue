@@ -926,8 +926,10 @@ const VoiceAgents = () => {
             </Alert>
           )}
 
-          {/* Voice Data Quality Banner - matches other dashboard patterns */}
-          <DataQualityBanner status={voiceDataQualityStatus} />
+          {/* Voice Data Quality Banner - only in live mode when no voice provider */}
+          {showVoiceSetupBanner && (
+            <DataQualityBanner status="NO_VOICE_PROVIDER_CONNECTED" />
+          )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid w-full grid-cols-7">
