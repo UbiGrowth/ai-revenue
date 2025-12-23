@@ -198,14 +198,6 @@ const NavBar = () => {
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3">
-            <Button 
-              onClick={() => navigate("/new-campaign")}
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Campaign
-            </Button>
             {/* Help Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
