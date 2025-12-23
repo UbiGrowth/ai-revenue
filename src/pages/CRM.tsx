@@ -1475,7 +1475,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
 
             {/* Reports Tab */}
             <TabsContent value="reports">
-              <CRMReports workspaceId={workspaceId} demoMode={showSampleData} />
+              <CRMReports />
             </TabsContent>
 
             {/* Calendar Tab */}

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from "date-fns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useDataIntegrity } from "@/hooks/useDataIntegrity";
 
 interface Lead {
   id: string;
@@ -35,26 +36,23 @@ interface Deal {
   actual_close_date: string | null;
 }
 
-interface CRMReportsProps {
-  workspaceId?: string | null;
-  demoMode?: boolean;
-}
-
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
-export function CRMReports({ workspaceId, demoMode = false }: CRMReportsProps) {
+export function CRMReports() {
+  // SINGLE SOURCE OF TRUTH: Use centralized data integrity hook
+  const dataIntegrity = useDataIntegrity();
+  
   const [leads, setLeads] = useState<Lead[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("30");
-  const [stripeConnected, setStripeConnected] = useState(false);
 
   useEffect(() => {
     fetchData();
-  }, [workspaceId]);
+  }, [dataIntegrity.workspaceId]);
 
   const fetchData = async () => {
-    if (!workspaceId) {
+    if (!dataIntegrity.workspaceId) {
       setLeads([]);
       setDeals([]);
       setLoading(false);
@@ -62,10 +60,9 @@ export function CRMReports({ workspaceId, demoMode = false }: CRMReportsProps) {
     }
 
     try {
-      const [leadsRes, dealsRes, stripeRes] = await Promise.all([
-        supabase.from("leads").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
-        supabase.from("deals").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
-        supabase.from("ai_settings_stripe").select("is_connected").eq("tenant_id", workspaceId).maybeSingle(),
+      const [leadsRes, dealsRes] = await Promise.all([
+        supabase.from("leads").select("*").eq("workspace_id", dataIntegrity.workspaceId).order("created_at", { ascending: false }),
+        supabase.from("deals").select("*").eq("workspace_id", dataIntegrity.workspaceId).order("created_at", { ascending: false }),
       ]);
 
       if (leadsRes.error) throw leadsRes.error;
@@ -73,7 +70,6 @@ export function CRMReports({ workspaceId, demoMode = false }: CRMReportsProps) {
 
       setLeads(leadsRes.data || []);
       setDeals(dealsRes.data || []);
-      setStripeConnected(stripeRes.data?.is_connected === true);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load report data");
@@ -82,8 +78,9 @@ export function CRMReports({ workspaceId, demoMode = false }: CRMReportsProps) {
     }
   };
 
-  // Data quality gate: only show derived KPIs if demoMode OR providers connected
-  const canShowKPIs = demoMode || stripeConnected;
+  // SINGLE SOURCE OF TRUTH: canShowLiveMetrics from dataIntegrity hook
+  // When false: No KPI math, no conversion rates, no win/loss, no ROI
+  const canShowKPIs = dataIntegrity.canShowLiveMetrics;
 
   const dateFilteredLeads = useMemo(() => {
     const cutoff = subDays(new Date(), parseInt(dateRange));
