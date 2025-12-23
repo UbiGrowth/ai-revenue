@@ -8,6 +8,38 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Voice data quality and tenant invariant tests - CRITICAL for preventing sample data leakage
+  voice-data-quality:
+    name: Voice Data Quality & Tenant Invariants
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Voice Agents Gating Tests
+        run: npx vitest run src/test/voice-agents-gating.test.ts --reporter=verbose
+
+      - name: Run AI Settings Tenant Invariant Tests
+        run: npx vitest run src/test/ai-settings-tenant-invariant.test.ts --reporter=verbose
+
+      - name: Verify Test Coverage
+        run: |
+          echo "✅ Voice Data Quality Tests verify:"
+          echo "   - No SAMPLE_* values appear when demoMode=false"
+          echo "   - ai_settings_voice.tenant_id = workspace.id (NOT workspace.tenant_id)"
+          echo "   - Voice connectivity detection uses correct join pattern"
+          echo "   - Banner behavior matches spec (NO_VOICE_PROVIDER_CONNECTED vs DEMO_MODE)"
+
   # Unit tests always run - no external dependencies needed
   unit-tests:
     name: Unit Tests (No Secrets Required)
