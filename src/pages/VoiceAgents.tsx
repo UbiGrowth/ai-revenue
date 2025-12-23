@@ -9,7 +9,7 @@ import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVapiConversation } from "@/hooks/useVapiConversation";
-import { useDemoMode } from "@/hooks/useDemoMode";
+import { useVoiceDataQualityStatus } from "@/hooks/useVoiceDataQualityStatus";
 import { useWorkspaceContext } from "@/contexts/WorkspaceContext";
 import { DataQualityBanner } from "@/components/DataQualityBadge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -353,46 +353,15 @@ const VoiceAgents = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [activeTab, setActiveTab] = useState("call");
   
-  // DEMO MODE + VOICE PROVIDER GATING
-  const { demoMode } = useDemoMode();
+  // CANONICAL VOICE DATA QUALITY GATING (uses dedicated hook)
   const { workspaceId, toggleDemoMode } = useWorkspaceContext();
-  const [voiceConnected, setVoiceConnected] = useState(false);
+  const { 
+    status: voiceDataQualityStatus, 
+    isDemoMode: demoMode, 
+    voiceConnected, 
+    canShowVoiceMetrics: canShowVoiceKPIs 
+  } = useVoiceDataQualityStatus(workspaceId);
 
-  // Fetch voice provider connection status (VAPI or ElevenLabs)
-  const fetchVoiceConnectionStatus = useCallback(async () => {
-    if (!workspaceId) return;
-    try {
-      const { data } = await supabase
-        .from("ai_settings_voice")
-        .select("is_connected, vapi_private_key, elevenlabs_api_key, voice_provider")
-        .eq("tenant_id", workspaceId)
-        .maybeSingle();
-      
-      // Connected if explicitly marked OR if either provider has an API key configured
-      const hasVapi = !!data?.vapi_private_key;
-      const hasElevenLabs = !!data?.elevenlabs_api_key;
-      const isConnected = data?.is_connected === true || hasVapi || hasElevenLabs;
-      
-      setVoiceConnected(isConnected);
-    } catch (err) {
-      console.error("Failed to fetch voice connection status:", err);
-    }
-  }, [workspaceId]);
-
-  useEffect(() => {
-    fetchVoiceConnectionStatus();
-  }, [fetchVoiceConnectionStatus]);
-
-  // VOICE DATA QUALITY STATUS (same pattern as other dashboards)
-  type VoiceDataQualityStatus = 'DEMO_MODE' | 'NO_VOICE_PROVIDER_CONNECTED' | 'LIVE_OK';
-  const voiceDataQualityStatus: VoiceDataQualityStatus = demoMode 
-    ? 'DEMO_MODE' 
-    : voiceConnected 
-      ? 'LIVE_OK' 
-      : 'NO_VOICE_PROVIDER_CONNECTED';
-
-  // Can show voice KPIs - only if demo OR voice provider connected
-  const canShowVoiceKPIs = demoMode || voiceConnected;
 
   // GATING RULES (NON-NEGOTIABLE):
   // - demoMode = false: NEVER use SAMPLE_* under any condition
