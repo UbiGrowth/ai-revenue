@@ -151,7 +151,7 @@ serve(async (req) => {
         const costIncrement = budgetAllocated * 0.05 * hoursActive;
         const newCost = Math.min(existingMetrics.cost + costIncrement, budgetAllocated);
 
-        // Update metrics (DEMO DATA)
+        // Update metrics (DEMO DATA) - CRITICAL: Set data_mode to 'demo'
         const { error: updateError } = await supabase
           .from('campaign_metrics')
           .update({
@@ -162,6 +162,7 @@ serve(async (req) => {
             cost: newCost,
             engagement_rate: newImpressions > 0 ? ((newClicks / newImpressions) * 100) : 0,
             last_synced_at: new Date().toISOString(),
+            data_mode: 'demo', // CRITICAL: Mark as demo data for view gating
           })
           .eq('id', existingMetrics.id);
 
