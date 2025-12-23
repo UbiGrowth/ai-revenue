@@ -31,7 +31,11 @@ export interface DataIntegrityContext {
   loading: boolean;
   error: string | null;
   
-  // Enforcement helpers
+  // SINGLE SOURCE OF TRUTH: Dashboard readiness
+  // When false: No KPI math, no conversion rates, no win/loss, no ROI - show placeholders only
+  canShowLiveMetrics: boolean;
+  
+  // Enforcement helpers (derived from canShowLiveMetrics + provider status)
   shouldShowRevenue: boolean;
   shouldShowImpressions: boolean;
   isLiveMode: boolean;
@@ -198,6 +202,16 @@ export function useDataIntegrity(): DataIntegrityContext {
   const isLiveMode = metricsMode === "real";
   const isDemoMode = metricsMode === "demo";
   
+  // SINGLE SOURCE OF TRUTH: Dashboard readiness
+  // When false: No KPI math, no conversion rates, no win/loss, no ROI - show placeholders only
+  // True when: demo mode is ON, or when in live mode with at least one provider connected
+  const hasAnyProvider = integrations.stripe || 
+    integrations.googleAnalytics || 
+    integrations.metaAds || 
+    integrations.linkedInAds ||
+    integrations.email;
+  const canShowLiveMetrics = isDemoMode || (isLiveMode && hasAnyProvider);
+  
   // RULE 3: If Stripe is not connected, revenue = 0
   const shouldShowRevenue = isDemoMode || integrations.stripe;
   
@@ -264,6 +278,7 @@ export function useDataIntegrity(): DataIntegrityContext {
     integrations,
     loading,
     error,
+    canShowLiveMetrics,
     shouldShowRevenue,
     shouldShowImpressions,
     isLiveMode,
