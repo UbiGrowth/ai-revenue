@@ -125,6 +125,20 @@ export type Database = {
             foreignKeyName: "agent_runs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "agent_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "agent_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -169,6 +183,20 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_calendar_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_calendar_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -225,6 +253,20 @@ export type Database = {
             foreignKeyName: "ai_settings_crm_webhooks_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_crm_webhooks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_crm_webhooks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -269,6 +311,20 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_domain_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_domain_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -352,6 +408,20 @@ export type Database = {
             foreignKeyName: "ai_settings_email_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_email_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_email_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -399,6 +469,20 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_linkedin_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_linkedin_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -467,6 +551,20 @@ export type Database = {
             foreignKeyName: "ai_settings_social_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_social_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_social_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -520,6 +618,20 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_stripe_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_stripe_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -597,6 +709,20 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -749,6 +875,20 @@ export type Database = {
             foreignKeyName: "assets_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -817,6 +957,20 @@ export type Database = {
             foreignKeyName: "automation_jobs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "automation_jobs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "automation_jobs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -876,6 +1030,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "automation_steps_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "automation_steps_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -980,6 +1148,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: true
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "business_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "business_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -1114,6 +1296,20 @@ export type Database = {
             foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1222,6 +1418,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_metrics_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_metrics_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -1380,6 +1590,20 @@ export type Database = {
             foreignKeyName: "campaign_runs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1461,6 +1685,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -1626,6 +1864,20 @@ export type Database = {
             foreignKeyName: "channel_preferences_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "channel_preferences_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "channel_preferences_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1723,6 +1975,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -1836,6 +2102,20 @@ export type Database = {
             foreignKeyName: "cmo_brand_profiles_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_brand_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_brand_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1924,6 +2204,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_calendar_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_calendar_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -2143,6 +2437,20 @@ export type Database = {
             foreignKeyName: "cmo_campaigns_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2245,6 +2553,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_content_assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_content_assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -2480,6 +2802,20 @@ export type Database = {
             foreignKeyName: "cmo_funnels_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_funnels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_funnels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2581,6 +2917,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_icp_segments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_icp_segments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -2706,6 +3056,20 @@ export type Database = {
             foreignKeyName: "cmo_marketing_plans_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_marketing_plans_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_marketing_plans_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2806,6 +3170,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_metrics_snapshots_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_metrics_snapshots_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -2922,6 +3300,20 @@ export type Database = {
             foreignKeyName: "cmo_offers_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_offers_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_offers_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3015,6 +3407,20 @@ export type Database = {
             foreignKeyName: "cmo_recommendations_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3089,6 +3495,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_weekly_summaries_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cmo_weekly_summaries_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3189,6 +3609,20 @@ export type Database = {
             foreignKeyName: "content_calendar_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "content_calendar_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "content_calendar_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3269,6 +3703,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "content_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "content_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3500,6 +3948,20 @@ export type Database = {
             foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3562,6 +4024,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_forecasts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_forecasts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3642,6 +4118,20 @@ export type Database = {
             foreignKeyName: "cro_recommendations_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3704,6 +4194,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_targets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "cro_targets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3805,6 +4309,20 @@ export type Database = {
             foreignKeyName: "customer_integrations_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "customer_integrations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "customer_integrations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3827,8 +4345,10 @@ export type Database = {
       deals: {
         Row: {
           actual_close_date: string | null
+          closed_won_at: string | null
           created_at: string
           created_by: string | null
+          data_mode: Database["public"]["Enums"]["data_mode"]
           expected_close_date: string | null
           id: string
           lead_id: string | null
@@ -3836,15 +4356,20 @@ export type Database = {
           notes: string | null
           owner_id: string | null
           probability: number | null
+          revenue_verified: boolean
           stage: string
+          stripe_payment_id: string | null
+          tenant_id: string | null
           updated_at: string
           value: number | null
           workspace_id: string
         }
         Insert: {
           actual_close_date?: string | null
+          closed_won_at?: string | null
           created_at?: string
           created_by?: string | null
+          data_mode?: Database["public"]["Enums"]["data_mode"]
           expected_close_date?: string | null
           id?: string
           lead_id?: string | null
@@ -3852,15 +4377,20 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           probability?: number | null
+          revenue_verified?: boolean
           stage?: string
+          stripe_payment_id?: string | null
+          tenant_id?: string | null
           updated_at?: string
           value?: number | null
           workspace_id: string
         }
         Update: {
           actual_close_date?: string | null
+          closed_won_at?: string | null
           created_at?: string
           created_by?: string | null
+          data_mode?: Database["public"]["Enums"]["data_mode"]
           expected_close_date?: string | null
           id?: string
           lead_id?: string | null
@@ -3868,7 +4398,10 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           probability?: number | null
+          revenue_verified?: boolean
           stage?: string
+          stripe_payment_id?: string | null
+          tenant_id?: string | null
           updated_at?: string
           value?: number | null
           workspace_id?: string
@@ -3886,6 +4419,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "deals_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "deals_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -4087,6 +4634,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "email_sequences_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "email_sequences_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -4521,6 +5082,20 @@ export type Database = {
             foreignKeyName: "lead_activities_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "lead_activities_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "lead_activities_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4653,6 +5228,20 @@ export type Database = {
             foreignKeyName: "leads_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "leads_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "leads_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4758,6 +5347,20 @@ export type Database = {
             foreignKeyName: "linkedin_tasks_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "linkedin_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "linkedin_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4855,6 +5458,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "notifications_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "notifications_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -6083,6 +6700,20 @@ export type Database = {
             foreignKeyName: "segments_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "segments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "segments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -6159,6 +6790,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "sequence_enrollments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "sequence_enrollments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -6371,6 +7016,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "social_integrations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "social_integrations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -6757,6 +7416,20 @@ export type Database = {
             foreignKeyName: "tasks_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -6822,6 +7495,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "team_invitations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "team_invitations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -7216,6 +7903,20 @@ export type Database = {
             foreignKeyName: "user_tenants_last_used_workspace_id_fkey"
             columns: ["last_used_workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "user_tenants_last_used_workspace_id_fkey"
+            columns: ["last_used_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "user_tenants_last_used_workspace_id_fkey"
+            columns: ["last_used_workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -7285,6 +7986,20 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_agents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_agents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -7550,6 +8265,20 @@ export type Database = {
             foreignKeyName: "workspace_members_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -7652,6 +8381,20 @@ export type Database = {
             foreignKeyName: "campaign_runs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -7718,6 +8461,20 @@ export type Database = {
             foreignKeyName: "campaign_metrics_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_metrics_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "campaign_metrics_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -7777,6 +8534,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_crm_conversion_funnel: {
+        Row: {
+          active_deals: number | null
+          contacted_leads: number | null
+          converted_leads: number | null
+          data_quality_status: string | null
+          demo_mode: boolean | null
+          lead_to_qualified_rate: number | null
+          lost_deals: number | null
+          lost_leads: number | null
+          new_leads: number | null
+          overall_conversion_rate: number | null
+          qualified_leads: number | null
+          qualified_to_won_rate: number | null
+          stripe_connected: boolean | null
+          tenant_id: string | null
+          total_leads: number | null
+          won_deals: number | null
+          workspace_id: string | null
+        }
+        Relationships: []
+      }
+      v_crm_pipeline_truth: {
+        Row: {
+          data_quality_status: string | null
+          demo_mode: boolean | null
+          lost_count: number | null
+          lost_value: number | null
+          pipeline_count: number | null
+          pipeline_value: number | null
+          stripe_connected: boolean | null
+          tenant_id: string | null
+          verified_won_count: number | null
+          won_count: number | null
+          won_revenue: number | null
+          workspace_id: string | null
+        }
+        Relationships: []
       }
       v_impressions_clicks_by_workspace: {
         Row: {

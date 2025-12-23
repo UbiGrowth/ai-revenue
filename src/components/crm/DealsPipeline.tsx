@@ -8,10 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, DollarSign, Calendar, Building, TrendingUp, GripVertical, Loader2 } from "lucide-react";
+import { Plus, DollarSign, Calendar, Building, TrendingUp, GripVertical, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
+import { useDemoMode } from "@/hooks/useDemoMode";
 
 interface Deal {
   id: string;
@@ -23,6 +25,8 @@ interface Deal {
   lead_id: string | null;
   notes: string | null;
   created_at: string;
+  revenue_verified?: boolean;
+  data_mode?: string;
   leads?: { first_name: string; last_name: string; company: string | null } | null;
 }
 
@@ -31,6 +35,19 @@ interface Lead {
   first_name: string;
   last_name: string;
   company: string | null;
+}
+
+interface PipelineTruth {
+  pipeline_value: number;
+  pipeline_count: number;
+  won_revenue: number;
+  won_count: number;
+  verified_won_count: number;
+  lost_value: number;
+  lost_count: number;
+  data_quality_status: string;
+  demo_mode: boolean;
+  stripe_connected: boolean;
 }
 
 const STAGES = [
@@ -52,6 +69,8 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
   const [loading, setLoading] = useState(true);
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pipelineTruth, setPipelineTruth] = useState<PipelineTruth | null>(null);
+  const { demoMode } = useDemoMode();
   const [newDeal, setNewDeal] = useState({
     name: "",
     value: 0,
@@ -64,13 +83,36 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
   useEffect(() => {
     fetchDeals();
     fetchLeads();
-  }, []);
+    fetchPipelineTruth();
+  }, [workspaceId]);
+
+  const fetchPipelineTruth = async () => {
+    if (!workspaceId) return;
+    try {
+      const { data, error } = await supabase
+        .from("v_crm_pipeline_truth")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching pipeline truth:", error);
+        return;
+      }
+      setPipelineTruth(data);
+    } catch (error) {
+      console.error("Error fetching pipeline truth:", error);
+    }
+  };
 
   const fetchDeals = async () => {
+    if (!workspaceId) return;
     try {
+      // Fetch deals with data_mode filter based on workspace mode
       const { data, error } = await supabase
         .from("deals")
         .select("*, leads(first_name, last_name, company)")
+        .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -176,16 +218,51 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
     );
   }
 
+  // Determine data quality status
+  const dataQualityStatus = pipelineTruth?.data_quality_status || 'UNKNOWN';
+  const isDemo = pipelineTruth?.demo_mode || demoMode;
+  const stripeConnected = pipelineTruth?.stripe_connected || false;
+
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Data Quality Banner */}
+      {dataQualityStatus === 'DEMO_MODE' && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <AlertTitle className="flex items-center gap-2">
+            Demo Mode Active
+            <Badge variant="outline" className="text-amber-500 border-amber-500">Demo Data</Badge>
+          </AlertTitle>
+          <AlertDescription>
+            Pipeline values are simulated projections. Toggle off demo mode in settings for live data.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {dataQualityStatus === 'NO_STRIPE_CONNECTED' && !isDemo && (
+        <Alert className="border-destructive/50 bg-destructive/10">
+          <ShieldAlert className="h-4 w-4 text-destructive" />
+          <AlertTitle className="flex items-center gap-2">
+            Revenue Verification Required
+            <Badge variant="outline" className="text-destructive border-destructive">Setup Required</Badge>
+          </AlertTitle>
+          <AlertDescription>
+            Connect Stripe to verify won revenue. Unverified revenue is shown as $0 in live mode.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Summary Cards - Using gated pipeline truth */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Pipeline</p>
-                <p className="text-2xl font-bold">${totalPipelineValue.toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground">Pipeline Value</p>
+                <p className="text-2xl font-bold">
+                  ${(pipelineTruth?.pipeline_value || totalPipelineValue).toLocaleString()}
+                </p>
+                {isDemo && <Badge variant="outline" className="text-xs mt-1">Projected</Badge>}
               </div>
               <DollarSign className="h-8 w-8 text-primary opacity-50" />
             </div>
@@ -195,8 +272,23 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Weighted Value</p>
-                <p className="text-2xl font-bold">${weightedValue.toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground">Won Revenue</p>
+                <p className="text-2xl font-bold">
+                  ${(pipelineTruth?.won_revenue || 0).toLocaleString()}
+                </p>
+                {!isDemo && stripeConnected && pipelineTruth?.verified_won_count !== undefined && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <span className="text-xs text-muted-foreground">
+                      {pipelineTruth.verified_won_count} verified
+                    </span>
+                  </div>
+                )}
+                {!isDemo && !stripeConnected && (
+                  <Badge variant="outline" className="text-xs mt-1 text-destructive border-destructive">
+                    Unverified
+                  </Badge>
+                )}
               </div>
               <TrendingUp className="h-8 w-8 text-green-500 opacity-50" />
             </div>
@@ -207,7 +299,9 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active Deals</p>
-                <p className="text-2xl font-bold">{deals.filter(d => !["closed_won", "closed_lost"].includes(d.stage)).length}</p>
+                <p className="text-2xl font-bold">
+                  {pipelineTruth?.pipeline_count || deals.filter(d => !["closed_won", "closed_lost"].includes(d.stage)).length}
+                </p>
               </div>
               <Building className="h-8 w-8 text-blue-500 opacity-50" />
             </div>
@@ -316,12 +410,30 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
             <CardContent>
               <ScrollArea className="h-[320px] pr-2">
                 <div className="space-y-2">
-                  {getStageDeals(stage.id).map(deal => (
+                  {getStageDeals(stage.id).length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No deals in this stage
+                    </div>
+                  ) : getStageDeals(stage.id).map(deal => (
                     <Card key={deal.id} className="cursor-pointer hover:shadow-md transition-shadow">
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{deal.name}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="font-medium text-sm truncate">{deal.name}</p>
+                              {/* Verification badge for closed_won deals */}
+                              {deal.stage === 'closed_won' && (
+                                deal.revenue_verified ? (
+                                  <span title="Revenue verified via Stripe">
+                                    <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                                  </span>
+                                ) : (
+                                  <span title="Revenue not verified">
+                                    <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
+                                  </span>
+                                )
+                              )}
+                            </div>
                             {deal.leads && (
                               <p className="text-xs text-muted-foreground truncate">
                                 {deal.leads.first_name} {deal.leads.last_name}
