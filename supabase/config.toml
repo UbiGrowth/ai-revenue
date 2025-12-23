@@ -312,3 +312,6 @@ verify_jwt = true
 
 [functions.elevenlabs-test-connection]
 verify_jwt = true
+
+[functions.weekly-software-updates]
+verify_jwt = false
