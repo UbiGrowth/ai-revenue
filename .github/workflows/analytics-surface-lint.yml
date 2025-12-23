@@ -1,0 +1,96 @@
+name: Analytics Surface Lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**/*.tsx'
+      - 'src/**/*.ts'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**/*.tsx'
+      - 'src/**/*.ts'
+
+jobs:
+  lint-analytics-surfaces:
+    name: Verify Analytics Use Authoritative Views
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for raw table queries in dashboard/analytics components
+        run: |
+          echo "🔍 Checking for direct raw table queries in analytics surfaces..."
+          echo ""
+          
+          # Define forbidden patterns - raw tables that should NOT be queried directly
+          FORBIDDEN_TABLES="deals|leads|campaign_metrics|email_events|cmo_metrics_snapshots|campaign_channel_stats_daily"
+          
+          # Define allowed authoritative views
+          ALLOWED_VIEWS="v_pipeline_metrics_by_workspace|v_campaign_metrics_gated|v_impressions_clicks_by_workspace|v_revenue_by_workspace|v_crm_source_of_truth|v_crm_lead_pipeline|v_crm_conversion_funnel|v_data_quality_by_workspace|v_cmo_metrics_by_workspace"
+          
+          # Files to check (dashboard and analytics components)
+          CHECK_PATTERNS="src/pages/Dashboard.tsx src/pages/Reports.tsx src/pages/CRM.tsx src/components/crm/*.tsx src/hooks/usePipelineMetrics.ts src/hooks/useCRMSourceOfTruth.ts"
+          
+          VIOLATIONS=0
+          
+          # Check each relevant file for raw table queries
+          for pattern in $CHECK_PATTERNS; do
+            for file in $pattern; do
+              if [ -f "$file" ]; then
+                # Look for .from("raw_table") patterns that aren't views
+                if grep -E "\.from\(['\"]($FORBIDDEN_TABLES)['\"]" "$file" 2>/dev/null; then
+                  echo "❌ VIOLATION in $file: Direct query to raw table detected"
+                  echo "   Dashboard components must use authoritative views:"
+                  echo "   - v_pipeline_metrics_by_workspace"
+                  echo "   - v_campaign_metrics_gated"
+                  echo "   - v_impressions_clicks_by_workspace"
+                  echo "   - v_revenue_by_workspace"
+                  echo "   - v_crm_source_of_truth"
+                  echo ""
+                  VIOLATIONS=$((VIOLATIONS + 1))
+                fi
+              fi
+            done
+          done
+          
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo ""
+            echo "❌ Found $VIOLATIONS violation(s)"
+            echo ""
+            echo "RULE: UI analytics surfaces may ONLY query authoritative views."
+            echo "This prevents 'fake numbers' incidents and ensures data consistency."
+            echo ""
+            echo "To fix: Use the appropriate hook instead of direct table queries:"
+            echo "  - usePipelineMetrics() for pipeline KPIs"
+            echo "  - useCRMSourceOfTruth() for CRM metrics"
+            echo "  - views for any other analytics data"
+            exit 1
+          fi
+          
+          echo "✅ All analytics surfaces use authoritative views"
+
+      - name: Verify hooks use views only
+        run: |
+          echo "🔍 Verifying CRM/Pipeline hooks query views, not raw tables..."
+          
+          HOOK_FILES="src/hooks/usePipelineMetrics.ts src/hooks/useCRMSourceOfTruth.ts"
+          
+          for file in $HOOK_FILES; do
+            if [ -f "$file" ]; then
+              echo "Checking $file..."
+              
+              # These hooks SHOULD query views (v_*), not raw tables
+              if grep -E "\.from\(['\"]v_" "$file" > /dev/null; then
+                echo "  ✅ Uses authoritative view"
+              else
+                echo "  ⚠️ Warning: No view query found - verify implementation"
+              fi
+            fi
+          done
+          
+          echo ""
+          echo "✅ Hook verification complete"
