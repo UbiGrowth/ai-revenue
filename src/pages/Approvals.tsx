@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, X, PlayCircle, Mail, Phone, Layout, Video, Loader2, RefreshCw, FlaskConical, Image, Eye } from "lucide-react";
+import { CheckCircle, X, PlayCircle, Mail, Phone, Layout, Video, Loader2, RefreshCw, Send, Image, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import NavBar from "@/components/NavBar";
 import PageBreadcrumbs from "@/components/PageBreadcrumbs";
@@ -14,6 +14,7 @@ import WorkflowProgress from "@/components/WorkflowProgress";
 import { Progress } from "@/components/ui/progress";
 import { getCampaignPlaceholder } from "@/lib/placeholders";
 import { CampaignRunDetailsDrawer } from "@/components/campaigns/CampaignRunDetailsDrawer";
+import { TestEmailDialog } from "@/components/TestEmailDialog";
 
 interface PendingAsset {
   id: string;
@@ -47,12 +48,15 @@ const Approvals = () => {
   const [videoStatuses, setVideoStatuses] = useState<Map<string, VideoStatus>>(new Map());
   const [showQueuePanel, setShowQueuePanel] = useState(false);
   const [generatingThumbnails, setGeneratingThumbnails] = useState<Set<string>>(new Set());
-  const [creatingABTest, setCreatingABTest] = useState<Set<string>>(new Set());
+  // creatingABTest state removed - A/B testing replaced with Test Email
   const [bulkGeneratingThumbnails, setBulkGeneratingThumbnails] = useState(false);
   const [thumbnailProgress, setThumbnailProgress] = useState({ current: 0, total: 0 });
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [selectedAssetForRun, setSelectedAssetForRun] = useState<PendingAsset | null>(null);
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
+  const [selectedAssetForTest, setSelectedAssetForTest] = useState<PendingAsset | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBusinessProfile();
@@ -114,6 +118,7 @@ const Approvals = () => {
       if (data) {
         setBusinessProfile(data);
       }
+      setWorkspaceId(workspaceId);
     } catch (error) {
       console.error("Error fetching business profile:", error);
     }
@@ -346,44 +351,7 @@ const Approvals = () => {
     fetchPendingAssets();
   };
 
-  const createABTest = async (asset: PendingAsset) => {
-    setCreatingABTest(prev => new Set(prev).add(asset.id));
-    try {
-      toast({
-        title: "Creating A/B Test",
-        description: `Generating variations for ${asset.name}...`,
-      });
-
-      const { data, error } = await supabase.functions.invoke("ab-test-create", {
-        body: {
-          assetId: asset.id,
-          variations: 2,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "A/B Test Created",
-        description: `${data.variations?.length || 2} variations created. Review them in the queue.`,
-      });
-
-      fetchPendingAssets();
-    } catch (error) {
-      console.error("A/B test creation error:", error);
-      toast({
-        variant: "destructive",
-        title: "A/B Test Failed",
-        description: "Failed to create test variations",
-      });
-    } finally {
-      setCreatingABTest(prev => {
-        const next = new Set(prev);
-        next.delete(asset.id);
-        return next;
-      });
-    }
-  };
+  // A/B Test function removed - replaced with Test Email feature
   
   // Process video queue with throttling
   useEffect(() => {
@@ -874,7 +842,6 @@ const Approvals = () => {
                                   </Badge>
                                   {hasABTest && (
                                     <Badge variant="secondary" className="flex items-center gap-1">
-                                      <FlaskConical className="h-3 w-3" />
                                       {hasABTest.is_control ? "Control" : `Variant ${hasABTest.variant}`}
                                     </Badge>
                                   )}
@@ -900,18 +867,20 @@ const Approvals = () => {
                                 </Badge>
                               ) : (
                                 <>
-                                  {/* A/B Test Button - Coming Soon */}
-                                  {!hasABTest && (
+                                  {/* Test Email Button - Only for email assets */}
+                                  {asset.type === "email" && (
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      disabled
-                                      className="flex items-center gap-1 opacity-60"
-                                      title="A/B testing coming soon"
+                                      onClick={() => {
+                                        setSelectedAssetForTest(asset);
+                                        setTestEmailOpen(true);
+                                      }}
+                                      className="flex items-center gap-1"
+                                      title="Send test email"
                                     >
-                                      <FlaskConical className="h-4 w-4" />
-                                      A/B Test
-                                      <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0">Soon</Badge>
+                                      <Send className="h-4 w-4" />
+                                      Test
                                     </Button>
                                   )}
                                   {/* Generate Thumbnail Button */}
@@ -991,6 +960,16 @@ const Approvals = () => {
             campaignName={selectedAssetForRun.name}
             open={runDetailsOpen}
             onOpenChange={setRunDetailsOpen}
+          />
+        )}
+
+        {/* Test Email Dialog */}
+        {selectedAssetForTest && (
+          <TestEmailDialog
+            open={testEmailOpen}
+            onOpenChange={setTestEmailOpen}
+            asset={selectedAssetForTest}
+            workspaceId={workspaceId || undefined}
           />
         )}
       </div>

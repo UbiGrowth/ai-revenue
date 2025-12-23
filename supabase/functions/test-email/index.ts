@@ -1,12 +1,20 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Only allow test emails to these addresses for safety
-const ALLOWED_TEST_EMAILS = ["bill@ubigrowth.com", "test@ubigrowth.com"];
+interface TestEmailRequest {
+  recipients: string[];  // Array of email addresses
+  subject: string;
+  body: string;
+  fromName?: string;
+  fromAddress?: string;
+  assetId?: string;
+  // Legacy single recipient support
+  to?: string;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,11 +22,28 @@ serve(async (req) => {
   }
 
   try {
-    const { to, subject, body, fromName, fromAddress } = await req.json();
+    const requestData: TestEmailRequest = await req.json();
+    const { recipients, subject, body, fromName, fromAddress, assetId, to } = requestData;
 
-    if (!to || !ALLOWED_TEST_EMAILS.includes(to.toLowerCase())) {
+    // Support both new array format and legacy single 'to' format
+    let emailList: string[] = [];
+    if (recipients && Array.isArray(recipients)) {
+      emailList = recipients.filter(e => e && typeof e === 'string' && e.includes('@'));
+    } else if (to) {
+      emailList = [to];
+    }
+
+    if (emailList.length === 0) {
       return new Response(
-        JSON.stringify({ error: `Test emails only allowed to: ${ALLOWED_TEST_EMAILS.join(", ")}` }),
+        JSON.stringify({ error: "No valid email recipients provided" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Limit to 20 recipients per test
+    if (emailList.length > 20) {
+      return new Response(
+        JSON.stringify({ error: "Maximum 20 test recipients allowed" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -46,39 +71,56 @@ serve(async (req) => {
       </div>
     `;
 
-    console.log(`[test-email] Sending test email to ${to} from ${senderName} <${senderAddress}>`);
-
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: `${senderName} <${senderAddress}>`,
-        to: [to],
-        subject: emailSubject,
-        html: emailBody,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error(`[test-email] Resend error:`, result);
-      return new Response(
-        JSON.stringify({ error: result.message || "Failed to send email", details: result }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    console.log(`[test-email] Sending test email to ${emailList.length} recipient(s) from ${senderName} <${senderAddress}>`);
+    if (assetId) {
+      console.log(`[test-email] Asset ID: ${assetId}`);
     }
 
-    console.log(`[test-email] Success! Email ID: ${result.id}`);
+    // Send to all recipients using Resend API directly
+    const results = await Promise.allSettled(
+      emailList.map(async (recipient) => {
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: `${senderName} <${senderAddress}>`,
+            to: [recipient],
+            subject: emailSubject,
+            html: emailBody,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Failed to send to ${recipient}`);
+        }
+        
+        return { recipient, response: await response.json() };
+      })
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled');
+    const failed = results.filter(r => r.status === 'rejected');
+
+    console.log(`[test-email] Sent: ${successful.length}, Failed: ${failed.length}`);
+
+    if (failed.length > 0) {
+      failed.forEach((f, i) => {
+        if (f.status === 'rejected') {
+          console.error(`[test-email] Failed for recipient ${i}:`, f.reason);
+        }
+      });
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        emailId: result.id,
-        to,
+        sentCount: successful.length,
+        failedCount: failed.length,
+        recipients: emailList,
         from: `${senderName} <${senderAddress}>`,
         subject: emailSubject,
       }),
