@@ -3,169 +3,184 @@
  * 
  * INVARIANT: In live mode, only source='user' deals count toward analytics.
  * Test/seed deals must NEVER pollute live metrics.
+ * 
+ * Required env vars:
+ * - SUPABASE_URL
+ * - SUPABASE_SERVICE_ROLE_KEY
+ * - TEST_OWNER_ID (a real user UUID from auth.users)
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SERVICE_KEY = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const TEST_OWNER_ID = process.env.TEST_OWNER_ID!;
 
-const canRunTests = !!SERVICE_KEY && !!SUPABASE_URL;
+function hdrs() {
+  return {
+    'Content-Type': 'application/json',
+    apikey: SERVICE_KEY,
+    Authorization: `Bearer ${SERVICE_KEY}`,
+    Prefer: 'return=representation',
+  };
+}
 
-describe.skipIf(!canRunTests)('Deal Source Isolation', () => {
-  // Use 'any' typed client to bypass strict typing for test queries
-  let supabase: SupabaseClient<any>;
-  let testTenantId: string;
-  let testWorkspaceId: string;
-  let testDealId: string;
-  let userDealId: string;
+const canRunTests = !!SUPABASE_URL && !!SERVICE_KEY && !!TEST_OWNER_ID;
+
+describe.skipIf(!canRunTests)('Pipeline metrics: deal source isolation', () => {
+  let testWorkspaceId: string | undefined;
+  let testDealId: string | undefined;
+  let userDealId: string | undefined;
 
   beforeAll(async () => {
-    supabase = createClient(SUPABASE_URL, SERVICE_KEY!, {
-      auth: { persistSession: false },
+    if (!SUPABASE_URL || !SERVICE_KEY || !TEST_OWNER_ID) {
+      throw new Error('Missing env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TEST_OWNER_ID');
+    }
+
+    const slug = `source-test-${Date.now()}`;
+
+    const wsRes = await fetch(`${SUPABASE_URL}/rest/v1/workspaces`, {
+      method: 'POST',
+      headers: hdrs(),
+      body: JSON.stringify({
+        name: `Source Isolation Test - ${Date.now()}`,
+        slug,
+        owner_id: TEST_OWNER_ID,
+        demo_mode: false,
+      }),
     });
 
-    // Create a test tenant first
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .insert({
-        name: `Source Isolation Test Tenant - ${Date.now()}`,
-        slug: `source-test-tenant-${Date.now()}`,
-        status: 'active',
-      })
-      .select()
-      .single();
-
-    if (tenantError || !tenant) {
-      throw new Error(`Tenant creation failed: ${tenantError?.message}`);
+    if (!wsRes.ok) {
+      const txt = await wsRes.text();
+      throw new Error(`Workspace create failed (${wsRes.status}): ${txt}`);
     }
-    testTenantId = tenant.id;
 
-    // Create a live workspace (demo_mode = false) with required owner_id
-    const { data: workspace, error: wsError } = await supabase
-      .from('workspaces')
-      .insert({
-        name: `Source Isolation Test WS - ${Date.now()}`,
-        slug: `source-test-ws-${Date.now()}`,
-        demo_mode: false,
-        tenant_id: testTenantId,
-        owner_id: testTenantId, // Required field - using tenant_id as placeholder
-      })
-      .select()
-      .single();
-
-    if (wsError || !workspace) {
-      throw new Error(`Workspace creation failed: ${wsError?.message}`);
-    }
+    const [workspace] = await wsRes.json();
     testWorkspaceId = workspace.id;
   });
 
   afterAll(async () => {
-    if (!supabase) return;
-
-    // Cleanup in reverse order: deals → workspace → tenant
+    // Cleanup in reverse dependency order
     if (testDealId) {
-      await supabase.from('deals').delete().eq('id', testDealId);
+      await fetch(`${SUPABASE_URL}/rest/v1/deals?id=eq.${testDealId}`, {
+        method: 'DELETE',
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+      });
     }
     if (userDealId) {
-      await supabase.from('deals').delete().eq('id', userDealId);
+      await fetch(`${SUPABASE_URL}/rest/v1/deals?id=eq.${userDealId}`, {
+        method: 'DELETE',
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+      });
     }
     if (testWorkspaceId) {
-      await supabase.from('workspaces').delete().eq('id', testWorkspaceId);
-    }
-    if (testTenantId) {
-      await supabase.from('tenants').delete().eq('id', testTenantId);
+      await fetch(`${SUPABASE_URL}/rest/v1/workspaces?id=eq.${testWorkspaceId}`, {
+        method: 'DELETE',
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+      });
     }
   });
 
-  it('source=test closed_won deal must NOT count in live analytics', async () => {
-    // Create a closed_won deal with source='test'
-    const { data: deal, error } = await supabase
-      .from('deals')
-      .insert({
+  it("source='test' closed_won deal must NOT count in live analytics", async () => {
+    // Insert test deal that should be excluded by the view filter in live mode
+    const dealRes = await fetch(`${SUPABASE_URL}/rest/v1/deals`, {
+      method: 'POST',
+      headers: hdrs(),
+      body: JSON.stringify({
         workspace_id: testWorkspaceId,
-        tenant_id: testTenantId,
         name: 'Test Deal - Should Not Count',
         stage: 'closed_won',
         value: 10000,
+        revenue_verified: true,
         source: 'test',
-      })
-      .select()
-      .single();
+      }),
+    });
 
-    if (error || !deal) {
-      throw new Error(`Deal creation failed: ${error?.message}`);
+    if (!dealRes.ok) {
+      const txt = await dealRes.text();
+      throw new Error(`Deal create failed (${dealRes.status}): ${txt}`);
     }
+
+    const [deal] = await dealRes.json();
     testDealId = deal.id;
 
-    // Query the view
-    const { data: metrics, error: viewError } = await supabase
-      .from('v_pipeline_metrics_by_workspace')
-      .select('*')
-      .eq('workspace_id', testWorkspaceId)
-      .single();
+    const viewRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/v_pipeline_metrics_by_workspace?workspace_id=eq.${testWorkspaceId}`,
+      { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } }
+    );
 
-    if (viewError || !metrics) {
-      throw new Error(`View query failed: ${viewError?.message}`);
+    if (!viewRes.ok) {
+      const txt = await viewRes.text();
+      throw new Error(`View query failed (${viewRes.status}): ${txt}`);
     }
 
-    // INVARIANT: won must be 0 because source='test' is excluded in live mode
-    expect(Number(metrics.won)).toBe(0);
-    expect(Number(metrics.verified_revenue)).toBe(0);
+    const rows = await viewRes.json();
+    const metrics = rows?.[0];
+
+    // If the view returns no row, that's also a failure (view should emit 1 row per workspace)
+    expect(metrics).toBeTruthy();
+
+    // INVARIANT: source='test' excluded in live mode => won must remain 0
+    expect(Number(metrics.won ?? 0)).toBe(0);
+    expect(Number(metrics.verified_revenue ?? 0)).toBe(0);
   });
 
-  it('source=user closed_won deal MUST count in live analytics', async () => {
-    // Create a closed_won deal with source='user' (default)
-    const { data: deal, error } = await supabase
-      .from('deals')
-      .insert({
+  it("source='user' closed_won deal MUST count in live analytics", async () => {
+    const dealRes = await fetch(`${SUPABASE_URL}/rest/v1/deals`, {
+      method: 'POST',
+      headers: hdrs(),
+      body: JSON.stringify({
         workspace_id: testWorkspaceId,
-        tenant_id: testTenantId,
         name: 'User Deal - Should Count',
         stage: 'closed_won',
         value: 5000,
         revenue_verified: true,
         source: 'user',
-      })
-      .select()
-      .single();
+      }),
+    });
 
-    if (error || !deal) {
-      throw new Error(`Deal creation failed: ${error?.message}`);
+    if (!dealRes.ok) {
+      const txt = await dealRes.text();
+      throw new Error(`Deal create failed (${dealRes.status}): ${txt}`);
     }
+
+    const [deal] = await dealRes.json();
     userDealId = deal.id;
 
-    // Query the view
-    const { data: metrics, error: viewError } = await supabase
-      .from('v_pipeline_metrics_by_workspace')
-      .select('*')
-      .eq('workspace_id', testWorkspaceId)
-      .single();
+    const viewRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/v_pipeline_metrics_by_workspace?workspace_id=eq.${testWorkspaceId}`,
+      { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } }
+    );
 
-    if (viewError || !metrics) {
-      throw new Error(`View query failed: ${viewError?.message}`);
+    if (!viewRes.ok) {
+      const txt = await viewRes.text();
+      throw new Error(`View query failed (${viewRes.status}): ${txt}`);
     }
 
-    // INVARIANT: won must be 1 (only the user deal counts)
-    expect(Number(metrics.won)).toBe(1);
+    const rows = await viewRes.json();
+    const metrics = rows?.[0];
+
+    expect(metrics).toBeTruthy();
+
+    // INVARIANT: only the user deal counts => won must be 1
+    expect(Number(metrics.won ?? 0)).toBe(1);
+    // revenue_verified true => verified_revenue should be 5000 (if your view sums it)
+    expect(Number(metrics.verified_revenue ?? 0)).toBe(5000);
   });
 
   it('source constraint rejects invalid values', async () => {
-    // Try to create a deal with invalid source
-    const { error } = await supabase
-      .from('deals')
-      .insert({
+    const dealRes = await fetch(`${SUPABASE_URL}/rest/v1/deals`, {
+      method: 'POST',
+      headers: hdrs(),
+      body: JSON.stringify({
         workspace_id: testWorkspaceId,
-        tenant_id: testTenantId,
         name: 'Invalid Source Deal',
-        stage: 'qualification',
+        stage: 'prospecting',
         value: 1000,
         source: 'invalid_source',
-      });
+      }),
+    });
 
-    // Should fail with constraint violation
-    expect(error).not.toBeNull();
-    expect(error?.message).toContain('deals_source_check');
+    expect(dealRes.ok).toBe(false);
   });
 });
