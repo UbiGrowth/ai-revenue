@@ -365,26 +365,27 @@ const VoiceAgents = () => {
 
   // GATING RULES (NON-NEGOTIABLE):
   // - demoMode = false: NEVER use SAMPLE_* under any condition
-  // - demoMode = true: SAMPLE_* allowed only when real arrays are empty
+  // - demoMode = true: SAMPLE_* allowed only when real data is absent
   const showSamples = demoMode === true;
 
-  const displayAnalytics: VapiAnalytics | null = useMemo(() => {
+  const ZERO_ANALYTICS: VapiAnalytics = {
+    totalCalls: 0,
+    completedCalls: 0,
+    totalDurationMinutes: 0,
+    averageCallDuration: 0,
+    callsByType: {},
+    callsByStatus: {},
+  };
+
+  const displayAnalytics: VapiAnalytics = useMemo(() => {
+    // Demo mode: sample only if analytics is null/undefined
     if (showSamples) return analytics ?? SAMPLE_ANALYTICS;
 
-    // Live mode: if no connected voice provider, KPIs must show zeros
-    if (!voiceConnected) {
-      return {
-        totalCalls: 0,
-        completedCalls: 0,
-        totalDurationMinutes: 0,
-        averageCallDuration: 0,
-        callsByType: {},
-        callsByStatus: {},
-      };
-    }
+    // Live mode: disconnected => zeros
+    if (!voiceConnected) return ZERO_ANALYTICS;
 
-    // Live mode + connected: real data only (no sample fallback)
-    return analytics;
+    // Live mode + connected: real only, but never null in UI
+    return analytics ?? ZERO_ANALYTICS;
   }, [showSamples, voiceConnected, analytics]);
 
   const displayCalls = showSamples
@@ -398,6 +399,9 @@ const VoiceAgents = () => {
   const displayPhoneNumbers = showSamples
     ? (phoneNumbers.length ? phoneNumbers : SAMPLE_PHONE_NUMBERS)
     : (voiceConnected ? phoneNumbers : []);
+
+  // Banner trigger: show setup banner only in live mode when no voice provider
+  const showVoiceSetupBanner = !demoMode && !voiceConnected;
 
   // Create assistant dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
