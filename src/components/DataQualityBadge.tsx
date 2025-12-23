@@ -147,7 +147,7 @@ export function DataQualityBanner({
 /**
  * Helper to determine if KPIs should show real values or zeros
  */
-export function canShowKPI(status: DataQualityStatus, kpiType: 'revenue' | 'impressions' | 'pipeline' | 'all'): boolean {
+export function canShowKPI(status: DataQualityStatus, kpiType: 'revenue' | 'impressions' | 'pipeline' | 'voice' | 'all'): boolean {
   // Demo mode shows demo values
   if (status === 'DEMO_MODE') return true;
   
@@ -160,6 +160,8 @@ export function canShowKPI(status: DataQualityStatus, kpiType: 'revenue' | 'impr
       return status !== 'NO_STRIPE_CONNECTED' && status !== 'NO_PROVIDER_CONNECTED';
     case 'impressions':
       return status !== 'NO_ANALYTICS_CONNECTED' && status !== 'NO_PROVIDER_CONNECTED';
+    case 'voice':
+      return status !== 'NO_VOICE_PROVIDER_CONNECTED' && status !== 'NO_PROVIDER_CONNECTED';
     case 'pipeline':
       // Pipeline KPIs (leads, wins, losses) always show - they come from CRM
       return true;
@@ -176,7 +178,7 @@ export function canShowKPI(status: DataQualityStatus, kpiType: 'revenue' | 'impr
 export function formatGatedKPI(
   value: number | null | undefined,
   status: DataQualityStatus,
-  kpiType: 'revenue' | 'impressions' | 'pipeline' | 'all',
+  kpiType: 'revenue' | 'impressions' | 'pipeline' | 'voice' | 'all',
   formatter: (v: number) => string = (v) => v.toLocaleString()
 ): string {
   if (!canShowKPI(status, kpiType)) {
