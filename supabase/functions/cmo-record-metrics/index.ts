@@ -65,7 +65,17 @@ serve(async (req) => {
       });
     }
 
-    // Prepare snapshot inserts
+    // CRITICAL: Lookup workspace demo_mode to set correct data_mode
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('demo_mode')
+      .eq('id', input.tenant_id)
+      .maybeSingle();
+    
+    const dataMode = workspace?.demo_mode ? 'demo' : 'live';
+    console.log(`[cmo-record-metrics] Workspace ${input.tenant_id} demo_mode=${workspace?.demo_mode}, using data_mode=${dataMode}`);
+
+    // Prepare snapshot inserts with correct data_mode
     const snapshotInserts = input.snapshots.map(snapshot => ({
       workspace_id: input.tenant_id,
       tenant_id: input.tenant_id,
@@ -81,7 +91,8 @@ serve(async (req) => {
       cost: snapshot.cost || 0,
       revenue: snapshot.revenue || 0,
       roi: snapshot.roi || 0,
-      custom_metrics: snapshot.custom_metrics || {}
+      custom_metrics: snapshot.custom_metrics || {},
+      data_mode: dataMode, // CRITICAL: Set based on workspace demo_mode
     }));
 
     const { data: snapshots, error: snapshotsError } = await supabase
