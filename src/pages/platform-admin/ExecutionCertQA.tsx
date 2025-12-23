@@ -196,10 +196,12 @@ export default function ExecutionCertQA() {
       duplicates: number;
       oldestQueuedAge: number;
       activeWorkers: number;
+      distinctLockedBy: number; // Distinct worker IDs that claimed jobs
     };
     l3a_no_duplicates?: boolean;
     l3b_queue_age_ok?: boolean;
     l3c_workers_active?: boolean;
+    l3d_distinct_workers?: boolean; // NEW: Requires ≥2 distinct locked_by
   } | null>(null);
   const [creatingL3Test, setCreatingL3Test] = useState(false);
   const [deployingL3Test, setDeployingL3Test] = useState(false);
@@ -802,10 +804,12 @@ export default function ExecutionCertQA() {
           setL3TestResult(prev => prev ? {
             ...prev,
             l3c_workers_active: false,
+            l3d_distinct_workers: false,
             hsMetrics: {
               duplicates: metricsResult.data.duplicate_groups_last_hour || 0,
               oldestQueuedAge: metricsResult.data.oldest_queued_age_seconds || 0,
               activeWorkers: 0,
+              distinctLockedBy: 0,
             },
           } : null);
           setDeployingL3Test(false);
@@ -866,25 +870,36 @@ export default function ExecutionCertQA() {
 
       const metrics = metricsResult.data;
       
+      // Count distinct worker IDs that have claimed jobs
+      const distinctWorkerIds = new Set((metrics?.workers || [])
+        .filter((w: { worker_id: string; last_tick_at: string }) => {
+          const lastTick = new Date(w.last_tick_at).getTime();
+          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+          return lastTick > fiveMinutesAgo;
+        })
+        .map((w: { worker_id: string }) => w.worker_id)
+      );
+      const distinctLockedByCount = distinctWorkerIds.size;
+      
+      const activeWorkersCount = (metrics?.workers || []).filter((w: { last_tick_at: string }) => {
+        const lastTick = new Date(w.last_tick_at).getTime();
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        return lastTick > fiveMinutesAgo;
+      }).length;
+      
       setL3TestResult(prev => prev ? {
         ...prev,
         outboxCount: outboxData.length || 0,
         hsMetrics: metrics ? {
           duplicates: metrics.duplicate_groups_last_hour || 0,
           oldestQueuedAge: metrics.oldest_queued_age_seconds || 0,
-          activeWorkers: (metrics.workers || []).filter((w: { last_tick_at: string }) => {
-            const lastTick = new Date(w.last_tick_at).getTime();
-            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-            return lastTick > fiveMinutesAgo;
-          }).length,
+          activeWorkers: activeWorkersCount,
+          distinctLockedBy: distinctLockedByCount,
         } : undefined,
         l3a_no_duplicates: !hasDuplicates && (metrics?.duplicate_groups_last_hour || 0) === 0,
         l3b_queue_age_ok: (metrics?.oldest_queued_age_seconds || 0) < 180,
-        l3c_workers_active: (metrics?.workers || []).filter((w: { last_tick_at: string }) => {
-          const lastTick = new Date(w.last_tick_at).getTime();
-          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-          return lastTick > fiveMinutesAgo;
-        }).length >= 4,
+        l3c_workers_active: activeWorkersCount >= 4,
+        l3d_distinct_workers: distinctLockedByCount >= 2, // Require ≥2 distinct locked_by in production
       } : null);
       
       toast.success('L3 metrics refreshed');
@@ -989,10 +1004,11 @@ export default function ExecutionCertQA() {
     // Use l3TestResult.hsMetrics as the single source of truth for L3 scoped tests
     if (!l3TestResult?.hsMetrics) return 'pending';
     
-    const { l3a_no_duplicates, l3b_queue_age_ok, l3c_workers_active } = l3TestResult;
+    const { l3a_no_duplicates, l3b_queue_age_ok, l3c_workers_active, l3d_distinct_workers } = l3TestResult;
     
-    if (l3a_no_duplicates && l3b_queue_age_ok && l3c_workers_active) return 'pass';
-    if (l3a_no_duplicates === false || l3b_queue_age_ok === false || l3c_workers_active === false) return 'fail';
+    // All 4 checks must pass for L3 to pass
+    if (l3a_no_duplicates && l3b_queue_age_ok && l3c_workers_active && l3d_distinct_workers) return 'pass';
+    if (l3a_no_duplicates === false || l3b_queue_age_ok === false || l3c_workers_active === false || l3d_distinct_workers === false) return 'fail';
     return 'pending';
   };
 
@@ -1062,6 +1078,7 @@ export default function ExecutionCertQA() {
         if (!l3TestResult.l3a_no_duplicates) blocking.push('L3: Duplicates detected');
         if (!l3TestResult.l3b_queue_age_ok) blocking.push('L3: Queue age > 180s');
         if (!l3TestResult.l3c_workers_active) blocking.push('L3: < 4 active workers');
+        if (!l3TestResult.l3d_distinct_workers) blocking.push('L3: < 2 distinct locked_by workers');
       } else {
         blocking.push('L3: Not tested');
       }
@@ -2508,24 +2525,24 @@ export default function ExecutionCertQA() {
               {/* Overall L3 PASS/FAIL */}
               {l3TestResult.l3a_no_duplicates !== undefined && (
                 <div className={`p-4 rounded-lg border ${
-                  l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok && l3TestResult.l3c_workers_active
+                  l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok && l3TestResult.l3c_workers_active && l3TestResult.l3d_distinct_workers
                     ? 'border-green-500 bg-green-500/10' 
                     : l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok
                     ? 'border-yellow-500 bg-yellow-500/10'
                     : 'border-red-500 bg-red-500/10'
                 }`}>
                   <div className="flex items-center gap-2">
-                    {l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok && l3TestResult.l3c_workers_active ? (
+                    {l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok && l3TestResult.l3c_workers_active && l3TestResult.l3d_distinct_workers ? (
                       <>
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
                         <span className="font-medium">Gate L3: PASS</span>
-                        <span className="text-sm text-muted-foreground">- Scale-safe run verified</span>
+                        <span className="text-sm text-muted-foreground">- Scale-safe run verified ({l3TestResult.hsMetrics?.distinctLockedBy || 0} distinct workers)</span>
                       </>
                     ) : l3TestResult.l3a_no_duplicates && l3TestResult.l3b_queue_age_ok ? (
                       <>
                         <AlertTriangle className="h-5 w-5 text-yellow-600" />
                         <span className="font-medium">Gate L3: PARTIAL</span>
-                        <span className="text-sm text-muted-foreground">- No duplicates, but need more active workers</span>
+                        <span className="text-sm text-muted-foreground">- No duplicates, but need ≥2 distinct workers ({l3TestResult.hsMetrics?.distinctLockedBy || 0} found)</span>
                       </>
                     ) : (
                       <>

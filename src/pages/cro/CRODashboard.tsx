@@ -67,7 +67,24 @@ export default function CRODashboard() {
     setIsLoading(true);
 
     try {
-      // Fetch open pipeline from deals
+      const workspaceId = dataIntegrity.workspaceId;
+      
+      // GATED: Fetch pipeline metrics from authoritative view (not raw deals table)
+      let openPipeline = 0;
+      if (workspaceId) {
+        const { data: pipelineData } = await supabase
+          .from('v_pipeline_metrics_by_workspace' as any)
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .maybeSingle() as { data: any };
+        
+        if (pipelineData) {
+          // Use gated pipeline value from view
+          openPipeline = Number(pipelineData.pipeline_value || 0);
+        }
+      }
+      
+      // Fetch deals for display list only (not for metrics calculation)
       const { data: deals } = await supabase
         .from("deals")
         .select("id, name, value, stage, probability")
@@ -76,7 +93,6 @@ export default function CRODashboard() {
         .order("value", { ascending: false })
         .limit(10);
 
-      const openPipeline = deals?.reduce((sum, d) => sum + (d.value || 0), 0) || 0;
       setTopDeals(deals || []);
 
       // Fetch current period forecast

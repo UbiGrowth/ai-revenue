@@ -396,6 +396,7 @@ const CRM = () => {
           ...newLead,
           created_by: user.user?.id,
           workspace_id: workspaceId,
+          source: 'user', // Explicit: user-created leads count in live analytics
         },
       ]);
 
@@ -530,6 +531,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
         created_by: user.user?.id,
         workspace_id: validWorkspaceId,
         segment_code: importSegmentCode || null,
+        source: 'user', // Explicit: imported leads count in live analytics
       }));
 
       const { error: insertError } = await supabase.from("leads").insert(leadsWithMetadata);
