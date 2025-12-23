@@ -32,11 +32,13 @@ export interface DataQualityState {
   canShowRevenue: boolean;
   canShowImpressions: boolean;
   canShowPipeline: boolean;
+  canShowVoice: boolean;
   stripeConnected: boolean;
   analyticsConnected: boolean;
+  voiceConnected: boolean;
   loading: boolean;
   // Utility functions
-  gateValue: (value: number | null | undefined, kpiType: 'revenue' | 'impressions' | 'pipeline') => number;
+  gateValue: (value: number | null | undefined, kpiType: 'revenue' | 'impressions' | 'pipeline' | 'voice') => number;
   formatRevenue: (value: number | null | undefined) => string;
   formatNumber: (value: number | null | undefined) => string;
   formatPercentage: (value: number | null | undefined) => string;
@@ -51,6 +53,7 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
   const [status, setStatus] = useState<ViewDataQualityStatus>('LIVE_OK');
   const [stripeConnected, setStripeConnected] = useState(false);
   const [analyticsConnected, setAnalyticsConnected] = useState(false);
+  const [voiceConnected, setVoiceConnected] = useState(false);
   
   const fetchViewStatus = useCallback(async () => {
     if (!workspaceId) {
@@ -87,6 +90,19 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
           setStatus((revenueData.data_quality_status as ViewDataQualityStatus) || 'LIVE_OK');
         }
       }
+      
+      // Fetch voice connection status from ai_settings_voice
+      const { data: voiceSettings } = await supabase
+        .from('ai_settings_voice')
+        .select('is_connected, vapi_private_key, elevenlabs_api_key')
+        .eq('tenant_id', workspaceId)
+        .maybeSingle();
+      
+      if (voiceSettings) {
+        const hasVapi = !!voiceSettings.vapi_private_key;
+        const hasElevenLabs = !!voiceSettings.elevenlabs_api_key;
+        setVoiceConnected(voiceSettings.is_connected === true || hasVapi || hasElevenLabs);
+      }
     } catch (err) {
       console.error('[useDataQualityStatus] Error fetching view status:', err);
     } finally {
@@ -111,10 +127,14 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
     return isDemoMode || isLiveOK || analyticsConnected;
   }, [isDemoMode, isLiveOK, analyticsConnected]);
   
+  const canShowVoice = useMemo(() => {
+    return isDemoMode || isLiveOK || voiceConnected;
+  }, [isDemoMode, isLiveOK, voiceConnected]);
+  
   const canShowPipeline = true; // Pipeline data always comes from CRM
   
   // Utility: gate a numeric value based on KPI type
-  const gateValue = useCallback((value: number | null | undefined, kpiType: 'revenue' | 'impressions' | 'pipeline'): number => {
+  const gateValue = useCallback((value: number | null | undefined, kpiType: 'revenue' | 'impressions' | 'pipeline' | 'voice'): number => {
     if (value === null || value === undefined) return 0;
     
     switch (kpiType) {
@@ -122,12 +142,14 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
         return canShowRevenue ? value : 0;
       case 'impressions':
         return canShowImpressions ? value : 0;
+      case 'voice':
+        return canShowVoice ? value : 0;
       case 'pipeline':
         return value; // Always show pipeline values
       default:
         return 0;
     }
-  }, [canShowRevenue, canShowImpressions]);
+  }, [canShowRevenue, canShowImpressions, canShowVoice]);
   
   // Utility: format revenue with gating
   const formatRevenue = useCallback((value: number | null | undefined): string => {
@@ -159,8 +181,10 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
     canShowRevenue,
     canShowImpressions,
     canShowPipeline,
+    canShowVoice,
     stripeConnected,
     analyticsConnected,
+    voiceConnected,
     loading,
     gateValue,
     formatRevenue,

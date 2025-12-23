@@ -391,13 +391,36 @@ const VoiceAgents = () => {
       ? 'LIVE_OK' 
       : 'NO_VOICE_PROVIDER_CONNECTED';
 
+  // Can show voice KPIs - only if demo OR voice provider connected
+  const canShowVoiceKPIs = demoMode || voiceConnected;
+
   // GATING RULES (NON-NEGOTIABLE):
   // - demoMode = false: NEVER use SAMPLE_* under any condition
   // - demoMode = true: SAMPLE_* allowed only when real arrays are empty
   const displayAssistants = demoMode ? (assistants.length ? assistants : SAMPLE_ASSISTANTS) : assistants;
   const displayPhoneNumbers = demoMode ? (phoneNumbers.length ? phoneNumbers : SAMPLE_PHONE_NUMBERS) : phoneNumbers;
   const displayCalls = demoMode ? (calls.length ? calls : SAMPLE_CALLS) : calls;
-  const displayAnalytics = demoMode ? (analytics ?? SAMPLE_ANALYTICS) : (analytics ?? null);
+  
+  // ANALYTICS GATING (HARDENED): Zero out analytics if not demo AND no voice provider
+  const displayAnalytics: VapiAnalytics | null = useMemo(() => {
+    // Demo mode: use sample data as fallback
+    if (demoMode) {
+      return analytics ?? SAMPLE_ANALYTICS;
+    }
+    // Live mode + no voice provider: show zeros
+    if (!voiceConnected) {
+      return {
+        totalCalls: 0,
+        completedCalls: 0,
+        totalDurationMinutes: 0,
+        averageCallDuration: 0,
+        callsByType: {},
+        callsByStatus: {},
+      };
+    }
+    // Live mode + connected: show real data or null
+    return analytics;
+  }, [demoMode, voiceConnected, analytics]);
 
   // Create assistant dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
