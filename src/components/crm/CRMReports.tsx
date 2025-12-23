@@ -78,9 +78,14 @@ export function CRMReports() {
     }
   };
 
-  // SINGLE SOURCE OF TRUTH: canShowLiveMetrics from dataIntegrity hook
-  // When false: No KPI math, no conversion rates, no win/loss, no ROI
-  const canShowKPIs = dataIntegrity.canShowLiveMetrics;
+  // CRM-SPECIFIC STRICTER RULES (no demo carryover, no inference)
+  // A "Won" deal requires: deal.status = 'won' AND (Stripe connected OR manual override)
+  // CRM is the source of truth for revenue reality - stricter than marketing dashboards
+  const isStripeConnected = dataIntegrity.integrations.stripe;
+  
+  // CRM gate: Only show CRM-derived metrics if Stripe is connected (no demo fallback)
+  // This is stricter than canShowLiveMetrics because CRM cannot rely on demo data
+  const canShowCRMMetrics = isStripeConnected;
 
   const dateFilteredLeads = useMemo(() => {
     const cutoff = subDays(new Date(), parseInt(dateRange));
@@ -92,21 +97,41 @@ export function CRMReports() {
     return deals.filter(d => new Date(d.created_at) >= cutoff);
   }, [deals, dateRange]);
 
-  // KPI Metrics
+  // KPI Metrics - Lead counts are always real (no demo inflation)
   const totalLeads = dateFilteredLeads.length;
-  const convertedLeads = dateFilteredLeads.filter(l => l.status === "converted").length;
-  const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+  
+  // CRM STRICT RULE: Converted leads require Stripe to verify revenue
+  const convertedLeads = canShowCRMMetrics 
+    ? dateFilteredLeads.filter(l => l.status === "converted").length 
+    : 0;
+  const conversionRate = canShowCRMMetrics && totalLeads > 0 
+    ? (convertedLeads / totalLeads) * 100 
+    : 0;
   const avgScore = dateFilteredLeads.length > 0 
     ? Math.round(dateFilteredLeads.reduce((sum, l) => sum + (l.score || 0), 0) / dateFilteredLeads.length)
     : 0;
 
-  const totalPipelineValue = dateFilteredDeals
-    .filter(d => !["closed_won", "closed_lost"].includes(d.stage))
-    .reduce((sum, d) => sum + (d.value || 0), 0);
+  // CRM STRICT RULE: Pipeline/Revenue values require Stripe
+  const totalPipelineValue = canShowCRMMetrics
+    ? dateFilteredDeals
+        .filter(d => !["closed_won", "closed_lost"].includes(d.stage))
+        .reduce((sum, d) => sum + (d.value || 0), 0)
+    : 0;
   
-  const wonDealsValue = dateFilteredDeals
-    .filter(d => d.stage === "closed_won")
-    .reduce((sum, d) => sum + (d.value || 0), 0);
+  // CRM STRICT RULE: Won deals require Stripe connected (no demo carryover)
+  const wonDeals = canShowCRMMetrics 
+    ? dateFilteredDeals.filter(d => d.stage === "closed_won")
+    : [];
+  const wonDealsCount = wonDeals.length;
+  const wonDealsValue = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+  
+  // CRM STRICT RULE: Win rate requires Stripe (otherwise "—")
+  const lostDeals = canShowCRMMetrics 
+    ? dateFilteredDeals.filter(d => d.stage === "closed_lost").length 
+    : 0;
+  const winRate = canShowCRMMetrics && (wonDealsCount + lostDeals) > 0
+    ? (wonDealsCount / (wonDealsCount + lostDeals)) * 100
+    : null; // null = show "—"
 
   // Lead trend data
   const leadTrendData = useMemo(() => {
@@ -189,23 +214,23 @@ export function CRMReports() {
     );
   }
 
-  // Gated KPI values - show 0 if not authorized to display
-  const gatedConversionRate = canShowKPIs ? conversionRate : 0;
-  const gatedPipelineValue = canShowKPIs ? totalPipelineValue : 0;
-  const gatedWonValue = canShowKPIs ? wonDealsValue : 0;
-  const gatedLeadTrendData = canShowKPIs ? leadTrendData : leadTrendData.map(d => ({ ...d, converted: 0 }));
-  const gatedVerticalData = canShowKPIs ? verticalData : verticalData.map(d => ({ ...d, converted: 0, rate: 0 }));
-  const gatedDealStageData = canShowKPIs ? dealStageData : dealStageData.map(d => ({ ...d, value: 0 }));
+  // Gated KPI values - CRM uses stricter canShowCRMMetrics (Stripe required, no demo)
+  const gatedConversionRate = canShowCRMMetrics ? conversionRate : 0;
+  const gatedPipelineValue = canShowCRMMetrics ? totalPipelineValue : 0;
+  const gatedWonValue = canShowCRMMetrics ? wonDealsValue : 0;
+  const gatedLeadTrendData = canShowCRMMetrics ? leadTrendData : leadTrendData.map(d => ({ ...d, converted: 0 }));
+  const gatedVerticalData = canShowCRMMetrics ? verticalData : verticalData.map(d => ({ ...d, converted: 0, rate: 0 }));
+  const gatedDealStageData = canShowCRMMetrics ? dealStageData : dealStageData.map(d => ({ ...d, value: 0 }));
 
   return (
     <div className="space-y-6">
-      {/* Data quality warning banner */}
-      {!canShowKPIs && (
+      {/* CRM-specific data quality warning banner */}
+      {!canShowCRMMetrics && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-500/10">
           <AlertCircle className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="text-amber-600">Limited Analytics</AlertTitle>
+          <AlertTitle className="text-amber-600">Revenue Data Unavailable</AlertTitle>
           <AlertDescription className="text-amber-600/80">
-            Connect your payment provider (Stripe) to see accurate conversion and revenue metrics. Currently showing lead counts only.
+            Connect Stripe to see accurate Won deals, Win rate, and Revenue metrics. CRM requires verified payment data — demo mode is not supported for revenue KPIs.
           </AlertDescription>
         </Alert>
       )}
@@ -230,7 +255,7 @@ export function CRMReports() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -247,7 +272,7 @@ export function CRMReports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Conversion Rate</p>
-                <p className="text-3xl font-bold">{canShowKPIs ? `${gatedConversionRate.toFixed(1)}%` : "—"}</p>
+                <p className="text-3xl font-bold">{canShowCRMMetrics ? `${gatedConversionRate.toFixed(1)}%` : "—"}</p>
               </div>
               <Target className="h-8 w-8 text-green-500 opacity-50" />
             </div>
@@ -257,8 +282,19 @@ export function CRMReports() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm text-muted-foreground">Win Rate</p>
+                <p className="text-3xl font-bold">{winRate !== null ? `${winRate.toFixed(1)}%` : "—"}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-emerald-500 opacity-50" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm text-muted-foreground">Pipeline Value</p>
-                <p className="text-3xl font-bold">{canShowKPIs ? `$${(gatedPipelineValue / 1000).toFixed(0)}K` : "—"}</p>
+                <p className="text-3xl font-bold">{canShowCRMMetrics ? `$${(gatedPipelineValue / 1000).toFixed(0)}K` : "—"}</p>
               </div>
               <DollarSign className="h-8 w-8 text-blue-500 opacity-50" />
             </div>
@@ -269,7 +305,7 @@ export function CRMReports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Won Revenue</p>
-                <p className="text-3xl font-bold">{canShowKPIs ? `$${(gatedWonValue / 1000).toFixed(0)}K` : "—"}</p>
+                <p className="text-3xl font-bold">{canShowCRMMetrics ? `$${(gatedWonValue / 1000).toFixed(0)}K` : "—"}</p>
               </div>
               <Award className="h-8 w-8 text-amber-500 opacity-50" />
             </div>
