@@ -92,16 +92,26 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
       }
       
       // Fetch voice connection status from ai_settings_voice
-      const { data: voiceSettings } = await supabase
-        .from('ai_settings_voice')
-        .select('is_connected, vapi_private_key, elevenlabs_api_key')
-        .eq('tenant_id', workspaceId)
+      // ai_settings_voice is keyed by tenant_id, NOT workspace_id
+      // First get tenant_id from workspace
+      const { data: wsData } = await supabase
+        .from('workspaces')
+        .select('tenant_id')
+        .eq('id', workspaceId)
         .maybeSingle();
       
-      if (voiceSettings) {
-        const hasVapi = !!voiceSettings.vapi_private_key;
-        const hasElevenLabs = !!voiceSettings.elevenlabs_api_key;
-        setVoiceConnected(voiceSettings.is_connected === true || hasVapi || hasElevenLabs);
+      if (wsData?.tenant_id) {
+        const { data: voiceSettings } = await supabase
+          .from('ai_settings_voice')
+          .select('is_connected, vapi_private_key, elevenlabs_api_key')
+          .eq('tenant_id', wsData.tenant_id)
+          .maybeSingle();
+        
+        if (voiceSettings) {
+          const hasVapi = !!voiceSettings.vapi_private_key;
+          const hasElevenLabs = !!voiceSettings.elevenlabs_api_key;
+          setVoiceConnected(voiceSettings.is_connected === true || hasVapi || hasElevenLabs);
+        }
       }
     } catch (err) {
       console.error('[useDataQualityStatus] Error fetching view status:', err);

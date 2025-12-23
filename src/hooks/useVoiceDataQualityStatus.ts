@@ -44,10 +44,10 @@ export function useVoiceDataQualityStatus(workspaceId?: string | null): VoiceDat
     setError(null);
 
     try {
-      // 1. Check workspace demo_mode
+      // 1. Fetch workspace demo_mode AND tenant_id (needed for ai_settings_voice lookup)
       const { data: workspace, error: workspaceError } = await supabase
         .from("workspaces")
-        .select("demo_mode")
+        .select("demo_mode, tenant_id")
         .eq("id", workspaceId)
         .maybeSingle();
 
@@ -59,10 +59,18 @@ export function useVoiceDataQualityStatus(workspaceId?: string | null): VoiceDat
       setIsDemoMode(workspace?.demo_mode === true);
 
       // 2. Check voice provider connectivity from ai_settings_voice
+      // ai_settings_voice is keyed by tenant_id, NOT workspace_id
+      const tenantId = workspace?.tenant_id;
+      if (!tenantId) {
+        // No tenant_id means voice settings won't exist
+        setVoiceConnected(false);
+        return;
+      }
+
       const { data: voiceSettings, error: voiceError } = await supabase
         .from("ai_settings_voice")
         .select("is_connected, vapi_private_key, elevenlabs_api_key, voice_provider")
-        .eq("tenant_id", workspaceId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
 
       if (voiceError) {
