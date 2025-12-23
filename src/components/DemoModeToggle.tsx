@@ -1,4 +1,5 @@
 // Sample Data Toggle - Controls workspace demo_mode with mutual exclusivity to live providers
+// SECURITY: Only admins and workspace owners can toggle demo_mode
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -6,8 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, Database, Zap } from "lucide-react";
-
+import { Loader2, AlertTriangle, Database, Zap, Lock } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 type WorkspaceRow = {
   id: string;
   tenant_id: string;
@@ -21,18 +22,19 @@ interface SampleDataToggleProps {
 }
 
 export function SampleDataToggle({ workspaceId, compact = false }: SampleDataToggleProps) {
+  const { user, isAdmin } = useAuth();
   const [ws, setWs] = useState<WorkspaceRow | null>(null);
   const [analyticsConnected, setAnalyticsConnected] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
-
-  // Load workspace + integration state
+  const [isOwner, setIsOwner] = useState(false);
+  // Load workspace + integration state + ownership
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       const { data: wsData, error: wsErr } = await supabase
         .from("workspaces")
-        .select("id,tenant_id,demo_mode,stripe_connected")
+        .select("id,tenant_id,demo_mode,stripe_connected,owner_id")
         .eq("id", workspaceId)
         .maybeSingle();
 
@@ -43,6 +45,11 @@ export function SampleDataToggle({ workspaceId, compact = false }: SampleDataTog
         return;
       }
       setWs(wsData);
+      
+      // Check if current user is workspace owner
+      if (user && wsData.owner_id === user.id) {
+        setIsOwner(true);
+      }
 
       // analytics connected: any active GA/Meta/LinkedIn integration
       const { data: siData, error: siErr } = await supabase
@@ -66,7 +73,12 @@ export function SampleDataToggle({ workspaceId, compact = false }: SampleDataTog
     return () => {
       mounted = false;
     };
-  }, [workspaceId]);
+  }, [workspaceId, user]);
+  
+  // Check if user can modify demo mode (admin or workspace owner only)
+  const canModifyDemoMode = useMemo(() => {
+    return isAdmin || isOwner;
+  }, [isAdmin, isOwner]);
 
   const hasLiveProviders = useMemo(() => {
     if (!ws) return false;
@@ -125,6 +137,12 @@ export function SampleDataToggle({ workspaceId, compact = false }: SampleDataTog
 
   const onToggle = async (next: boolean) => {
     if (!ws) return;
+    
+    // Security: only admins/owners can toggle
+    if (!canModifyDemoMode) {
+      toast.error("Only workspace owners and admins can change demo mode.");
+      return;
+    }
 
     // enforce rule: cannot enable demo mode if providers connected
     if (next === true && hasLiveProviders) {
@@ -158,21 +176,41 @@ export function SampleDataToggle({ workspaceId, compact = false }: SampleDataTog
         <Badge variant={badgeVariant} className="text-xs font-medium">
           {badgeText}
         </Badge>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          disabled={saving || (hasLiveProviders && !ws.demo_mode)}
-          onClick={() => onToggle(!ws.demo_mode)}
-          title={disabledReason || undefined}
-        >
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : ws.demo_mode ? "Go Live" : "Preview"}
-        </Button>
+        {canModifyDemoMode && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            disabled={saving || (hasLiveProviders && !ws.demo_mode)}
+            onClick={() => onToggle(!ws.demo_mode)}
+            title={disabledReason || undefined}
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : ws.demo_mode ? "Go Live" : "Preview"}
+          </Button>
+        )}
       </div>
     );
   }
 
   // Full version for settings page
+  // Only show to admins/owners
+  if (!canModifyDemoMode) {
+    return (
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <Lock className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <div className="font-semibold">Demo Mode Control</div>
+            <div className="text-sm text-muted-foreground">
+              Only workspace owners and admins can toggle demo mode.
+              Currently: <Badge variant={badgeVariant} className="ml-1">{badgeText}</Badge>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between gap-4">

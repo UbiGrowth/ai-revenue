@@ -783,6 +783,36 @@ export default function ExecutionCertQA() {
     
     setDeployingL3Test(true);
     try {
+      // PRE-CHECK: Verify workers are online before deploying L3
+      const metricsResult = await callQAFunction('get_hs_metrics', {
+        windowMinutes: 5,
+      });
+      
+      if (metricsResult.success && metricsResult.data) {
+        const workers = metricsResult.data.workers || [];
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        const activeWorkers = workers.filter((w: { last_tick_at: string }) => {
+          const lastTick = new Date(w.last_tick_at).getTime();
+          return lastTick > fiveMinutesAgo;
+        }).length;
+        
+        // GATE: L3 requires at least 1 active worker
+        if (activeWorkers < 1) {
+          toast.error('Workers Offline: Cannot run L3 Scale Test without active workers. Check job_queue processing.');
+          setL3TestResult(prev => prev ? {
+            ...prev,
+            l3c_workers_active: false,
+            hsMetrics: {
+              duplicates: metricsResult.data.duplicate_groups_last_hour || 0,
+              oldestQueuedAge: metricsResult.data.oldest_queued_age_seconds || 0,
+              activeWorkers: 0,
+            },
+          } : null);
+          setDeployingL3Test(false);
+          return;
+        }
+      }
+      
       const result = await callQAFunction('deploy_l3_scale_test', {
         runId: l3TestResult.runId,
         blastSize: l3BlastSize,
