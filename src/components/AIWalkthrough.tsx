@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, Send, Sparkles, Bot, User, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaceContext } from "@/contexts/WorkspaceContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   role: "user" | "assistant";
@@ -28,6 +29,11 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { workspaceId } = useWorkspaceContext();
+
+  const getAuthToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token;
+  };
 
   useEffect(() => {
     if (forceShow) {
@@ -60,11 +66,12 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
     setIsLoading(true);
 
     try {
+      const token = await getAuthToken();
       const resp = await fetch(WALKTHROUGH_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: [], isFirstMessage: true, workspaceId }),
       });
@@ -141,11 +148,12 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
     setIsLoading(true);
 
     try {
+      const token = await getAuthToken();
       const resp = await fetch(WALKTHROUGH_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: newMessages, isFirstMessage: false, workspaceId }),
       });
