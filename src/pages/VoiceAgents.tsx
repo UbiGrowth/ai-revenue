@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
+import { normalizeError } from "@/lib/normalizeError";
 
 const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "";
 
@@ -501,7 +502,7 @@ const VoiceAgents = () => {
     setVolume,
   } = useVapiConversation({
     publicKey: VAPI_PUBLIC_KEY,
-    onError: (err) => toast.error(err.message || "Voice agent error"),
+    onError: (err) => toast.error(normalizeError(err)),
   });
 
   const fetchAllData = async () => {
@@ -922,7 +923,7 @@ const VoiceAgents = () => {
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{normalizeError(error)}</AlertDescription>
             </Alert>
           )}
 
