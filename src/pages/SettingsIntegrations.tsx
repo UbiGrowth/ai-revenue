@@ -15,8 +15,12 @@ import {
   Mail, Linkedin, Calendar, Globe, Webhook, Loader2, 
   CheckCircle2, XCircle, Copy, ChevronDown, Settings, ArrowLeft,
   History, User, Clock, Phone, Mic, RefreshCw, Plus, Trash2,
-  CreditCard, Share2, Instagram, Facebook, LogOut
+  CreditCard, Share2, Instagram, Facebook, LogOut, Sparkles,
+  Reply, AlertTriangle, HelpCircle
 } from "lucide-react";
+import { EmailSetupWizard } from "@/components/settings/EmailSetupWizard";
+import { EmailReplyToExplainer } from "@/components/settings/EmailReplyToExplainer";
+import { DomainVerificationHelper } from "@/components/settings/DomainVerificationHelper";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -201,6 +205,8 @@ export default function SettingsIntegrations() {
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpOpen, setSmtpOpen] = useState(false);
+  const [showEmailWizard, setShowEmailWizard] = useState(false);
+  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
 
   // Integration test states
   const [testingSmtp, setTestingSmtp] = useState(false);
@@ -355,6 +361,11 @@ export default function SettingsIntegrations() {
       setSmtpPort(emailRes.data.smtp_port);
       setSmtpUsername(emailRes.data.smtp_username || "");
       setSmtpPassword(emailRes.data.smtp_password || "");
+      setIsFirstTimeSetup(false);
+    } else {
+      // First-time setup - show wizard
+      setIsFirstTimeSetup(true);
+      setShowEmailWizard(true);
     }
 
     // Populate LinkedIn
@@ -1250,254 +1261,378 @@ export default function SettingsIntegrations() {
 
                 {/* Email Tab */}
                 <TabsContent value="email">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Mail className="h-5 w-5 text-primary" />
-                        Email Configuration
-                      </CardTitle>
-                      <CardDescription>
-                        Configure your outbound email sender identity and optional SMTP settings.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {/* Email Method Selection */}
-                      <div className="space-y-3">
-                        <Label>Email Delivery Method *</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Choose how emails will be sent from your outbound campaigns.
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setEmailMethod("resend")}
-                            className={`p-4 rounded-lg border-2 text-left transition-all ${
-                              emailMethod === "resend" 
-                                ? "border-primary bg-primary/5" 
-                                : "border-border hover:border-muted-foreground/50"
-                            }`}
+                  {/* Show wizard for first-time setup or when explicitly requested */}
+                  {showEmailWizard && tenantId ? (
+                    <EmailSetupWizard
+                      workspaceId={tenantId}
+                      onComplete={() => {
+                        setShowEmailWizard(false);
+                        loadAllSettings();
+                      }}
+                      onSkip={() => setShowEmailWizard(false)}
+                    />
+                  ) : (
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <Mail className="h-5 w-5 text-primary" />
+                              Email Configuration
+                            </CardTitle>
+                            <CardDescription>
+                              Configure how emails are sent and where replies go
+                            </CardDescription>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowEmailWizard(true)}
                           >
-                            <div className="font-medium">Resend (Default)</div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Managed email service with high deliverability
-                            </p>
-                            {emailMethod === "resend" && (
-                              <Badge className="mt-2" variant="default">Active</Badge>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEmailMethod("gmail")}
-                            className={`p-4 rounded-lg border-2 text-left transition-all ${
-                              emailMethod === "gmail" 
-                                ? "border-primary bg-primary/5" 
-                                : "border-border hover:border-muted-foreground/50"
-                            }`}
-                          >
-                            <div className="font-medium">Gmail OAuth</div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Send from your Gmail inbox directly
-                            </p>
-                            {gmailConnected && emailMethod === "gmail" && (
-                              <Badge className="mt-2 bg-green-500/10 text-green-600">Connected</Badge>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEmailMethod("smtp")}
-                            className={`p-4 rounded-lg border-2 text-left transition-all ${
-                              emailMethod === "smtp" 
-                                ? "border-primary bg-primary/5" 
-                                : "border-border hover:border-muted-foreground/50"
-                            }`}
-                          >
-                            <div className="font-medium">Custom SMTP</div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Use your own SMTP server
-                            </p>
-                            {smtpTestResult?.success && emailMethod === "smtp" && (
-                              <Badge className="mt-2 bg-green-500/10 text-green-600">Verified</Badge>
-                            )}
-                          </button>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Setup Wizard
+                          </Button>
                         </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="sender-name">Sender Name *</Label>
-                          <Input
-                            id="sender-name"
-                            placeholder="John from Acme"
-                            value={senderName}
-                            onChange={(e) => setSenderName(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="from-address">From Address *</Label>
-                          <Input
-                            id="from-address"
-                            type="email"
-                            placeholder="john@company.com"
-                            value={fromAddress}
-                            onChange={(e) => setFromAddress(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="reply-to">Reply-To Address *</Label>
-                        <Input
-                          id="reply-to"
-                          type="email"
-                          placeholder="replies@company.com"
-                          value={replyToAddress}
-                          onChange={(e) => setReplyToAddress(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Replies to your outbound emails will be sent to this address.
-                        </p>
-                      </div>
-
-                      {/* Gmail OAuth Connection - Only show if Gmail method selected */}
-                      {emailMethod === "gmail" && (
-                        <div className="space-y-3">
-                          <Separator className="mb-4" />
-                          <Label>Connect Gmail Account</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Connect your Gmail account to send emails directly from your inbox with better deliverability.
-                          </p>
-                          
-                          {gmailConnected ? (
-                            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                                  <Mail className="h-5 w-5 text-green-500" />
-                                </div>
-                                <div>
-                                  <p className="font-medium text-sm">Gmail Connected</p>
-                                  <p className="text-sm text-muted-foreground">{gmailEmail}</p>
-                                </div>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Quick Setup Banner for Gmail */}
+                        {!gmailConnected && emailMethod !== "gmail" && (
+                          <div className="p-4 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5">
+                            <div className="flex items-start gap-4">
+                              <div className="h-10 w-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                                <svg className="h-5 w-5" viewBox="0 0 24 24">
+                                  <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                                </svg>
                               </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-medium">Quick Setup: Connect Gmail</h4>
+                                  <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                  One-click connection. Better deliverability. Emails appear in your sent folder.
+                                </p>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setEmailMethod("gmail");
+                                    handleConnectGmail();
+                                  }}
+                                  disabled={gmailConnecting}
+                                >
+                                  {gmailConnecting ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Connecting...
+                                    </>
+                                  ) : (
+                                    "Connect Gmail"
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Email Method Selection */}
+                        <div className="space-y-3">
+                          <Label className="flex items-center gap-2">
+                            Email Delivery Method
+                            <Badge variant="outline" className="text-xs font-normal">Required</Badge>
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Choose how emails will be sent from your outbound campaigns.
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setEmailMethod("gmail")}
+                              className={`p-4 rounded-lg border-2 text-left transition-all relative ${
+                                emailMethod === "gmail" 
+                                  ? "border-primary bg-primary/5" 
+                                  : "border-border hover:border-muted-foreground/50"
+                              }`}
+                            >
+                              <Badge className="absolute -top-2 right-2 bg-green-500 text-xs">Best</Badge>
+                              <div className="font-medium">Gmail OAuth</div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                One-click connection. Best deliverability.
+                              </p>
+                              {gmailConnected && emailMethod === "gmail" && (
+                                <Badge className="mt-2 bg-green-500/10 text-green-600">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Connected
+                                </Badge>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEmailMethod("resend")}
+                              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                                emailMethod === "resend" 
+                                  ? "border-primary bg-primary/5" 
+                                  : "border-border hover:border-muted-foreground/50"
+                              }`}
+                            >
+                              <div className="font-medium">Resend</div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Send from your own domain
+                              </p>
+                              {emailMethod === "resend" && (
+                                <Badge className="mt-2" variant="outline">Active</Badge>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEmailMethod("smtp")}
+                              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                                emailMethod === "smtp" 
+                                  ? "border-primary bg-primary/5" 
+                                  : "border-border hover:border-muted-foreground/50"
+                              }`}
+                            >
+                              <div className="font-medium">Custom SMTP</div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Your own mail server
+                              </p>
+                              {smtpTestResult?.success && emailMethod === "smtp" && (
+                                <Badge className="mt-2 bg-green-500/10 text-green-600">Verified</Badge>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Sender Identity Section */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium">Sender Identity</h3>
+                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="sender-name">Sender Name</Label>
+                              <Input
+                                id="sender-name"
+                                placeholder="e.g., John from Acme"
+                                value={senderName}
+                                onChange={(e) => setSenderName(e.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                How recipients see you in their inbox
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="from-address">From Address</Label>
+                              <Input
+                                id="from-address"
+                                type="email"
+                                placeholder="e.g., john@company.com"
+                                value={fromAddress}
+                                onChange={(e) => setFromAddress(e.target.value)}
+                                disabled={emailMethod === "gmail" && gmailConnected}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                {emailMethod === "gmail" && gmailConnected 
+                                  ? "Using your Gmail address" 
+                                  : "The address emails are sent from"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Reply-To Section - CRITICAL */}
+                        <div className="space-y-4 p-4 rounded-lg border-2 border-amber-500/30 bg-amber-500/5">
+                          <div className="flex items-center gap-2">
+                            <Reply className="h-5 w-5 text-amber-600" />
+                            <h3 className="font-medium text-amber-700">Where Do Replies Go?</h3>
+                            <Badge variant="outline" className="text-amber-600 border-amber-500">Critical</Badge>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="reply-to" className="text-amber-700">Reply-To Address</Label>
+                            <Input
+                              id="reply-to"
+                              type="email"
+                              placeholder="e.g., replies@company.com"
+                              value={replyToAddress}
+                              onChange={(e) => setReplyToAddress(e.target.value)}
+                              className="border-amber-300 focus:ring-amber-500"
+                            />
+                            <div className="flex items-start gap-2 text-sm text-amber-700">
+                              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                              <p>
+                                <strong>All customer replies</strong> will be sent to this address. 
+                                Make sure this is an inbox you actively monitor!
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Visual Email Flow Diagram */}
+                          <EmailReplyToExplainer
+                            fromAddress={fromAddress}
+                            replyToAddress={replyToAddress}
+                            senderName={senderName}
+                          />
+                        </div>
+
+                        {/* Gmail OAuth Connection */}
+                        {emailMethod === "gmail" && (
+                          <div className="space-y-3">
+                            <Separator className="mb-4" />
+                            <Label>Gmail Connection</Label>
+                            
+                            {gmailConnected ? (
+                              <div className="flex items-center justify-between p-4 bg-green-500/5 border border-green-500/30 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-sm text-green-700">Gmail Connected</p>
+                                    <p className="text-sm text-green-600">{gmailEmail}</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleDisconnectGmail}
+                                  disabled={gmailDisconnecting}
+                                >
+                                  {gmailDisconnecting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <LogOut className="h-4 w-4 mr-2" />
+                                      Disconnect
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            ) : (
                               <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleDisconnectGmail}
-                                disabled={gmailDisconnecting}
+                                onClick={handleConnectGmail}
+                                disabled={gmailConnecting}
+                                className="w-full sm:w-auto"
                               >
-                                {gmailDisconnecting ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                {gmailConnecting ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Connecting...
+                                  </>
                                 ) : (
                                   <>
-                                    <LogOut className="h-4 w-4 mr-2" />
-                                    Disconnect
+                                    <Mail className="h-4 w-4 mr-2" />
+                                    Connect Gmail Account
                                   </>
                                 )}
                               </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              onClick={handleConnectGmail}
-                              disabled={gmailConnecting}
-                              className="w-full sm:w-auto"
-                            >
-                              {gmailConnecting ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Connecting...
-                                </>
-                              ) : (
-                                <>
-                                  <Mail className="h-4 w-4 mr-2" />
-                                  Connect Gmail Account
-                                </>
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* SMTP Settings - Only show if SMTP method selected */}
-                      {emailMethod === "smtp" && (
-                        <div className="space-y-4">
-                          <Separator className="mb-4" />
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="smtp-host">SMTP Host *</Label>
-                              <Input
-                                id="smtp-host"
-                                placeholder="smtp.example.com"
-                                value={smtpHost}
-                                onChange={(e) => setSmtpHost(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="smtp-port">SMTP Port *</Label>
-                              <Input
-                                id="smtp-port"
-                                type="number"
-                                placeholder="587"
-                                value={smtpPort || ""}
-                                onChange={(e) => setSmtpPort(e.target.value ? parseInt(e.target.value) : null)}
-                              />
-                            </div>
+                            )}
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="smtp-username">SMTP Username</Label>
-                              <Input
-                                id="smtp-username"
-                                placeholder="username"
-                                value={smtpUsername}
-                                onChange={(e) => setSmtpUsername(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="smtp-password">SMTP Password</Label>
-                              <Input
-                                id="smtp-password"
-                                type="password"
-                                placeholder="••••••••"
-                                value={smtpPassword}
-                                onChange={(e) => setSmtpPassword(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            onClick={testSmtpConnection}
-                            disabled={testingSmtp}
-                          >
-                            {testingSmtp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                            Test SMTP Connection
-                          </Button>
-                          {smtpTestResult && (
-                            <div className={`p-3 rounded-lg text-sm ${smtpTestResult.success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
-                              {smtpTestResult.message}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
 
-                      <Separator />
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          {emailSettings?.updated_at && (
+                        {/* Domain Verification - For Resend */}
+                        {emailMethod === "resend" && fromAddress && (
+                          <div className="space-y-3">
+                            <Separator className="mb-4" />
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-5 w-5 text-primary" />
+                              <h3 className="font-medium">Domain Verification</h3>
+                            </div>
                             <p className="text-sm text-muted-foreground">
-                              Last updated: {formatUpdatedAt(emailSettings.updated_at)}
+                              Verify your sending domain for better deliverability
                             </p>
-                          )}
+                            <DomainVerificationHelper
+                              domain={fromAddress.split("@")[1] || ""}
+                              emailMethod={emailMethod}
+                              isGmailConnected={gmailConnected}
+                            />
+                          </div>
+                        )}
+
+                        {/* SMTP Settings */}
+                        {emailMethod === "smtp" && (
+                          <div className="space-y-4">
+                            <Separator className="mb-4" />
+                            <h3 className="font-medium">SMTP Server Settings</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="smtp-host">SMTP Host</Label>
+                                <Input
+                                  id="smtp-host"
+                                  placeholder="smtp.example.com"
+                                  value={smtpHost}
+                                  onChange={(e) => setSmtpHost(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="smtp-port">SMTP Port</Label>
+                                <Input
+                                  id="smtp-port"
+                                  type="number"
+                                  placeholder="587"
+                                  value={smtpPort || ""}
+                                  onChange={(e) => setSmtpPort(e.target.value ? parseInt(e.target.value) : null)}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="smtp-username">SMTP Username</Label>
+                                <Input
+                                  id="smtp-username"
+                                  placeholder="username"
+                                  value={smtpUsername}
+                                  onChange={(e) => setSmtpUsername(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="smtp-password">SMTP Password</Label>
+                                <Input
+                                  id="smtp-password"
+                                  type="password"
+                                  placeholder="••••••••"
+                                  value={smtpPassword}
+                                  onChange={(e) => setSmtpPassword(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              onClick={testSmtpConnection}
+                              disabled={testingSmtp}
+                            >
+                              {testingSmtp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                              Test SMTP Connection
+                            </Button>
+                            {smtpTestResult && (
+                              <div className={`p-3 rounded-lg text-sm ${smtpTestResult.success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
+                                {smtpTestResult.message}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <Separator />
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            {emailSettings?.updated_at && (
+                              <p className="text-sm text-muted-foreground">
+                                Last updated: {formatUpdatedAt(emailSettings.updated_at)}
+                              </p>
+                            )}
+                          </div>
+                          <Button onClick={saveEmailSettings} disabled={saving === "email"}>
+                            {saving === "email" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Save Email Settings
+                          </Button>
                         </div>
-                        <Button onClick={saveEmailSettings} disabled={saving === "email"}>
-                          {saving === "email" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                          Save Email Settings
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
 
                 {/* LinkedIn Tab */}
