@@ -1,33 +1,36 @@
-import { useEffect, useState } from "react";
-
-const PRIVACY_URL = "https://www.ubigrowth.ai/privacy";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import Logo from "@/components/Logo";
 
 const Privacy = () => {
-  const [showFallback, setShowFallback] = useState(false);
-
-  useEffect(() => {
-    // Use replace to avoid polluting browser history with a dead-end route.
-    window.location.replace(PRIVACY_URL);
-
-    // If the redirect is blocked for any reason (extensions, browser policy), show a direct link.
-    const t = window.setTimeout(() => setShowFallback(true), 1200);
-    return () => window.clearTimeout(t);
-  }, []);
+  const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-2">
-        <p className="text-muted-foreground">Redirecting to privacy policy…</p>
-        {showFallback && (
-          <a
-            href={PRIVACY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-primary underline underline-offset-4"
-          >
-            Open privacy policy
-          </a>
-        )}
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-8">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+
+        <Logo className="h-8 mb-10" />
+
+        <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
+
+        <div className="prose prose-invert max-w-none space-y-6 text-muted-foreground">
+          <p>
+            For our complete privacy policy, please visit:{" "}
+            <a
+              href="https://www.ubigrowth.ai/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline underline-offset-4"
+            >
+              https://www.ubigrowth.ai/privacy
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );
