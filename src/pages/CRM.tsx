@@ -127,27 +127,48 @@ const CRM = () => {
       }
 
       const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
-      
-      // Check if user owns any workspace
-      const { data: ownedWorkspaces } = await supabase
+
+      // Owned workspaces
+      const { data: ownedWorkspaces, error: ownedErr } = await supabase
         .from("workspaces")
         .select("id")
         .eq("owner_id", user.id)
         .order("created_at", { ascending: true });
 
-      const validWorkspaceIds = ownedWorkspaces?.map(w => w.id) || [];
+      if (ownedErr) {
+        console.error("[CRM] ownedWorkspaces lookup failed:", ownedErr);
+      }
+
+      // Member workspaces (non-owner)
+      const { data: memberWorkspaces, error: memberErr } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true });
+
+      if (memberErr) {
+        console.error("[CRM] workspace_members lookup failed:", memberErr);
+      }
+
+      const validWorkspaceIds = [
+        ...(ownedWorkspaces?.map((w) => w.id) || []),
+        ...(memberWorkspaces?.map((m) => m.workspace_id) || []),
+      ].filter((id, i, arr) => arr.indexOf(id) === i);
 
       // Check if saved workspace is valid for this user
       if (savedWorkspaceId && validWorkspaceIds.includes(savedWorkspaceId)) {
         setWorkspaceId(savedWorkspaceId);
       } else if (validWorkspaceIds.length > 0) {
-        // Use first owned workspace
+        // Use first available workspace
         const correctWorkspaceId = validWorkspaceIds[0];
         localStorage.setItem("currentWorkspaceId", correctWorkspaceId);
         setWorkspaceId(correctWorkspaceId);
-        console.log("Updated workspace to:", correctWorkspaceId);
+        console.log("[CRM] Updated workspace to:", correctWorkspaceId);
+      } else {
+        // No workspace access
+        setWorkspaceId(null);
       }
-      
+
       setWorkspaceValidated(true);
     };
 
