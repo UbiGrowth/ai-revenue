@@ -307,6 +307,7 @@ export async function buildAutopilotCampaign(payload: {
   desiredResult: 'leads' | 'meetings' | 'revenue' | 'engagement';
   workspaceId?: string;
   targetTags?: string[];
+  targetSegments?: string[];
 }): Promise<{
   campaign_id: string;
   campaign_name: string;
@@ -347,6 +348,7 @@ export async function buildAutopilotCampaign(payload: {
         channels: payload.channels,
         desired_result: payload.desiredResult,
         target_tags: payload.targetTags,
+        target_segments: payload.targetSegments,
       },
     },
   });

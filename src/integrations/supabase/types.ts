@@ -2796,6 +2796,7 @@ export type Database = {
           target_icp: string | null
           target_offer: string | null
           target_segment_codes: string[] | null
+          target_segments: string[] | null
           target_tags: string[] | null
           tenant_id: string
           updated_at: string
@@ -2826,6 +2827,7 @@ export type Database = {
           target_icp?: string | null
           target_offer?: string | null
           target_segment_codes?: string[] | null
+          target_segments?: string[] | null
           target_tags?: string[] | null
           tenant_id: string
           updated_at?: string
@@ -2856,6 +2858,7 @@ export type Database = {
           target_icp?: string | null
           target_offer?: string | null
           target_segment_codes?: string[] | null
+          target_segments?: string[] | null
           target_tags?: string[] | null
           tenant_id?: string
           updated_at?: string
