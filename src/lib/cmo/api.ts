@@ -554,28 +554,56 @@ export async function orchestrateCampaign(
     pipelineStage?: string;
   }
 ): Promise<OrchestrationResult> {
+  // Input validation
+  if (!campaignId || typeof campaignId !== 'string') {
+    throw new Error('campaignId is required and must be a string');
+  }
+  
+  const validActions = ['validate', 'launch', 'optimize', 'pause', 'resume'];
+  if (!validActions.includes(action)) {
+    throw new Error(`action must be one of: ${validActions.join(', ')}`);
+  }
+
   const { tenantId } = await getTenantContext();
   
-  // Get workspace_id
+  if (!tenantId) {
+    throw new Error('No tenant context available. Please ensure you are logged in.');
+  }
+  
+  // Get workspace_id with fallback
+  const userResponse = await supabase.auth.getUser();
+  const userId = userResponse.data.user?.id;
+  
+  if (!userId) {
+    throw new Error('User not authenticated');
+  }
+  
   const { data: workspace } = await supabase
     .from("workspaces")
     .select("id")
-    .eq("owner_id", (await supabase.auth.getUser()).data.user?.id)
-    .single();
+    .eq("owner_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  const workspaceId = workspace?.id || tenantId;
 
   const { data, error } = await supabase.functions.invoke("cmo-campaign-orchestrate", {
     body: {
       tenant_id: tenantId,
-      workspace_id: workspace?.id || tenantId,
+      workspace_id: workspaceId,
       campaign_id: campaignId,
       action,
-      channels: options?.channels,
+      channels: options?.channels || [],
       auto_create_deals: options?.autoCreateDeals ?? true,
       pipeline_stage: options?.pipelineStage ?? 'qualification',
     },
   });
 
-  if (error) throw error;
+  if (error) {
+    console.error('[orchestrateCampaign] Error:', error);
+    throw new Error(error.message || 'Campaign orchestration failed');
+  }
+  
   return data as OrchestrationResult;
 }
 
@@ -584,20 +612,40 @@ export async function validateIntegrations(
   workspaceId: string,
   channels: string[] = ['email', 'social', 'voice', 'calendar', 'domain']
 ): Promise<OrchestrationResult['integrations']> {
+  // Input validation
+  if (!workspaceId || typeof workspaceId !== 'string') {
+    console.warn('[validateIntegrations] Invalid workspaceId, returning empty integrations');
+    return [];
+  }
+  
   const { tenantId } = await getTenantContext();
+  
+  if (!tenantId) {
+    console.warn('[validateIntegrations] No tenant context, returning empty integrations');
+    return [];
+  }
 
-  const { data, error } = await supabase.functions.invoke("cmo-campaign-orchestrate", {
-    body: {
-      tenant_id: tenantId,
-      workspace_id: workspaceId,
-      campaign_id: 'validation-check',
-      action: 'validate',
-      channels,
-    },
-  });
+  try {
+    const { data, error } = await supabase.functions.invoke("cmo-campaign-orchestrate", {
+      body: {
+        tenant_id: tenantId,
+        workspace_id: workspaceId,
+        campaign_id: 'validation-check',
+        action: 'validate',
+        channels: channels || [],
+      },
+    });
 
-  if (error) throw error;
-  return data?.integrations || [];
+    if (error) {
+      console.error('[validateIntegrations] Error:', error);
+      return [];
+    }
+    
+    return data?.integrations || [];
+  } catch (err) {
+    console.error('[validateIntegrations] Exception:', err);
+    return [];
+  }
 }
 
 // Launch campaign with full orchestration

@@ -324,8 +324,10 @@ export function useValidateIntegrations(workspaceId: string, channels?: string[]
   return useQuery({
     queryKey: [...orchestrationKeys.integrations(workspaceId), channels],
     queryFn: () => cmoApi.validateIntegrations(workspaceId, channels),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && workspaceId.length >= 32, // Must be valid UUID length
     staleTime: 30000, // Cache for 30 seconds
+    retry: 1, // Only retry once on failure
+    retryDelay: 1000,
   });
 }
 
