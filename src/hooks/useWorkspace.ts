@@ -72,18 +72,24 @@ export async function getWorkspaceId(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Check if user owns a workspace (with proper ordering to handle multiple)
   const { data: ownedWorkspace } = await supabase
     .from("workspaces")
     .select("id")
     .eq("owner_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   if (ownedWorkspace?.id) return ownedWorkspace.id;
 
+  // If not owner, check workspace membership
   const { data: membership } = await supabase
     .from("workspace_members")
     .select("workspace_id")
     .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   return membership?.workspace_id || null;
