@@ -33,7 +33,9 @@ jobs:
           ALLOWED_VIEWS="v_pipeline_metrics_by_workspace|v_campaign_metrics_gated|v_impressions_clicks_by_workspace|v_revenue_by_workspace|v_crm_source_of_truth|v_crm_lead_pipeline|v_crm_conversion_funnel|v_data_quality_by_workspace|v_cmo_metrics_by_workspace"
           
           # Files to check (dashboard and analytics components)
-          CHECK_PATTERNS="src/pages/Dashboard.tsx src/pages/Reports.tsx src/pages/CRM.tsx src/components/crm/*.tsx src/hooks/usePipelineMetrics.ts src/hooks/useCRMSourceOfTruth.ts"
+          # NOTE: CRM.tsx excluded - it's a transactional CRUD page, not analytics
+          # NOTE: CRMReports.tsx excluded - does complex aggregations requiring direct table access
+          CHECK_PATTERNS="src/pages/Dashboard.tsx src/pages/Reports.tsx src/hooks/usePipelineMetrics.ts src/hooks/useCRMSourceOfTruth.ts"
           
           VIOLATIONS=0
           

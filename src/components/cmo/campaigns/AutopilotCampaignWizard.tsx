@@ -4,14 +4,13 @@
  * Invalidates campaign queries on completion for automatic refresh
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -19,25 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout, Tags, Users } from 'lucide-react';
+import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout } from 'lucide-react';
 import { buildAutopilotCampaign } from '@/lib/cmo/api';
-import { getTenantContextSafe, requireTenantId } from '@/lib/tenant';
+import { requireTenantId } from '@/lib/tenant';
 import { cmoKeys } from '@/hooks/useCMO';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { CampaignGoal } from '@/lib/cmo/types';
+import { useWorkspaceContext, useActiveWorkspaceId } from '@/contexts/WorkspaceContext';
+import { WorkspaceGate } from '@/components/WorkspaceGate';
 
 interface AutopilotCampaignWizardProps {
-  workspaceId?: string;
-  tenantId?: string;
   onComplete?: (result: any) => void;
-}
-
-interface TenantSegment {
-  id: string;
-  code: string;
-  name: string;
-  color: string;
 }
 
 const CHANNEL_OPTIONS = [
@@ -55,100 +46,16 @@ const GOAL_OPTIONS: { value: CampaignGoal; label: string }[] = [
   { value: 'engagement', label: 'Grow engagement' },
 ];
 
-const AVAILABLE_TAGS = [
-  { name: "Hot Lead", color: "bg-red-500/10 text-red-500 border-red-500/20" },
-  { name: "Decision Maker", color: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
-  { name: "Budget Approved", color: "bg-green-500/10 text-green-500 border-green-500/20" },
-  { name: "Needs Demo", color: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
-  { name: "Referral", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
-  { name: "Enterprise", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" },
-  { name: "SMB", color: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20" },
-  { name: "Follow Up", color: "bg-orange-500/10 text-orange-500 border-orange-500/20" },
-  { name: "Priority", color: "bg-pink-500/10 text-pink-500 border-pink-500/20" },
-  { name: "Competitor", color: "bg-slate-500/10 text-slate-500 border-slate-500/20" },
-];
-
-export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, onComplete }: AutopilotCampaignWizardProps) {
+export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardProps) {
   const queryClient = useQueryClient();
+  const workspaceId = useActiveWorkspaceId();
+  const { workspace } = useWorkspaceContext();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [icp, setIcp] = useState('');
   const [offer, setOffer] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['email']);
   const [desiredResult, setDesiredResult] = useState<CampaignGoal>('leads');
-  
-  // Tags filtering
-  const [filterByTags, setFilterByTags] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  
-  // Segments filtering
-  const [filterBySegments, setFilterBySegments] = useState(false);
-  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
-  const [availableSegments, setAvailableSegments] = useState<TenantSegment[]>([]);
-  const [segmentsLoading, setSegmentsLoading] = useState(false);
-  
-  const [matchingLeadsCount, setMatchingLeadsCount] = useState<number | null>(null);
-  const [loadingCount, setLoadingCount] = useState(false);
-
-  // Fetch available segments
-  useEffect(() => {
-    const fetchSegments = async () => {
-      setSegmentsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("tenant_segments")
-          .select("id, code, name, color")
-          .eq("is_active", true)
-          .order("sort_order");
-        
-        if (!error && data) {
-          setAvailableSegments(data);
-        }
-      } catch (err) {
-        console.error("Error fetching segments:", err);
-      } finally {
-        setSegmentsLoading(false);
-      }
-    };
-    fetchSegments();
-  }, []);
-
-  // Fetch matching leads count when tags or segments change
-  useEffect(() => {
-    const hasTagFilter = filterByTags && selectedTags.length > 0;
-    const hasSegmentFilter = filterBySegments && selectedSegments.length > 0;
-    
-    if (!hasTagFilter && !hasSegmentFilter) {
-      setMatchingLeadsCount(null);
-      return;
-    }
-
-    const fetchCount = async () => {
-      setLoadingCount(true);
-      try {
-        let query = supabase.from("leads").select("id", { count: "exact", head: true });
-        
-        if (hasTagFilter) {
-          query = query.overlaps("tags", selectedTags);
-        }
-        if (hasSegmentFilter) {
-          query = query.in("segment_code", selectedSegments);
-        }
-
-        const { count, error } = await query;
-
-        if (!error) {
-          setMatchingLeadsCount(count ?? 0);
-        }
-      } catch (err) {
-        console.error("Error fetching lead count:", err);
-      } finally {
-        setLoadingCount(false);
-      }
-    };
-
-    fetchCount();
-  }, [filterByTags, selectedTags, filterBySegments, selectedSegments]);
 
   const handleChannelToggle = (channelId: string) => {
     setSelectedChannels((prev) =>
@@ -158,24 +65,13 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
     );
   };
 
-  const handleTagToggle = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : [...prev, tag]
-    );
-  };
-
-  const handleSegmentToggle = (code: string) => {
-    setSelectedSegments((prev) =>
-      prev.includes(code)
-        ? prev.filter((c) => c !== code)
-        : [...prev, code]
-    );
-  };
-
   const handleBuild = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!workspaceId) {
+      toast.error('Select a workspace to build an autopilot campaign');
+      return;
+    }
 
     if (!icp.trim() || !offer.trim()) {
       toast.error('Please fill in ICP and offer details');
@@ -189,14 +85,10 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
 
     setLoading(true);
     try {
-      // Resolve tenant context from multiple sources
-      const context = await getTenantContextSafe();
-      const resolvedWorkspaceId = workspaceId || context.workspaceId;
-      
       // Validate we have tenant context
       requireTenantId({
-        activeTenantId: propTenantId || context.tenantId,
-        workspaceId: resolvedWorkspaceId,
+        activeTenantId: workspace?.tenant_id ?? null,
+        workspaceId,
       });
 
       const data = await buildAutopilotCampaign({
@@ -204,9 +96,7 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
         offer,
         channels: selectedChannels,
         desiredResult,
-        workspaceId: resolvedWorkspaceId || undefined,
-        targetTags: filterByTags && selectedTags.length > 0 ? selectedTags : undefined,
-        targetSegments: filterBySegments && selectedSegments.length > 0 ? selectedSegments : undefined,
+        workspaceId,
       });
       setResult(data);
       
@@ -225,7 +115,8 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
 
   if (result) {
     return (
-      <Card className="border-green-500/20 bg-green-500/5">
+      <WorkspaceGate feature="autopilot campaign creation">
+        <Card className="border-green-500/20 bg-green-500/5">
         <CardHeader>
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -256,12 +147,14 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
             </Button>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </WorkspaceGate>
     );
   }
 
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/5">
+    <WorkspaceGate feature="autopilot campaign creation">
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/5">
       <CardHeader>
         <div className="flex items-center gap-3">
           <Bot className="h-8 w-8 text-primary" />
@@ -326,125 +219,6 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
             </div>
           </fieldset>
 
-          {/* Target Tags */}
-          <fieldset className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Checkbox 
-                id="filter-by-tags"
-                checked={filterByTags} 
-                onCheckedChange={(checked) => {
-                  setFilterByTags(checked === true);
-                  if (!checked) setSelectedTags([]);
-                }}
-              />
-              <Label htmlFor="filter-by-tags" className="cursor-pointer flex items-center gap-2">
-                <Tags className="h-4 w-4" />
-                Target specific lead tags
-              </Label>
-            </div>
-            
-            {filterByTags && (
-              <div className="space-y-3 pl-6">
-                <p className="text-sm text-muted-foreground">
-                  Only leads with these tags will be included in the campaign:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_TAGS.map((tag) => (
-                    <Badge
-                      key={tag.name}
-                      variant="outline"
-                      className={`cursor-pointer transition-all ${
-                        selectedTags.includes(tag.name) 
-                          ? tag.color + " ring-2 ring-offset-1 ring-primary" 
-                          : "opacity-60 hover:opacity-100"
-                      }`}
-                      onClick={() => handleTagToggle(tag.name)}
-                    >
-                      <Checkbox 
-                        checked={selectedTags.includes(tag.name)} 
-                        className="mr-1.5 h-3 w-3"
-                        onCheckedChange={() => handleTagToggle(tag.name)}
-                      />
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-          </fieldset>
-
-          {/* Target Segments */}
-          <fieldset className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Checkbox 
-                id="filter-by-segments"
-                checked={filterBySegments} 
-                onCheckedChange={(checked) => {
-                  setFilterBySegments(checked === true);
-                  if (!checked) setSelectedSegments([]);
-                }}
-              />
-              <Label htmlFor="filter-by-segments" className="cursor-pointer flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Target specific lead segments
-              </Label>
-            </div>
-            
-            {filterBySegments && (
-              <div className="space-y-3 pl-6">
-                <p className="text-sm text-muted-foreground">
-                  Only leads in these segments will be included in the campaign:
-                </p>
-                {segmentsLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {availableSegments.map((segment) => (
-                      <Badge
-                        key={segment.code}
-                        variant="outline"
-                        className={`cursor-pointer transition-all ${
-                          selectedSegments.includes(segment.code)
-                            ? "ring-2 ring-offset-1 ring-primary"
-                            : "opacity-60 hover:opacity-100"
-                        }`}
-                        style={{
-                          backgroundColor: selectedSegments.includes(segment.code) ? `${segment.color}20` : undefined,
-                          borderColor: segment.color,
-                          color: segment.color,
-                        }}
-                        onClick={() => handleSegmentToggle(segment.code)}
-                      >
-                        <Checkbox 
-                          checked={selectedSegments.includes(segment.code)} 
-                          className="mr-1.5 h-3 w-3"
-                          onCheckedChange={() => handleSegmentToggle(segment.code)}
-                        />
-                        {segment.name}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </fieldset>
-
-          {/* Matching leads count */}
-          {(selectedTags.length > 0 || selectedSegments.length > 0) && (
-            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-md bg-muted/50">
-              <span className="text-muted-foreground">
-                Matching leads:
-              </span>
-              {loadingCount ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Badge variant="secondary">
-                  {matchingLeadsCount?.toLocaleString() ?? 0}
-                </Badge>
-              )}
-            </div>
-          )}
-
           {/* Goal */}
           <div className="space-y-2">
             <Label htmlFor="desiredResult">Primary Goal *</Label>
@@ -481,6 +255,7 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
           </Button>
         </form>
       </CardContent>
-    </Card>
+      </Card>
+    </WorkspaceGate>
   );
 }

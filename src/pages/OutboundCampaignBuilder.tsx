@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -64,6 +65,7 @@ const PERSONAS = [
 
 export default function OutboundCampaignBuilder() {
   const navigate = useNavigate();
+  const workspaceId = useActiveWorkspaceId();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -185,19 +187,13 @@ export default function OutboundCampaignBuilder() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: workspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-
-      if (!workspace) throw new Error("No workspace found");
+      if (!workspaceId) throw new Error("No workspace selected");
 
       // Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from("outbound_campaigns")
         .insert({
-          workspace_id: workspace.id,
+          workspace_id: workspaceId,
           tenant_id: user.id,
           name: campaignName,
           objective,

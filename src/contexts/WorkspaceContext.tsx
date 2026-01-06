@@ -1,4 +1,4 @@
-// Workspace Context - Auto-selects workspace on login, persists selection
+// Workspace Context - Persists an explicitly selected workspace (no heuristic auto-selection)
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -81,22 +81,20 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspaceId(null);
         setWorkspace(null);
         setWorkspaces([]);
+        setDemoMode(false);
+        setStripeConnected(false);
+        setAnalyticsConnected(false);
         return;
       }
 
-      console.log("[WorkspaceProvider] fetchWorkspaces user:", user.id, user.email);
-
-      // Fetch all workspaces user has access to (owned or member)
+      // Fetch all workspaces user has access to (owned or member) with demo_mode and stripe_connected
       const { data: ownedWorkspaces, error: ownedError } = await supabase
         .from("workspaces")
         .select("id, name, slug, owner_id, is_default, demo_mode, stripe_connected, tenant_id")
         .eq("owner_id", user.id)
         .order("created_at", { ascending: true });
 
-      if (ownedError) {
-        console.error("[WorkspaceProvider] ownedWorkspaces error:", ownedError);
-        throw ownedError;
-      }
+      if (ownedError) throw ownedError;
 
       // Also get workspaces user is a member of
       const { data: memberWorkspaces, error: memberError } = await supabase
@@ -105,108 +103,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         .eq("user_id", user.id)
         .neq("role", "owner"); // Avoid duplicates with owned
 
-      if (memberError) {
-        console.error("[WorkspaceProvider] memberWorkspaces error:", memberError);
-        throw memberError;
-      }
+      if (memberError) throw memberError;
 
       // Combine and dedupe
       const memberWs = (memberWorkspaces || [])
         .map((m) => m.workspace as Workspace | null)
         .filter((w): w is Workspace => w !== null);
-
+      
       const allWorkspaces = [...(ownedWorkspaces || []), ...memberWs] as Workspace[];
       const uniqueWorkspaces = allWorkspaces.filter(
         (w, i, arr) => arr.findIndex((x) => x.id === w.id) === i
       );
 
-      // If the user has *no* workspaces (common for legacy accounts), auto-create one.
-      // IMPORTANT: don't permanently "give up" after a failed attempt (network/RLS hiccups).
-      // We rate-limit attempts via localStorage so the UI doesn't get stuck forever.
-      if (uniqueWorkspaces.length === 0) {
-        const autoKey = `workspace_autocreated_${user.id}`;
-        const now = Date.now();
-
-        let autoState: { lastAttempt?: number; success?: boolean } | null = null;
-        try {
-          const raw = localStorage.getItem(autoKey);
-          autoState = raw ? (JSON.parse(raw) as any) : null;
-        } catch {
-          autoState = null;
-        }
-
-        const lastAttempt = autoState?.lastAttempt ?? 0;
-        const success = autoState?.success === true;
-        const canRetry = !success && (now - lastAttempt > 15_000);
-
-        if (canRetry) {
-          localStorage.setItem(autoKey, JSON.stringify({ lastAttempt: now, success: false }));
-
-          const baseName = (user.email?.split("@")[0] || "My")
-            .replace(/[^a-zA-Z0-9]+/g, " ")
-            .trim();
-          const name = baseName ? `${baseName}'s Workspace` : "My Workspace";
-          const slug = `${(baseName || "my")
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-|-$/g, "")}-${user.id.slice(0, 6)}`;
-
-          console.log("[WorkspaceProvider] No workspaces found; auto-creating:", { name, slug });
-
-          const { data: ws, error: createErr } = await supabase
-            .from("workspaces")
-            .insert({
-              name,
-              slug,
-              owner_id: user.id,
-              is_default: true,
-              demo_mode: true,
-            })
-            .select("id, name, slug, owner_id, is_default, demo_mode, stripe_connected, tenant_id")
-            .single();
-
-          if (createErr) {
-            console.error("[WorkspaceProvider] auto-create workspace failed:", createErr);
-            toast.error("Couldn't create workspace", {
-              description: "Please refresh and try again. If this persists, we'll need to check your account permissions.",
-            });
-          } else if (ws) {
-            localStorage.setItem(autoKey, JSON.stringify({ lastAttempt: now, success: true }));
-
-            await supabase.from("workspace_members").insert({
-              workspace_id: ws.id,
-              user_id: user.id,
-              role: "owner",
-            });
-
-            toast.success("Workspace created", { description: "We created your first workspace automatically." });
-            // Re-run fetch to ensure selection logic runs against fresh list
-            // (avoid depending on local ws variable and keep selection consistent)
-            return await fetchWorkspaces();
-          }
-        }
-      }
-
       setWorkspaces(uniqueWorkspaces);
-      console.log("[WorkspaceProvider] workspaces loaded:", uniqueWorkspaces.length);
 
-      // Auto-select workspace
+      // Resolve active workspace ONLY from explicit persisted selection.
+      // No default/first fallbacks: if nothing is selected, force user selection.
       const savedId = localStorage.getItem(STORAGE_KEY);
       let selectedWorkspace: Workspace | null = null;
 
-      // Try saved workspace first
       if (savedId) {
         selectedWorkspace = uniqueWorkspaces.find((w) => w.id === savedId) || null;
-      }
-
-      // If no valid saved, try default workspace
-      if (!selectedWorkspace) {
-        selectedWorkspace = uniqueWorkspaces.find((w) => w.is_default) || null;
-      }
-
-      // Fall back to first workspace
-      if (!selectedWorkspace && uniqueWorkspaces.length > 0) {
-        selectedWorkspace = uniqueWorkspaces[0];
+        if (!selectedWorkspace) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
 
       if (selectedWorkspace) {
@@ -214,25 +134,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspace(selectedWorkspace);
         setDemoMode(selectedWorkspace.demo_mode ?? false);
         setStripeConnected(selectedWorkspace.stripe_connected ?? false);
-        localStorage.setItem(STORAGE_KEY, selectedWorkspace.id);
-
+        
         // Fetch full integration status from view
         fetchIntegrationStatus(selectedWorkspace.id);
-
-        // Update last used in DB (fire and forget)
-        (async () => {
-          try {
-            await supabase.rpc("set_last_used_workspace", {
-              p_user_id: user.id,
-              p_workspace_id: selectedWorkspace.id,
-            });
-          } catch (e) {
-            console.error(e);
-          }
-        })();
+        
       } else {
         setWorkspaceId(null);
         setWorkspace(null);
+        setDemoMode(false);
+        setStripeConnected(false);
+        setAnalyticsConnected(false);
       }
     } catch (err) {
       console.error("Workspace context error:", err);
@@ -253,7 +164,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspaceId(null);
         setWorkspace(null);
         setWorkspaces([]);
-        localStorage.removeItem(STORAGE_KEY);
+        // Intentionally do NOT clear persisted selection here.
+        // On next login we validate access; invalid IDs are cleared during fetch.
       }
     });
 
@@ -417,6 +329,10 @@ export function useWorkspaceContext() {
     throw new Error("useWorkspaceContext must be used within a WorkspaceProvider");
   }
   return context;
+}
+
+export function useActiveWorkspaceId(): string | null {
+  return useWorkspaceContext().workspaceId;
 }
 
 // Re-export for backwards compatibility

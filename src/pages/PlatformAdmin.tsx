@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Shield, Users, Building2, Plus, Search, Eye, Activity, Gauge, Rocket } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
+import { storageSet } from '@/lib/storage';
 
 interface PlatformAdmin {
   id: string;
@@ -95,9 +96,10 @@ export default function PlatformAdmin() {
       .limit(1);
 
     // Look up user by email in auth.users via RPC or direct query
-    const { data: existingUser } = await supabase
-      .rpc('get_user_by_email', { _email: newAdminEmail })
-      .maybeSingle();
+    const { data: existingUserData } = await supabase
+      .rpc('get_user_by_email', { _email: newAdminEmail });
+
+    const existingUser = Array.isArray(existingUserData) ? existingUserData[0] : existingUserData;
 
     if (!existingUser) {
       toast.error('User not found. They must sign up first.');
@@ -143,8 +145,8 @@ export default function PlatformAdmin() {
   };
 
   const impersonateTenant = (tenantId: string, tenantName: string) => {
-    localStorage.setItem('impersonated_tenant_id', tenantId);
-    localStorage.setItem('impersonated_tenant_name', tenantName);
+    storageSet('impersonated_tenant_id', tenantId);
+    storageSet('impersonated_tenant_name', tenantName);
     toast.success(`Now viewing as ${tenantName}`);
     navigate('/dashboard');
   };

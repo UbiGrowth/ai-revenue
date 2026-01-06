@@ -17,6 +17,7 @@ import AIQuickActions from "@/components/AIQuickActions";
 import WorkflowProgress from "@/components/WorkflowProgress";
 import AIWalkthrough from "@/components/AIWalkthrough";
 import { LineChart as RechartsLineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { storageRemove } from "@/lib/storage";
 
 interface CampaignMetrics {
   totalRevenue: number;
@@ -172,11 +173,13 @@ const Dashboard = () => {
       if (workspaceId) {
         // Query the v_impressions_clicks_by_workspace view
         // Using type assertion since views aren't in generated types
-        const { data: impressionsData } = await supabase
+        const { data: impressionsDataArr } = await supabase
           .from('v_impressions_clicks_by_workspace' as any)
           .select('*')
           .eq('workspace_id', workspaceId)
-          .maybeSingle() as { data: any };
+          .limit(1) as { data: any[] };
+
+        const impressionsData = impressionsDataArr?.[0];
         
         if (impressionsData) {
           // Guard against demo data leak in live mode
@@ -190,11 +193,13 @@ const Dashboard = () => {
         }
         
         // Query the v_revenue_by_workspace view
-        const { data: revenueData } = await supabase
+        const { data: revenueDataArr } = await supabase
           .from('v_revenue_by_workspace' as any)
           .select('*')
           .eq('workspace_id', workspaceId)
-          .maybeSingle() as { data: any };
+          .limit(1) as { data: any[] };
+
+        const revenueData = revenueDataArr?.[0];
         
         if (revenueData) {
           viewRevenue = Number(revenueData.revenue || 0);
@@ -373,7 +378,7 @@ const Dashboard = () => {
               <Button 
                 variant="outline" 
                 onClick={() => {
-                  localStorage.removeItem("ubigrowth-ai-walkthrough-seen");
+                  storageRemove("ubigrowth-ai-walkthrough-seen");
                   setShowTour(true);
                 }}
               >

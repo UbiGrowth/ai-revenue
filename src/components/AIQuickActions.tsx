@@ -37,7 +37,9 @@ const AIQuickActions = ({ onActionClick }: AIQuickActionsProps) => {
         .from("business_profiles")
         .select("business_name, industry")
         .eq("workspace_id", wsId)
-        .maybeSingle();
+        .limit(1);
+
+      const profileRow = profile?.[0] ?? null;
 
       // Fetch ICP segments
       const { data: segments } = await supabase
@@ -55,8 +57,8 @@ const AIQuickActions = ({ onActionClick }: AIQuickActionsProps) => {
         .limit(1);
 
       setTenantContext({
-        businessName: profile?.business_name || null,
-        industry: profile?.industry || null,
+        businessName: profileRow?.business_name || null,
+        industry: profileRow?.industry || null,
         icpSegments: segments?.map((s) => s.segment_name).filter(Boolean) as string[] || [],
         activeCampaignCount: count || 0,
         topCampaignName: (campaigns?.[0]?.assets as any)?.name || null,

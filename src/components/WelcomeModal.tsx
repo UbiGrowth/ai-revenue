@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
+import { storageSet } from "@/lib/storage";
 
 interface WelcomeModalProps {
   onStartTour: () => void;
@@ -161,13 +162,13 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStartTour }) => {
   };
 
   const handleStartTour = () => {
-    localStorage.setItem(WELCOME_SEEN_KEY, "true");
+    storageSet(WELCOME_SEEN_KEY, "true");
     setIsOpen(false);
     onStartTour();
   };
 
   const handleSkip = () => {
-    localStorage.setItem(WELCOME_SEEN_KEY, "true");
+    storageSet(WELCOME_SEEN_KEY, "true");
     setIsOpen(false);
   };
 

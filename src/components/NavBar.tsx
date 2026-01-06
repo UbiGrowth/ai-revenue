@@ -9,6 +9,7 @@ import { Menu, X, LogOut, User, Settings, Plus, Shield, Plug, Home, PenSquare, C
 import Logo from "@/components/Logo";
 import NotificationBell from "@/components/NotificationBell";
 import FeedbackButton from "@/components/FeedbackButton";
+import WorkspaceSelector from "@/components/WorkspaceSelector";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllModulesEnabled } from "@/hooks/useModuleEnabled";
@@ -198,6 +199,9 @@ const NavBar = () => {
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3">
+            {/* Workspace Selector */}
+            <WorkspaceSelector />
+            
             {/* Help Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -299,6 +303,11 @@ const NavBar = () => {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-border">
           <div className="space-y-1 px-4 pb-3 pt-2">
+            {/* Workspace Selector */}
+            <div className="mb-3">
+              <WorkspaceSelector />
+            </div>
+            
             <Button
               onClick={() => {
                 navigate("/new-campaign");

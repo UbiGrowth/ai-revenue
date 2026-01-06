@@ -147,17 +147,21 @@ const Reports = () => {
         return;
       }
 
-      const { data: impressionsData } = await supabase
+      const { data: impressionsDataArr } = await supabase
         .from('v_impressions_clicks_by_workspace' as any)
         .select('*')
         .eq('workspace_id', workspaceId)
-        .maybeSingle() as { data: any };
+        .limit(1) as { data: any[] };
 
-      const { data: revenueData } = await supabase
+      const impressionsData = impressionsDataArr?.[0];
+
+      const { data: revenueDataArr } = await supabase
         .from('v_revenue_by_workspace' as any)
         .select('*')
         .eq('workspace_id', workspaceId)
-        .maybeSingle() as { data: any };
+        .limit(1) as { data: any[] };
+
+      const revenueData = revenueDataArr?.[0];
 
       const analyticsConnected = impressionsData?.analytics_connected === true;
       const stripeConnected = revenueData?.stripe_connected === true;

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Search, Filter, Mail, Phone, Building, User, Calendar as CalendarIcon, PhoneCall, Loader2, LayoutGrid, List, BarChart3, Download, Building2, ChevronDown, ExternalLink, Tags, ArrowUpDown } from "lucide-react";
+import { Plus, Upload, Search, Filter, Mail, Phone, Building, User, Calendar as CalendarIcon, PhoneCall, Loader2, LayoutGrid, List, BarChart3, Download, Building2, ChevronDown, ExternalLink, Tags } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
@@ -29,7 +29,7 @@ import WorkspaceSelector from "@/components/WorkspaceSelector";
 import { useTenantSegments } from "@/hooks/useTenantSegments";
 import { SegmentBadge } from "@/components/crm/SegmentBadge";
 import { useDemoMode } from "@/hooks/useDemoMode";
-import { UniversalCSVImport } from "@/components/crm/UniversalCSVImport";
+import { useActiveWorkspaceId, useWorkspaceContext } from "@/contexts/WorkspaceContext";
 
 interface Lead {
   id: string;
@@ -64,16 +64,14 @@ const CRM = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { segments } = useTenantSegments();
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [workspaceValidated, setWorkspaceValidated] = useState(false);
+  const workspaceId = useActiveWorkspaceId();
+  const { isLoading: workspaceLoading } = useWorkspaceContext();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "list" | "pipeline" | "deals" | "tasks" | "sequences" | "calendar" | "reports" | "email_analytics">("dashboard");
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortField, setSortField] = useState<"name" | "company" | "score" | "created_at" | "status">("created_at");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [showNewLeadDialog, setShowNewLeadDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showScraperDialog, setShowScraperDialog] = useState(false);
@@ -81,6 +79,7 @@ const CRM = () => {
   const [scraping, setScraping] = useState(false);
   // DEMO MODE: Use centralized workspace demo_mode instead of local toggle
   const { demoMode: showSampleData } = useDemoMode();
+  const [isDragging, setIsDragging] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   const [campaignMetrics, setCampaignMetrics] = useState<any[]>([]);
   const [emailConnected, setEmailConnected] = useState(false);
@@ -116,140 +115,63 @@ const CRM = () => {
     notes: "",
     segment_code: "",
   });
+  
+  // Import segment selection
+  const [importSegmentCode, setImportSegmentCode] = useState("");
 
   useEffect(() => {
-    const validateWorkspace = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setWorkspaceValidated(true);
-        setLoading(false);
-        return;
-      }
+    if (workspaceLoading) return;
 
-      const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
-
-      // Owned workspaces
-      const { data: ownedWorkspaces, error: ownedErr } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: true });
-
-      if (ownedErr) {
-        console.error("[CRM] ownedWorkspaces lookup failed:", ownedErr);
-      }
-
-      // Member workspaces (non-owner)
-      const { data: memberWorkspaces, error: memberErr } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
-
-      if (memberErr) {
-        console.error("[CRM] workspace_members lookup failed:", memberErr);
-      }
-
-      const validWorkspaceIds = [
-        ...(ownedWorkspaces?.map((w) => w.id) || []),
-        ...(memberWorkspaces?.map((m) => m.workspace_id) || []),
-      ].filter((id, i, arr) => arr.indexOf(id) === i);
-
-      // Check if saved workspace is valid for this user
-      if (savedWorkspaceId && validWorkspaceIds.includes(savedWorkspaceId)) {
-        setWorkspaceId(savedWorkspaceId);
-      } else if (validWorkspaceIds.length > 0) {
-        // Use first available workspace
-        const correctWorkspaceId = validWorkspaceIds[0];
-        localStorage.setItem("currentWorkspaceId", correctWorkspaceId);
-        setWorkspaceId(correctWorkspaceId);
-        console.log("[CRM] Updated workspace to:", correctWorkspaceId);
-      } else {
-        // No workspace access
-        setWorkspaceId(null);
-      }
-
-      setWorkspaceValidated(true);
-    };
-
-    validateWorkspace();
-  }, []);
-
-  useEffect(() => {
-    if (workspaceValidated && workspaceId) {
-      // Force immediate fetch on mount and workspace change
-      console.log("[CRM] Fetching leads for workspace:", workspaceId);
+    if (workspaceId) {
       fetchLeads();
       fetchCalendarEvents();
       fetchCampaignMetrics();
       fetchEmailConnectionStatus();
-    } else if (workspaceValidated) {
+    } else {
       setLeads([]);
       setCalendarEvents([]);
       setCampaignMetrics([]);
       setEmailConnected(false);
       setLoading(false);
     }
-  }, [workspaceId, workspaceValidated]);
+  }, [workspaceId, workspaceLoading]);
 
-  // Force refresh on window focus to catch any updates
+  // Keep analytics in sync (preview can be stale if the DB updates outside this page lifecycle)
   useEffect(() => {
-    if (!workspaceValidated || !workspaceId) return;
+    if (workspaceLoading || !workspaceId) return;
 
     const onFocus = () => {
-      console.log("[CRM] Window focused, refreshing leads...");
-      fetchLeads();
+      fetchCampaignMetrics();
     };
 
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [workspaceId, workspaceValidated]);
-
-  // Periodic analytics refresh
-  useEffect(() => {
-    if (!workspaceValidated || !workspaceId) return;
 
     const interval = window.setInterval(() => {
       fetchCampaignMetrics();
     }, 15000);
 
     return () => {
+      window.removeEventListener("focus", onFocus);
       window.clearInterval(interval);
     };
-  }, [workspaceId, workspaceValidated]);
+  }, [workspaceId, workspaceLoading]);
 
   useEffect(() => {
     filterLeads();
-  }, [leads, searchQuery, statusFilter, sortField, sortDirection]);
+  }, [leads, searchQuery, statusFilter]);
 
   const fetchLeads = async () => {
     if (!workspaceId) return;
-
-    setLoading(true);
-
+    
     try {
-      const pageSize = 1000;
-      let offset = 0;
-      const all: Lead[] = [];
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
 
-      while (true) {
-        const { data, error } = await supabase
-          .from("leads")
-          .select("*")
-          .eq("workspace_id", workspaceId)
-          .order("created_at", { ascending: false })
-          .range(offset, offset + pageSize - 1);
-
-        if (error) throw error;
-
-        const batch = (data || []) as Lead[];
-        all.push(...batch);
-
-        if (batch.length < pageSize) break;
-        offset += pageSize;
-      }
-
-      setLeads(all);
+      if (error) throw error;
+      setLeads(data || []);
     } catch (error) {
       console.error("Error fetching leads:", error);
       toast({
@@ -302,8 +224,10 @@ const CRM = () => {
         .from("ai_settings_email")
         .select("is_connected")
         .eq("tenant_id", workspaceId)
-        .maybeSingle();
-      setEmailConnected(data?.is_connected === true);
+        .limit(1);
+
+      const row = data?.[0];
+      setEmailConnected(row?.is_connected === true);
     } catch (error) {
       console.error("Error fetching email connection status:", error);
       setEmailConnected(false);
@@ -327,30 +251,6 @@ const CRM = () => {
     if (statusFilter !== "all") {
       filtered = filtered.filter((lead) => lead.status === statusFilter);
     }
-
-    // Sort the filtered leads
-    filtered = [...filtered].sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case "name":
-          comparison = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
-          break;
-        case "company":
-          comparison = (a.company || "").localeCompare(b.company || "");
-          break;
-        case "score":
-          comparison = (a.score || 0) - (b.score || 0);
-          break;
-        case "status":
-          comparison = a.status.localeCompare(b.status);
-          break;
-        case "created_at":
-        default:
-          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          break;
-      }
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
 
     setFilteredLeads(filtered);
   };
@@ -516,9 +416,104 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
     window.URL.revokeObjectURL(url);
   };
 
-  // CSV import is now handled by UniversalCSVImport component
+  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      if (!workspaceId) {
+        throw new Error("No workspace selected. Please select or create a workspace first.");
+      }
+
+      // First verify user is authenticated
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        throw new Error("Please log in to import leads");
+      }
+
+      const csvContent = await file.text();
+      
+      // Use AI to automatically map CSV columns
+      sonnerToast.info("AI is analyzing your CSV format...");
+      
+      const { data, error: fnError } = await supabase.functions.invoke('ai-csv-mapper', {
+        body: { csvContent }
+      });
+
+      if (fnError) throw fnError;
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      if (!data?.leads || data.leads.length === 0) {
+        throw new Error("No valid leads found. Make sure your CSV has email addresses.");
+      }
+
+      console.log("AI mapped leads:", data.leads.length);
+      console.log("Column mapping:", data.mapping);
+      console.log("Using workspace:", workspaceId);
+
+      // Show mapping info
+      if (data.confidence && data.confidence < 0.7) {
+        sonnerToast.warning("Low confidence mapping - please verify imported data");
+      }
+
+      const leadsWithMetadata = data.leads.map((lead: any) => ({
+        ...lead,
+        created_by: user.user?.id,
+        workspace_id: workspaceId,
+        segment_code: importSegmentCode || null,
+        source: 'user', // Explicit: imported leads count in live analytics
+      }));
+
+      const { error: insertError } = await supabase.from("leads").insert(leadsWithMetadata);
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        if (insertError.message?.includes("row-level security")) {
+          throw new Error("Permission denied. Please ensure you have the correct role to import leads.");
+        }
+        throw insertError;
+      }
+
+      toast({
+        title: "Success",
+        description: `AI imported ${data.validLeads} leads from ${data.totalRows} rows`,
+      });
+
+      if (data.errors && data.errors.length > 0) {
+        sonnerToast.warning(`${data.errors.length} rows skipped (missing email)`);
+      }
+
+      setShowImportDialog(false);
+      setImportSegmentCode("");
+      fetchLeads();
+    } catch (error) {
+      console.error("Error importing leads:", error);
+      toast({
+        variant: "destructive",
+        title: "Import Failed",
+        description: error instanceof Error ? error.message : "Failed to import CSV file",
+      });
+    } finally {
+      setImporting(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
 
   const handleGoogleMapsScrape = async () => {
+    if (!workspaceId) {
+      toast({
+        variant: "destructive",
+        title: "Workspace Required",
+        description: "Select a workspace to import leads.",
+      });
+      return;
+    }
+
     if (!scraperParams.location || !scraperParams.businessType) {
       toast({
         variant: "destructive",
@@ -651,7 +646,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <WorkspaceSelector onWorkspaceChange={setWorkspaceId} />
+                <WorkspaceSelector />
               <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline">
@@ -663,7 +658,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setShowImportDialog(true)}>
                       <Upload className="mr-2 h-4 w-4" />
-                      Universal CSV Import
+                      Import CSV
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/crm/import/monday")}>
                       <ExternalLink className="mr-2 h-4 w-4" />
@@ -672,12 +667,161 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-              <UniversalCSVImport 
-                open={showImportDialog} 
-                onOpenChange={setShowImportDialog}
-                workspaceId={workspaceId}
-                onImportComplete={fetchLeads}
-              />
+              <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <span className="bg-gradient-to-r from-primary to-cyan bg-clip-text text-transparent">AI-Powered</span> CSV Import
+                    </DialogTitle>
+                    <DialogDescription>
+                      Upload any CSV file - AI will automatically detect and map columns to lead fields.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {/* Workspace validation error */}
+                    {!workspaceId && (
+                      <div 
+                        data-testid="import-workspace-error"
+                        className="border border-destructive/50 bg-destructive/10 rounded-lg p-4 space-y-3"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Building2 className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-medium text-destructive">No workspace selected</p>
+                            <p className="text-sm text-muted-foreground">
+                              Create or select a workspace to import leads.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setShowImportDialog(false);
+                              // Trigger workspace selector dropdown
+                              const wsSelector = document.querySelector('[data-workspace-selector]') as HTMLElement;
+                              wsSelector?.click();
+                            }}
+                          >
+                            Select workspace
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => {
+                              setShowImportDialog(false);
+                              navigate("/settings?tab=workspaces&new=1");
+                            }}
+                          >
+                            Create workspace
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {workspaceId && segments.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Tags className="h-4 w-4" />
+                          Assign Segment to All Imported Leads
+                        </Label>
+                        <Select
+                          value={importSegmentCode || "__none__"}
+                          onValueChange={(v) => setImportSegmentCode(v === "__none__" ? "" : v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select segment (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">No segment</SelectItem>
+                            {segments.map((seg) => (
+                              <SelectItem key={seg.code} value={seg.code}>
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-2 h-2 rounded-full" 
+                                    style={{ backgroundColor: seg.color }}
+                                  />
+                                  {seg.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {workspaceId && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={downloadCSVTemplate} className="w-full">
+                          <Download className="mr-2 h-4 w-4" />
+                          Download Sample CSV
+                        </Button>
+                        <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+                          <strong>AI auto-maps:</strong> Names, emails, phones, companies, job titles, industry, and more. Just upload your file in any format!
+                        </div>
+                        <div
+                          data-testid="import-dropzone"
+                          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                            isDragging 
+                              ? 'border-primary bg-primary/5' 
+                              : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                          } ${importing ? 'opacity-50 pointer-events-none' : ''}`}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsDragging(true);
+                          }}
+                          onDragEnter={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsDragging(true);
+                          }}
+                          onDragLeave={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsDragging(false);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsDragging(false);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file && file.name.endsWith('.csv')) {
+                              const event = { target: { files: [file], value: '' } } as unknown as React.ChangeEvent<HTMLInputElement>;
+                              handleCSVImport(event);
+                            } else {
+                              toast({
+                                variant: "destructive",
+                                title: "Invalid File",
+                                description: "Please upload a CSV file",
+                              });
+                            }
+                          }}
+                        >
+                          <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                          <p className="text-sm font-medium">
+                            {isDragging ? 'Drop CSV file here' : 'Drag & drop CSV file here'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                          <Input
+                            type="file"
+                            accept=".csv"
+                            onChange={handleCSVImport}
+                            disabled={importing}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                        </div>
+                        {importing && (
+                          <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            AI is analyzing and importing leads...
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               <Dialog open={showScraperDialog} onOpenChange={setShowScraperDialog}>
                 <DialogTrigger asChild>
@@ -1037,7 +1181,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                         className="pl-10"
                       />
                     </div>
-                    <div className="flex gap-3 flex-wrap">
+                    <div className="flex gap-3">
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
                         <SelectTrigger className="w-[180px]">
                           <Filter className="mr-2 h-4 w-4" />
@@ -1051,28 +1195,6 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                           <SelectItem value="unqualified">Unqualified</SelectItem>
                           <SelectItem value="converted">Converted</SelectItem>
                           <SelectItem value="lost">Lost</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={`${sortField}-${sortDirection}`} onValueChange={(val) => {
-                        const [field, dir] = val.split("-") as [typeof sortField, typeof sortDirection];
-                        setSortField(field);
-                        setSortDirection(dir);
-                      }}>
-                        <SelectTrigger className="w-[180px]">
-                          <ArrowUpDown className="mr-2 h-4 w-4" />
-                          <SelectValue placeholder="Sort by" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="created_at-desc">Newest First</SelectItem>
-                          <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                          <SelectItem value="name-asc">Name A-Z</SelectItem>
-                          <SelectItem value="name-desc">Name Z-A</SelectItem>
-                          <SelectItem value="company-asc">Company A-Z</SelectItem>
-                          <SelectItem value="company-desc">Company Z-A</SelectItem>
-                          <SelectItem value="score-desc">Highest Score</SelectItem>
-                          <SelectItem value="score-asc">Lowest Score</SelectItem>
-                          <SelectItem value="status-asc">Status A-Z</SelectItem>
-                          <SelectItem value="status-desc">Status Z-A</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

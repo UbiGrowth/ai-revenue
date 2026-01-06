@@ -93,13 +93,13 @@ export function DealsPipeline({ workspaceId }: DealsPipelineProps) {
         .from("v_crm_pipeline_truth")
         .select("*")
         .eq("workspace_id", workspaceId)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         console.error("Error fetching pipeline truth:", error);
         return;
       }
-      setPipelineTruth(data);
+      setPipelineTruth(data?.[0] ?? null);
     } catch (error) {
       console.error("Error fetching pipeline truth:", error);
     }

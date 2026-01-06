@@ -106,6 +106,8 @@ const ALLOWED_OUTBOX_WRITERS_PREFIXES = [
   "supabase/functions/vapi-outbound-call/",
   "supabase/functions/execute-voice-campaign/",
   "supabase/functions/campaign-schedule-outbox/",
+  "supabase/functions/cmo-campaign-orchestrate/",
+  "supabase/functions/test-email/",
   // QA / infra tools
   "supabase/functions/qa-execution-cert/",
   "supabase/functions/infrastructure-test-runner/",

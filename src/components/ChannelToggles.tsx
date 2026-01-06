@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Share2, Phone, Video, Layout, Construction } from "lucide-react";
-import { useActiveWorkspaceId } from "@/hooks/useWorkspace";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 interface ChannelPreferences {
   email_enabled: boolean;
@@ -69,11 +70,11 @@ export function ChannelToggles() {
   });
 
   useEffect(() => {
-    if (workspaceId) {
-      fetchPreferences();
-    } else {
+    if (!workspaceId) {
       setLoading(false);
+      return;
     }
+    fetchPreferences();
   }, [workspaceId]);
 
   const fetchPreferences = async () => {
@@ -86,22 +87,31 @@ export function ChannelToggles() {
       .from("channel_preferences")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .maybeSingle();
+      .limit(1);
 
-    if (!error && data) {
+    const row = data?.[0];
+
+    if (!error && row) {
       setPreferences({
-        email_enabled: data.email_enabled,
-        social_enabled: data.social_enabled,
-        voice_enabled: data.voice_enabled,
-        video_enabled: data.video_enabled,
-        landing_pages_enabled: data.landing_pages_enabled,
+        email_enabled: row.email_enabled,
+        social_enabled: row.social_enabled,
+        voice_enabled: row.voice_enabled,
+        video_enabled: row.video_enabled,
+        landing_pages_enabled: row.landing_pages_enabled,
       });
     }
     setLoading(false);
   };
 
   const handleToggle = async (key: keyof ChannelPreferences, enabled: boolean) => {
-    if (!workspaceId) return;
+    if (!workspaceId) {
+      toast({
+        title: "Workspace required",
+        description: "Select a workspace to update channel preferences.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -139,69 +149,69 @@ export function ChannelToggles() {
     }
   };
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Share2 className="h-5 w-5 text-primary" />
-          Marketing Channels
-        </CardTitle>
-        <CardDescription>
-          Choose which marketing channels to enable. Disabled channels will be hidden from asset creation and deployment options.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {CHANNEL_CONFIG.map((channel) => {
-          const Icon = channel.icon;
-          const isEnabled = preferences[channel.key];
-          const isComingSoon = 'comingSoon' in channel && channel.comingSoon;
+    <WorkspaceGate feature="marketing channels">
+      {loading ? (
+        <Card>
+          <CardContent className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5 text-primary" />
+              Marketing Channels
+            </CardTitle>
+            <CardDescription>
+              Choose which marketing channels to enable. Disabled channels will be hidden from asset creation and deployment options.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {CHANNEL_CONFIG.map((channel) => {
+              const Icon = channel.icon;
+              const isEnabled = preferences[channel.key];
+              const isComingSoon = 'comingSoon' in channel && channel.comingSoon;
 
-          return (
-            <div
-              key={channel.key}
-              className={`flex items-center justify-between rounded-lg border border-border p-4 ${isComingSoon ? 'opacity-60' : ''}`}
-            >
-              <div className="flex items-start gap-4">
-                <div className="rounded-md bg-primary/10 p-2">
-                  <Icon className="h-5 w-5 text-primary" />
+              return (
+                <div
+                  key={channel.key}
+                  className={`flex items-center justify-between rounded-lg border border-border p-4 ${isComingSoon ? 'opacity-60' : ''}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-md bg-primary/10 p-2">
+                      <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={channel.key} className="font-medium flex items-center gap-2">
+                        {channel.label}
+                        {isComingSoon && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Construction className="h-3 w-3 mr-1" />
+                            Coming Soon
+                          </Badge>
+                        )}
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        {channel.description}
+                        {isComingSoon && " (E2E provider integration in progress)"}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id={channel.key}
+                    checked={isComingSoon ? false : isEnabled}
+                    onCheckedChange={(checked) => handleToggle(channel.key, checked)}
+                    disabled={saving || isComingSoon}
+                  />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor={channel.key} className="font-medium flex items-center gap-2">
-                    {channel.label}
-                    {isComingSoon && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Construction className="h-3 w-3 mr-1" />
-                        Coming Soon
-                      </Badge>
-                    )}
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    {channel.description}
-                    {isComingSoon && " (E2E provider integration in progress)"}
-                  </p>
-                </div>
-              </div>
-              <Switch
-                id={channel.key}
-                checked={isComingSoon ? false : isEnabled}
-                onCheckedChange={(checked) => handleToggle(channel.key, checked)}
-                disabled={saving || isComingSoon}
-              />
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+    </WorkspaceGate>
   );
 }
 

@@ -65,11 +65,13 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
     
     try {
       // AUTHORITATIVE SOURCE: Query the view directly
-      const { data: impressionsData } = await supabase
+      const { data: impressionsDataArr } = await supabase
         .from('v_impressions_clicks_by_workspace' as any)
         .select('demo_mode, analytics_connected, stripe_connected, data_quality_status')
         .eq('workspace_id', workspaceId)
-        .maybeSingle() as { data: any };
+        .limit(1) as { data: any[] };
+
+      const impressionsData = impressionsDataArr?.[0];
       
       if (impressionsData) {
         // View's data_quality_status is the source of truth
@@ -79,11 +81,13 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
         setStripeConnected(impressionsData.stripe_connected === true);
       } else {
         // No data = fresh workspace, default to checking revenue view
-        const { data: revenueData } = await supabase
+        const { data: revenueDataArr } = await supabase
           .from('v_revenue_by_workspace' as any)
           .select('stripe_connected, data_quality_status')
           .eq('workspace_id', workspaceId)
-          .maybeSingle() as { data: any };
+          .limit(1) as { data: any[] };
+
+        const revenueData = revenueDataArr?.[0];
         
         if (revenueData) {
           setStripeConnected(revenueData.stripe_connected === true);
@@ -97,11 +101,13 @@ export function useDataQualityStatus(workspaceId?: string | null): DataQualitySt
       // ║ workspaces.tenant_id is NULL in production and must NOT be used.        ║
       // ║ This matches how SettingsIntegrations.tsx saves the data.               ║
       // ╚══════════════════════════════════════════════════════════════════════════╝
-      const { data: voiceSettings } = await supabase
+      const { data: voiceSettingsArr } = await supabase
         .from('ai_settings_voice')
         .select('is_connected, vapi_private_key, elevenlabs_api_key')
         .eq('tenant_id', workspaceId)
-        .maybeSingle();
+        .limit(1);
+
+      const voiceSettings = voiceSettingsArr?.[0];
       
       if (voiceSettings) {
         const isExplicitlyConnected = voiceSettings.is_connected === true;

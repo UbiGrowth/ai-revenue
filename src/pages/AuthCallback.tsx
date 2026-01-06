@@ -8,11 +8,13 @@ const AuthCallback = () => {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
-        const { data: profile } = await supabase
+        const { data: profileArr } = await supabase
           .from("business_profiles")
           .select("id")
           .eq("user_id", session.user.id)
-          .maybeSingle();
+          .limit(1);
+
+        const profile = profileArr?.[0] ?? null;
 
         navigate(profile ? "/dashboard" : "/onboarding", { replace: true });
       }

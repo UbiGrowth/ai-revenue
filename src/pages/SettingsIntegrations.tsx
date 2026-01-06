@@ -15,19 +15,15 @@ import {
   Mail, Linkedin, Calendar, Globe, Webhook, Loader2, 
   CheckCircle2, XCircle, Copy, ChevronDown, Settings, ArrowLeft,
   History, User, Clock, Phone, Mic, RefreshCw, Plus, Trash2,
-  CreditCard, Share2, Instagram, Facebook, LogOut, Sparkles,
-  Reply, AlertTriangle, HelpCircle
+  CreditCard, Share2, Instagram, Facebook, LogOut
 } from "lucide-react";
-import { EmailSetupWizard } from "@/components/settings/EmailSetupWizard";
-import { EmailReplyToExplainer } from "@/components/settings/EmailReplyToExplainer";
-import { DomainVerificationHelper } from "@/components/settings/DomainVerificationHelper";
-import { DomainSettingsCard } from "@/components/settings/DomainSettingsCard";
-import { SocialTokenWizard } from "@/components/settings/SocialTokenWizard";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { format, formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 // Types for each settings table
 interface EmailSettings {
@@ -189,6 +185,7 @@ const FIELD_LABELS: Record<string, string> = {
 export default function SettingsIntegrations() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const workspaceId = useActiveWorkspaceId();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -207,26 +204,14 @@ export default function SettingsIntegrations() {
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpOpen, setSmtpOpen] = useState(false);
-  const [showEmailWizard, setShowEmailWizard] = useState(false);
-  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
 
   // Integration test states
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingCalendar, setTestingCalendar] = useState(false);
   const [testingStripe, setTestingStripe] = useState(false);
-  const [testingLinkedIn, setTestingLinkedIn] = useState(false);
-  const [testingVapi, setTestingVapi] = useState(false);
-  const [testingElevenLabs, setTestingElevenLabs] = useState(false);
-  const [testingDomain, setTestingDomain] = useState(false);
-  const [testingSocial, setTestingSocial] = useState<string | null>(null);
   const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [calendarTestResult, setCalendarTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [stripeTestResult, setStripeTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [linkedInTestResult, setLinkedInTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [vapiTestResult, setVapiTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [elevenLabsTestResult, setElevenLabsTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [domainTestResult, setDomainTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [socialTestResults, setSocialTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
 
   // Gmail OAuth state
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -279,11 +264,13 @@ export default function SettingsIntegrations() {
   // Social integrations state
   const [socialIntegrations, setSocialIntegrations] = useState<SocialIntegration[]>([]);
   const [socialTokens, setSocialTokens] = useState<Record<string, { token: string; accountName: string }>>({});
-  const [socialWizardOpen, setSocialWizardOpen] = useState(false);
-  const [socialWizardPlatform, setSocialWizardPlatform] = useState<"instagram" | "linkedin" | "facebook" | "tiktok">("instagram");
 
   useEffect(() => {
-    loadAllSettings();
+    if (workspaceId) {
+      loadAllSettings();
+    } else {
+      setLoading(false);
+    }
     
     // Handle Gmail OAuth callback query params
     const gmailConnectedParam = searchParams.get("gmail_connected");
@@ -313,7 +300,7 @@ export default function SettingsIntegrations() {
       });
       navigate("/settings/integrations", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, workspaceId]);
 
   const loadAllSettings = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -322,38 +309,6 @@ export default function SettingsIntegrations() {
       return;
     }
     setUserId(user.id);
-
-    // Get workspace ID (user may be owner or member)
-    // NOTE: user can have multiple workspaces, so avoid maybeSingle() without a LIMIT.
-    const { data: ownedWorkspace, error: ownedErr } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (ownedErr) {
-      console.error("Failed to load owned workspace:", ownedErr);
-    }
-
-    let workspaceId = ownedWorkspace?.id;
-
-    if (!workspaceId) {
-      const { data: membership, error: memberErr } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (memberErr) {
-        console.error("Failed to load workspace membership:", memberErr);
-      }
-
-      workspaceId = membership?.workspace_id;
-    }
 
     if (!workspaceId) {
       console.error("No workspace found for user");
@@ -368,81 +323,83 @@ export default function SettingsIntegrations() {
 
     // Load all settings and audit logs in parallel using workspace_id
     const [emailRes, linkedinRes, calendarRes, crmRes, domainRes, voiceRes, stripeRes, socialRes, auditRes] = await Promise.all([
-      supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_linkedin").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_calendar").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_crm_webhooks").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_domain").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_stripe").select("*").eq("tenant_id", workspaceId).maybeSingle(),
+      supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_linkedin").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_calendar").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_crm_webhooks").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_domain").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_stripe").select("*").eq("tenant_id", workspaceId).limit(1),
       supabase.from("social_integrations").select("*").eq("workspace_id", workspaceId),
       supabase.from("integration_audit_log").select("*").eq("tenant_id", workspaceId).order("created_at", { ascending: false }).limit(20),
     ]);
 
     // Populate email
-    if (emailRes.data) {
-      setEmailSettings(emailRes.data);
-      setSenderName(emailRes.data.sender_name || "");
-      setFromAddress(emailRes.data.from_address || "");
-      setReplyToAddress(emailRes.data.reply_to_address || "");
-      setSmtpHost(emailRes.data.smtp_host || "");
-      setSmtpPort(emailRes.data.smtp_port);
-      setSmtpUsername(emailRes.data.smtp_username || "");
-      setSmtpPassword(emailRes.data.smtp_password || "");
-      setIsFirstTimeSetup(false);
-    } else {
-      // First-time setup - show wizard
-      setIsFirstTimeSetup(true);
-      setShowEmailWizard(true);
+    const emailRow = emailRes.data?.[0] ?? null;
+    if (emailRow) {
+      setEmailSettings(emailRow);
+      setSenderName(emailRow.sender_name || "");
+      setFromAddress(emailRow.from_address || "");
+      setReplyToAddress(emailRow.reply_to_address || "");
+      setSmtpHost(emailRow.smtp_host || "");
+      setSmtpPort(emailRow.smtp_port);
+      setSmtpUsername(emailRow.smtp_username || "");
+      setSmtpPassword(emailRow.smtp_password || "");
     }
 
     // Populate LinkedIn
-    if (linkedinRes.data) {
-      setLinkedinSettings(linkedinRes.data);
-      setLinkedinProfileUrl(linkedinRes.data.linkedin_profile_url || "");
-      setDailyConnectionLimit(linkedinRes.data.daily_connection_limit || 20);
-      setDailyMessageLimit(linkedinRes.data.daily_message_limit || 50);
+    const linkedinRow = linkedinRes.data?.[0] ?? null;
+    if (linkedinRow) {
+      setLinkedinSettings(linkedinRow);
+      setLinkedinProfileUrl(linkedinRow.linkedin_profile_url || "");
+      setDailyConnectionLimit(linkedinRow.daily_connection_limit || 20);
+      setDailyMessageLimit(linkedinRow.daily_message_limit || 50);
     }
 
     // Populate Calendar
-    if (calendarRes.data) {
-      setCalendarSettings(calendarRes.data);
-      setCalendarProvider(calendarRes.data.calendar_provider || "google");
-      setBookingUrl(calendarRes.data.booking_url || "");
+    const calendarRow = calendarRes.data?.[0] ?? null;
+    if (calendarRow) {
+      setCalendarSettings(calendarRow);
+      setCalendarProvider(calendarRow.calendar_provider || "google");
+      setBookingUrl(calendarRow.booking_url || "");
     }
 
     // Populate CRM
-    if (crmRes.data) {
-      setCrmSettings(crmRes.data);
-      setInboundWebhookUrl(crmRes.data.inbound_webhook_url || "");
-      setOutboundWebhookUrl(crmRes.data.outbound_webhook_url || "");
+    const crmRow = crmRes.data?.[0] ?? null;
+    if (crmRow) {
+      setCrmSettings(crmRow);
+      setInboundWebhookUrl(crmRow.inbound_webhook_url || "");
+      setOutboundWebhookUrl(crmRow.outbound_webhook_url || "");
     }
 
     // Populate Domain
-    if (domainRes.data) {
-      setDomainSettings(domainRes.data);
-      setDomain(domainRes.data.domain || "");
+    const domainRow = domainRes.data?.[0] ?? null;
+    if (domainRow) {
+      setDomainSettings(domainRow);
+      setDomain(domainRow.domain || "");
     }
 
     // Populate Voice
-    if (voiceRes.data) {
-      setVoiceSettings(voiceRes.data as VoiceSettings);
-      setVapiPublicKey(voiceRes.data.vapi_public_key || "");
-      setVapiPrivateKey(voiceRes.data.vapi_private_key || "");
-      setElevenlabsApiKey(voiceRes.data.elevenlabs_api_key || "");
-      setDefaultVapiAssistantId(voiceRes.data.default_vapi_assistant_id || "");
-      setDefaultElevenlabsVoiceId(voiceRes.data.default_elevenlabs_voice_id || "EXAVITQu4vr4xnSDxMaL");
-      setElevenlabsModel(voiceRes.data.elevenlabs_model || "eleven_multilingual_v2");
+    const voiceRow = voiceRes.data?.[0] ?? null;
+    if (voiceRow) {
+      setVoiceSettings(voiceRow as VoiceSettings);
+      setVapiPublicKey(voiceRow.vapi_public_key || "");
+      setVapiPrivateKey(voiceRow.vapi_private_key || "");
+      setElevenlabsApiKey(voiceRow.elevenlabs_api_key || "");
+      setDefaultVapiAssistantId(voiceRow.default_vapi_assistant_id || "");
+      setDefaultElevenlabsVoiceId(voiceRow.default_elevenlabs_voice_id || "EXAVITQu4vr4xnSDxMaL");
+      setElevenlabsModel(voiceRow.elevenlabs_model || "eleven_multilingual_v2");
     }
 
     // Populate Stripe
-    if (stripeRes.data) {
-      setStripeSettings(stripeRes.data as StripeSettings);
-      setStripePublishableKey(stripeRes.data.stripe_publishable_key || "");
-      setStripeSecretKeyHint(stripeRes.data.stripe_secret_key_hint || "");
-      setStripeWebhookSecretHint(stripeRes.data.webhook_secret_hint || "");
-      setStripeAccountName(stripeRes.data.account_name || "");
-      setStripeIsConnected(stripeRes.data.is_connected || false);
+    const stripeRow = stripeRes.data?.[0] ?? null;
+    if (stripeRow) {
+      setStripeSettings(stripeRow as StripeSettings);
+      setStripePublishableKey(stripeRow.stripe_publishable_key || "");
+      setStripeSecretKeyHint(stripeRow.stripe_secret_key_hint || "");
+      setStripeWebhookSecretHint(stripeRow.webhook_secret_hint || "");
+      setStripeAccountName(stripeRow.account_name || "");
+      setStripeIsConnected(stripeRow.is_connected || false);
     }
 
     // Populate Social integrations
@@ -468,14 +425,24 @@ export default function SettingsIntegrations() {
 
   const fetchGmailStatus = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setGmailConnected(false);
+        setGmailEmail(null);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("user_gmail_tokens")
         .select("email")
-        .maybeSingle();
+        .eq("user_id", user.id)
+        .limit(1);
+
+      const row = data?.[0] ?? null;
       
-      if (data && !error) {
+      if (row && !error) {
         setGmailConnected(true);
-        setGmailEmail(data.email);
+        setGmailEmail(row.email);
       } else {
         setGmailConnected(false);
         setGmailEmail(null);
@@ -580,14 +547,7 @@ export default function SettingsIntegrations() {
   };
 
   const saveEmailSettings = async () => {
-    if (!tenantId) {
-      toast({ 
-        title: "Error", 
-        description: "Workspace not found. Please refresh the page.", 
-        variant: "destructive" 
-      });
-      return;
-    }
+    if (!tenantId) return;
     setSaving("email");
 
     try {
@@ -603,13 +563,8 @@ export default function SettingsIntegrations() {
         updated_at: new Date().toISOString(),
       };
 
-      console.log("[saveEmailSettings] tenantId:", tenantId);
-      console.log("[saveEmailSettings] payload:", payload);
-
       const changes = detectChanges(emailSettings || {}, payload);
       const isCreate = !emailSettings;
-
-      console.log("[saveEmailSettings] changes:", changes, "isCreate:", isCreate);
 
       if (Object.keys(changes).length === 0) {
         toast({ title: "No changes", description: "No changes were detected to save." });
@@ -617,17 +572,11 @@ export default function SettingsIntegrations() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("ai_settings_email")
-        .upsert(payload, { onConflict: "tenant_id" })
-        .select();
+        .upsert(payload, { onConflict: "tenant_id" });
 
-      console.log("[saveEmailSettings] upsert result:", { data, error });
-
-      if (error) {
-        console.error("[saveEmailSettings] upsert error:", error);
-        throw error;
-      }
+      if (error) throw error;
 
       await logAuditEntry('email', changes, isCreate);
 
@@ -648,12 +597,7 @@ export default function SettingsIntegrations() {
         ),
       });
     } catch (error: any) {
-      console.error("[saveEmailSettings] error:", error);
-      toast({ 
-        title: "Error saving email settings", 
-        description: error.message || "An unexpected error occurred", 
-        variant: "destructive" 
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setSaving(null);
     }
@@ -1234,184 +1178,6 @@ export default function SettingsIntegrations() {
     }
   };
 
-  const testLinkedInProfile = async () => {
-    if (!linkedinProfileUrl) {
-      toast({ title: "Missing URL", description: "Please enter your LinkedIn profile URL", variant: "destructive" });
-      return;
-    }
-    
-    setTestingLinkedIn(true);
-    setLinkedInTestResult(null);
-    
-    try {
-      // Validate URL format
-      const url = new URL(linkedinProfileUrl);
-      const isLinkedIn = url.hostname.includes('linkedin.com');
-      const hasProfile = url.pathname.includes('/in/') || url.pathname.includes('/company/');
-      
-      if (!isLinkedIn) {
-        setLinkedInTestResult({ success: false, message: "Not a valid LinkedIn URL" });
-        toast({ title: "Invalid URL", description: "Please enter a linkedin.com URL", variant: "destructive" });
-        return;
-      }
-
-      if (!hasProfile) {
-        setLinkedInTestResult({ success: false, message: "URL should point to a profile (/in/) or company (/company/)" });
-        toast({ title: "Invalid Profile URL", description: "URL should contain /in/yourname or /company/name", variant: "destructive" });
-        return;
-      }
-
-      setLinkedInTestResult({ success: true, message: `Valid LinkedIn profile URL detected` });
-      toast({ title: "LinkedIn URL Valid", description: "Profile URL format is correct" });
-    } catch (error: any) {
-      setLinkedInTestResult({ success: false, message: "Invalid URL format" });
-      toast({ title: "Invalid URL", description: "Please enter a valid URL", variant: "destructive" });
-    } finally {
-      setTestingLinkedIn(false);
-    }
-  };
-
-  const testVapiConnection = async () => {
-    if (!vapiPrivateKey) {
-      toast({ title: "Missing Key", description: "Please enter your VAPI Private Key", variant: "destructive" });
-      return;
-    }
-    
-    setTestingVapi(true);
-    setVapiTestResult(null);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('vapi-list-assistants');
-      
-      if (error) throw error;
-      
-      if (data?.assistants) {
-        setVapiTestResult({ success: true, message: `Connected - ${data.assistants.length} assistants found` });
-        setVapiAssistants(data.assistants);
-        toast({ title: "VAPI Connected", description: `Found ${data.assistants.length} assistants` });
-      } else if (data?.error) {
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      const message = error.message || "Connection failed";
-      setVapiTestResult({ success: false, message });
-      toast({ title: "VAPI Connection Failed", description: message, variant: "destructive" });
-    } finally {
-      setTestingVapi(false);
-    }
-  };
-
-  const testElevenLabsConnection = async () => {
-    if (!elevenlabsApiKey) {
-      toast({ title: "Missing Key", description: "Please enter your ElevenLabs API Key", variant: "destructive" });
-      return;
-    }
-    
-    setTestingElevenLabs(true);
-    setElevenLabsTestResult(null);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('elevenlabs-test-connection', {
-        body: { tenantId }
-      });
-      
-      if (error) throw error;
-      
-      if (data?.success) {
-        setElevenLabsTestResult({ success: true, message: data.message });
-        toast({ title: "ElevenLabs Connected", description: data.message });
-      } else {
-        throw new Error(data?.error || data?.message || "Connection failed");
-      }
-    } catch (error: any) {
-      const message = error.message || "Connection failed";
-      setElevenLabsTestResult({ success: false, message });
-      toast({ title: "ElevenLabs Connection Failed", description: message, variant: "destructive" });
-    } finally {
-      setTestingElevenLabs(false);
-    }
-  };
-
-  const testDomainDns = async () => {
-    if (!domain) {
-      toast({ title: "Missing Domain", description: "Please enter a domain", variant: "destructive" });
-      return;
-    }
-    
-    setTestingDomain(true);
-    setDomainTestResult(null);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-domain-dns', {
-        body: { domain, tenantId }
-      });
-      
-      if (error) throw error;
-      
-      setDomainTestResult({ success: data.verified, message: data.message });
-      
-      if (data.verified) {
-        // Update local state to reflect verification
-        setDomainSettings(prev => prev ? { ...prev, cname_verified: true } : prev);
-        toast({ title: "Domain Verified", description: data.message });
-      } else {
-        toast({ title: "Domain Not Verified", description: data.message, variant: "destructive" });
-      }
-    } catch (error: any) {
-      const message = error.message || "Verification failed";
-      setDomainTestResult({ success: false, message });
-      toast({ title: "Verification Failed", description: message, variant: "destructive" });
-    } finally {
-      setTestingDomain(false);
-    }
-  };
-
-  const testSocialConnection = async (platform: string) => {
-    const tokenData = socialTokens[platform];
-    if (!tokenData?.token) {
-      toast({ title: "Missing Token", description: `Please enter an access token for ${platform}`, variant: "destructive" });
-      return;
-    }
-    
-    setTestingSocial(platform);
-    setSocialTestResults(prev => ({ ...prev, [platform]: { success: false, message: "Testing..." } }));
-    
-    try {
-      // First save the token, then test
-      await saveSocialIntegration(platform);
-      
-      const { data, error } = await supabase.functions.invoke('social-test-connection', {
-        body: { platform }
-      });
-      
-      if (error) throw error;
-      
-      const result = { success: data.success, message: data.message || data.error };
-      setSocialTestResults(prev => ({ ...prev, [platform]: result }));
-      
-      if (data.success) {
-        // Refresh integrations to get updated account info
-        const { data: refreshed } = await supabase
-          .from("social_integrations")
-          .select("*")
-          .eq("workspace_id", tenantId);
-        
-        if (refreshed) {
-          setSocialIntegrations(refreshed as SocialIntegration[]);
-        }
-        toast({ title: `${platform} Connected`, description: data.message });
-      } else {
-        toast({ title: `${platform} Connection Failed`, description: data.error || data.message, variant: "destructive" });
-      }
-    } catch (error: any) {
-      const message = error.message || "Connection test failed";
-      setSocialTestResults(prev => ({ ...prev, [platform]: { success: false, message } }));
-      toast({ title: "Test Failed", description: message, variant: "destructive" });
-    } finally {
-      setTestingSocial(null);
-    }
-  };
-
   if (loading) {
     return (
       <ProtectedRoute>
@@ -1431,6 +1197,7 @@ export default function SettingsIntegrations() {
       <div className="min-h-screen flex flex-col bg-background">
         <NavBar />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <WorkspaceGate feature="integrations">
           <div className="mb-8">
             <Button
               variant="ghost"
@@ -1490,392 +1257,254 @@ export default function SettingsIntegrations() {
 
                 {/* Email Tab */}
                 <TabsContent value="email">
-                  {/* Show wizard for first-time setup or when explicitly requested */}
-                  {showEmailWizard && tenantId ? (
-                    <EmailSetupWizard
-                      workspaceId={tenantId}
-                      onComplete={() => {
-                        setShowEmailWizard(false);
-                        loadAllSettings();
-                      }}
-                      onSkip={() => setShowEmailWizard(false)}
-                    />
-                  ) : (
-                    <Card>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <CardTitle className="flex items-center gap-2">
-                              <Mail className="h-5 w-5 text-primary" />
-                              Email Configuration
-                            </CardTitle>
-                            <CardDescription>
-                              Configure how emails are sent and where replies go
-                            </CardDescription>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowEmailWizard(true)}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5 text-primary" />
+                        Email Configuration
+                      </CardTitle>
+                      <CardDescription>
+                        Configure your outbound email sender identity and optional SMTP settings.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Email Method Selection */}
+                      <div className="space-y-3">
+                        <Label>Email Delivery Method *</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Choose how emails will be sent from your outbound campaigns.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setEmailMethod("resend")}
+                            className={`p-4 rounded-lg border-2 text-left transition-all ${
+                              emailMethod === "resend" 
+                                ? "border-primary bg-primary/5" 
+                                : "border-border hover:border-muted-foreground/50"
+                            }`}
                           >
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Setup Wizard
-                          </Button>
+                            <div className="font-medium">Resend (Default)</div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Managed email service with high deliverability
+                            </p>
+                            {emailMethod === "resend" && (
+                              <Badge className="mt-2" variant="default">Active</Badge>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailMethod("gmail")}
+                            className={`p-4 rounded-lg border-2 text-left transition-all ${
+                              emailMethod === "gmail" 
+                                ? "border-primary bg-primary/5" 
+                                : "border-border hover:border-muted-foreground/50"
+                            }`}
+                          >
+                            <div className="font-medium">Gmail OAuth</div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Send from your Gmail inbox directly
+                            </p>
+                            {gmailConnected && emailMethod === "gmail" && (
+                              <Badge className="mt-2 bg-green-500/10 text-green-600">Connected</Badge>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailMethod("smtp")}
+                            className={`p-4 rounded-lg border-2 text-left transition-all ${
+                              emailMethod === "smtp" 
+                                ? "border-primary bg-primary/5" 
+                                : "border-border hover:border-muted-foreground/50"
+                            }`}
+                          >
+                            <div className="font-medium">Custom SMTP</div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Use your own SMTP server
+                            </p>
+                            {smtpTestResult?.success && emailMethod === "smtp" && (
+                              <Badge className="mt-2 bg-green-500/10 text-green-600">Verified</Badge>
+                            )}
+                          </button>
                         </div>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
-                        {/* Quick Setup Banner for Gmail */}
-                        {!gmailConnected && emailMethod !== "gmail" && (
-                          <div className="p-4 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5">
-                            <div className="flex items-start gap-4">
-                              <div className="h-10 w-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                                <svg className="h-5 w-5" viewBox="0 0 24 24">
-                                  <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
-                                </svg>
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className="font-medium">Quick Setup: Connect Gmail</h4>
-                                  <Badge variant="secondary" className="text-xs">Recommended</Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground mb-3">
-                                  One-click connection. Better deliverability. Emails appear in your sent folder.
-                                </p>
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setEmailMethod("gmail");
-                                    handleConnectGmail();
-                                  }}
-                                  disabled={gmailConnecting}
-                                >
-                                  {gmailConnecting ? (
-                                    <>
-                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                      Connecting...
-                                    </>
-                                  ) : (
-                                    "Connect Gmail"
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                      </div>
 
-                        {/* Email Method Selection */}
-                        <div className="space-y-3">
-                          <Label className="flex items-center gap-2">
-                            Email Delivery Method
-                            <Badge variant="outline" className="text-xs font-normal">Required</Badge>
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            Choose how emails will be sent from your outbound campaigns.
-                          </p>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setEmailMethod("gmail")}
-                              className={`p-4 rounded-lg border-2 text-left transition-all relative ${
-                                emailMethod === "gmail" 
-                                  ? "border-primary bg-primary/5" 
-                                  : "border-border hover:border-muted-foreground/50"
-                              }`}
-                            >
-                              <Badge className="absolute -top-2 right-2 bg-green-500 text-xs">Best</Badge>
-                              <div className="font-medium">Gmail OAuth</div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                One-click connection. Best deliverability.
-                              </p>
-                              {gmailConnected && emailMethod === "gmail" && (
-                                <Badge className="mt-2 bg-green-500/10 text-green-600">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Connected
-                                </Badge>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEmailMethod("resend")}
-                              className={`p-4 rounded-lg border-2 text-left transition-all ${
-                                emailMethod === "resend" 
-                                  ? "border-primary bg-primary/5" 
-                                  : "border-border hover:border-muted-foreground/50"
-                              }`}
-                            >
-                              <div className="font-medium">Resend</div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Send from your own domain
-                              </p>
-                              {emailMethod === "resend" && (
-                                <Badge className="mt-2" variant="outline">Active</Badge>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEmailMethod("smtp")}
-                              className={`p-4 rounded-lg border-2 text-left transition-all ${
-                                emailMethod === "smtp" 
-                                  ? "border-primary bg-primary/5" 
-                                  : "border-border hover:border-muted-foreground/50"
-                              }`}
-                            >
-                              <div className="font-medium">Custom SMTP</div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Your own mail server
-                              </p>
-                              {smtpTestResult?.success && emailMethod === "smtp" && (
-                                <Badge className="mt-2 bg-green-500/10 text-green-600">Verified</Badge>
-                              )}
-                            </button>
-                          </div>
-                        </div>
+                      <Separator />
 
-                        <Separator />
-
-                        {/* Sender Identity Section */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium">Sender Identity</h3>
-                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="sender-name">Sender Name</Label>
-                              <Input
-                                id="sender-name"
-                                placeholder="e.g., John from Acme"
-                                value={senderName}
-                                onChange={(e) => setSenderName(e.target.value)}
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                How recipients see you in their inbox
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="from-address">From Address</Label>
-                              <Input
-                                id="from-address"
-                                type="email"
-                                placeholder="e.g., john@company.com"
-                                value={fromAddress}
-                                onChange={(e) => setFromAddress(e.target.value)}
-                                disabled={emailMethod === "gmail" && gmailConnected}
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                {emailMethod === "gmail" && gmailConnected 
-                                  ? "Using your Gmail address" 
-                                  : "The address emails are sent from"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Reply-To Section - CRITICAL */}
-                        <div className="space-y-4 p-4 rounded-lg border-2 border-amber-500/30 bg-amber-500/5">
-                          <div className="flex items-center gap-2">
-                            <Reply className="h-5 w-5 text-amber-600" />
-                            <h3 className="font-medium text-amber-700">Where Do Replies Go?</h3>
-                            <Badge variant="outline" className="text-amber-600 border-amber-500">Critical</Badge>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="reply-to" className="text-amber-700">Reply-To Address</Label>
-                            <Input
-                              id="reply-to"
-                              type="email"
-                              placeholder="e.g., replies@company.com"
-                              value={replyToAddress}
-                              onChange={(e) => setReplyToAddress(e.target.value)}
-                              className="border-amber-300 focus:ring-amber-500"
-                            />
-                            <div className="flex items-start gap-2 text-sm text-amber-700">
-                              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                              <p>
-                                <strong>All customer replies</strong> will be sent to this address. 
-                                Make sure this is an inbox you actively monitor!
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {/* Visual Email Flow Diagram */}
-                          <EmailReplyToExplainer
-                            fromAddress={fromAddress}
-                            replyToAddress={replyToAddress}
-                            senderName={senderName}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="sender-name">Sender Name *</Label>
+                          <Input
+                            id="sender-name"
+                            placeholder="John from Acme"
+                            value={senderName}
+                            onChange={(e) => setSenderName(e.target.value)}
                           />
                         </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="from-address">From Address *</Label>
+                          <Input
+                            id="from-address"
+                            type="email"
+                            placeholder="john@company.com"
+                            value={fromAddress}
+                            onChange={(e) => setFromAddress(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                        {/* Gmail OAuth Connection */}
-                        {emailMethod === "gmail" && (
-                          <div className="space-y-3">
-                            <Separator className="mb-4" />
-                            <Label>Gmail Connection</Label>
-                            
-                            {gmailConnected ? (
-                              <div className="flex items-center justify-between p-4 bg-green-500/5 border border-green-500/30 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-sm text-green-700">Gmail Connected</p>
-                                    <p className="text-sm text-green-600">{gmailEmail}</p>
-                                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reply-to">Reply-To Address *</Label>
+                        <Input
+                          id="reply-to"
+                          type="email"
+                          placeholder="replies@company.com"
+                          value={replyToAddress}
+                          onChange={(e) => setReplyToAddress(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Replies to your outbound emails will be sent to this address.
+                        </p>
+                      </div>
+
+                      {/* Gmail OAuth Connection - Only show if Gmail method selected */}
+                      {emailMethod === "gmail" && (
+                        <div className="space-y-3">
+                          <Separator className="mb-4" />
+                          <Label>Connect Gmail Account</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Connect your Gmail account to send emails directly from your inbox with better deliverability.
+                          </p>
+                          
+                          {gmailConnected ? (
+                            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                                  <Mail className="h-5 w-5 text-green-500" />
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleDisconnectGmail}
-                                  disabled={gmailDisconnecting}
-                                >
-                                  {gmailDisconnecting ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <LogOut className="h-4 w-4 mr-2" />
-                                      Disconnect
-                                    </>
-                                  )}
-                                </Button>
+                                <div>
+                                  <p className="font-medium text-sm">Gmail Connected</p>
+                                  <p className="text-sm text-muted-foreground">{gmailEmail}</p>
+                                </div>
                               </div>
-                            ) : (
                               <Button
-                                onClick={handleConnectGmail}
-                                disabled={gmailConnecting}
-                                className="w-full sm:w-auto"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleDisconnectGmail}
+                                disabled={gmailDisconnecting}
                               >
-                                {gmailConnecting ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Connecting...
-                                  </>
+                                {gmailDisconnecting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <>
-                                    <Mail className="h-4 w-4 mr-2" />
-                                    Connect Gmail Account
+                                    <LogOut className="h-4 w-4 mr-2" />
+                                    Disconnect
                                   </>
                                 )}
                               </Button>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Domain Verification - For Resend */}
-                        {emailMethod === "resend" && fromAddress && (
-                          <div className="space-y-3">
-                            <Separator className="mb-4" />
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-5 w-5 text-primary" />
-                              <h3 className="font-medium">Domain Verification</h3>
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              Verify your sending domain for better deliverability
-                            </p>
-                            <DomainVerificationHelper
-                              domain={fromAddress.split("@")[1] || ""}
-                              emailMethod={emailMethod}
-                              isGmailConnected={gmailConnected}
-                              tenantId={tenantId || undefined}
-                              onEmailActivated={() => {
-                                // Refresh email settings to show updated is_connected status
-                                loadAllSettings();
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {/* SMTP Settings */}
-                        {emailMethod === "smtp" && (
-                          <div className="space-y-4">
-                            <Separator className="mb-4" />
-                            <h3 className="font-medium">SMTP Server Settings</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="smtp-host">SMTP Host</Label>
-                                <Input
-                                  id="smtp-host"
-                                  placeholder="smtp.example.com"
-                                  value={smtpHost}
-                                  onChange={(e) => setSmtpHost(e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="smtp-port">SMTP Port</Label>
-                                <Input
-                                  id="smtp-port"
-                                  type="number"
-                                  placeholder="587"
-                                  value={smtpPort || ""}
-                                  onChange={(e) => setSmtpPort(e.target.value ? parseInt(e.target.value) : null)}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="smtp-username">SMTP Username</Label>
-                                <Input
-                                  id="smtp-username"
-                                  placeholder="username"
-                                  value={smtpUsername}
-                                  onChange={(e) => setSmtpUsername(e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="smtp-password">SMTP Password</Label>
-                                <Input
-                                  id="smtp-password"
-                                  type="password"
-                                  placeholder="••••••••"
-                                  value={smtpPassword}
-                                  onChange={(e) => setSmtpPassword(e.target.value)}
-                                />
-                              </div>
-                            </div>
-                            <Button 
-                              variant="outline" 
-                              onClick={testSmtpConnection}
-                              disabled={testingSmtp}
+                          ) : (
+                            <Button
+                              variant="outline"
+                              onClick={handleConnectGmail}
+                              disabled={gmailConnecting}
+                              className="w-full sm:w-auto"
                             >
-                              {testingSmtp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                              Test SMTP Connection
+                              {gmailConnecting ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Connecting...
+                                </>
+                              ) : (
+                                <>
+                                  <Mail className="h-4 w-4 mr-2" />
+                                  Connect Gmail Account
+                                </>
+                              )}
                             </Button>
-                            {smtpTestResult && (
-                              <div className={`p-3 rounded-lg text-sm ${smtpTestResult.success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
-                                {smtpTestResult.message}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <Separator />
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            {emailSettings?.updated_at && (
-                              <p className="text-sm text-muted-foreground">
-                                Last updated: {formatUpdatedAt(emailSettings.updated_at)}
-                              </p>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log("[ui] Save Email Settings click");
-                              void saveEmailSettings();
-                            }}
-                            disabled={saving === "email"}
-                          >
-                            {saving === "email" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            Save Email Settings
-                          </Button>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                      )}
+
+                      {/* SMTP Settings - Only show if SMTP method selected */}
+                      {emailMethod === "smtp" && (
+                        <div className="space-y-4">
+                          <Separator className="mb-4" />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="smtp-host">SMTP Host *</Label>
+                              <Input
+                                id="smtp-host"
+                                placeholder="smtp.example.com"
+                                value={smtpHost}
+                                onChange={(e) => setSmtpHost(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="smtp-port">SMTP Port *</Label>
+                              <Input
+                                id="smtp-port"
+                                type="number"
+                                placeholder="587"
+                                value={smtpPort || ""}
+                                onChange={(e) => setSmtpPort(e.target.value ? parseInt(e.target.value) : null)}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="smtp-username">SMTP Username</Label>
+                              <Input
+                                id="smtp-username"
+                                placeholder="username"
+                                value={smtpUsername}
+                                onChange={(e) => setSmtpUsername(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="smtp-password">SMTP Password</Label>
+                              <Input
+                                id="smtp-password"
+                                type="password"
+                                placeholder="••••••••"
+                                value={smtpPassword}
+                                onChange={(e) => setSmtpPassword(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            onClick={testSmtpConnection}
+                            disabled={testingSmtp}
+                          >
+                            {testingSmtp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                            Test SMTP Connection
+                          </Button>
+                          {smtpTestResult && (
+                            <div className={`p-3 rounded-lg text-sm ${smtpTestResult.success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
+                              {smtpTestResult.message}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <Separator />
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          {emailSettings?.updated_at && (
+                            <p className="text-sm text-muted-foreground">
+                              Last updated: {formatUpdatedAt(emailSettings.updated_at)}
+                            </p>
+                          )}
+                        </div>
+                        <Button onClick={saveEmailSettings} disabled={saving === "email"}>
+                          {saving === "email" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Save Email Settings
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
                 {/* LinkedIn Tab */}
@@ -1899,22 +1528,6 @@ export default function SettingsIntegrations() {
                           value={linkedinProfileUrl}
                           onChange={(e) => setLinkedinProfileUrl(e.target.value)}
                         />
-                        <div className="flex items-center gap-2 mt-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={testLinkedInProfile}
-                            disabled={testingLinkedIn || !linkedinProfileUrl}
-                          >
-                            {testingLinkedIn ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                            Validate URL
-                          </Button>
-                          {linkedInTestResult && (
-                            <span className={`text-sm ${linkedInTestResult.success ? "text-green-600" : "text-destructive"}`}>
-                              {linkedInTestResult.success ? "✓ " : "✕ "}{linkedInTestResult.message}
-                            </span>
-                          )}
-                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2007,22 +1620,6 @@ export default function SettingsIntegrations() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={testCalendarUrl}
-                          disabled={testingCalendar || !bookingUrl}
-                        >
-                          {testingCalendar ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                          Test Booking URL
-                        </Button>
-                        {calendarTestResult && (
-                          <span className={`text-sm ${calendarTestResult.success ? "text-green-600" : "text-destructive"}`}>
-                            {calendarTestResult.success ? "✓ " : "✕ "}{calendarTestResult.message}
-                          </span>
-                        )}
-                      </div>
-
                       <Separator />
 
                       <div className="flex items-center justify-between">
@@ -2081,11 +1678,6 @@ export default function SettingsIntegrations() {
                         </p>
                       </div>
 
-                      <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-                        <p className="font-medium text-foreground mb-1">Webhook Testing</p>
-                        <p>After saving your webhook URLs, use a service like <a href="https://webhook.site" target="_blank" rel="noopener noreferrer" className="text-primary underline">webhook.site</a> or <a href="https://requestbin.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">RequestBin</a> to test and debug your webhook endpoints.</p>
-                      </div>
-
                       <Separator />
 
                       <div className="flex items-center justify-between">
@@ -2107,20 +1699,72 @@ export default function SettingsIntegrations() {
 
                 {/* Domain Tab */}
                 <TabsContent value="domain">
-                  <DomainSettingsCard 
-                    domain={domain}
-                    setDomain={setDomain}
-                    domainSettings={domainSettings}
-                    setDomainSettings={setDomainSettings}
-                    tenantId={tenantId}
-                    saving={saving}
-                    setSaving={setSaving}
-                    copyToClipboard={copyToClipboard}
-                    formatUpdatedAt={formatUpdatedAt}
-                    detectChanges={detectChanges}
-                    logAuditEntry={logAuditEntry}
-                    formatChangesList={formatChangesList}
-                  />
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Globe className="h-5 w-5 text-primary" />
+                        Custom Domain
+                      </CardTitle>
+                      <CardDescription>
+                        Use your own domain for landing pages and email tracking links.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="custom-domain">Domain</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="custom-domain"
+                            placeholder="campaigns.yourcompany.com"
+                            value={domain}
+                            onChange={(e) => setDomain(e.target.value)}
+                          />
+                          {domainSettings?.cname_verified ? (
+                            <Badge variant="outline" className="text-green-600 border-green-600 shrink-0">
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Verified
+                            </Badge>
+                          ) : domain ? (
+                            <Badge variant="outline" className="text-yellow-600 border-yellow-600 shrink-0">
+                              <XCircle className="h-3 w-3 mr-1" /> Not Verified
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                        <p className="text-sm font-medium">DNS Configuration</p>
+                        <p className="text-sm text-muted-foreground">
+                          Add a CNAME record pointing your subdomain to our servers:
+                        </p>
+                        <div className="flex items-center gap-2 bg-background rounded border px-3 py-2">
+                          <code className="text-sm flex-1">campaigns.ubigrowth.ai</code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard("campaigns.ubigrowth.ai")}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          {domainSettings?.updated_at && (
+                            <p className="text-sm text-muted-foreground">
+                              Last updated: {formatUpdatedAt(domainSettings.updated_at)}
+                            </p>
+                          )}
+                        </div>
+                        <Button onClick={saveDomainSettings} disabled={saving === "domain"}>
+                          {saving === "domain" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Save Domain Settings
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
                 {/* Voice Tab */}
@@ -2163,20 +1807,6 @@ export default function SettingsIntegrations() {
                             Used for creating and managing assistants
                           </p>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          onClick={testVapiConnection}
-                          disabled={testingVapi || !vapiPrivateKey}
-                          className="w-full sm:w-auto"
-                        >
-                          {testingVapi ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                          Test VAPI Connection
-                        </Button>
-                        {vapiTestResult && (
-                          <div className={`p-3 rounded-lg text-sm ${vapiTestResult.success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
-                            {vapiTestResult.message}
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
 
@@ -2234,20 +1864,6 @@ export default function SettingsIntegrations() {
                             </Select>
                           </div>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          onClick={testElevenLabsConnection}
-                          disabled={testingElevenLabs || !elevenlabsApiKey}
-                          className="w-full sm:w-auto"
-                        >
-                          {testingElevenLabs ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                          Test ElevenLabs Connection
-                        </Button>
-                        {elevenLabsTestResult && (
-                          <div className={`p-3 rounded-lg text-sm ${elevenLabsTestResult.success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
-                            {elevenLabsTestResult.message}
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
 
@@ -2438,22 +2054,6 @@ export default function SettingsIntegrations() {
                             Mark as connected
                           </Label>
                         </div>
-                        
-                        <div className="flex items-center gap-2 mt-4">
-                          <Button 
-                            variant="outline" 
-                            onClick={testStripeConnection}
-                            disabled={testingStripe || !stripePublishableKey}
-                          >
-                            {testingStripe ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                            Test Stripe Keys
-                          </Button>
-                          {stripeTestResult && (
-                            <span className={`text-sm ${stripeTestResult.success ? "text-green-600" : "text-destructive"}`}>
-                              {stripeTestResult.success ? "✓ " : "✕ "}{stripeTestResult.message}
-                            </span>
-                          )}
-                        </div>
                       </CardContent>
                     </Card>
 
@@ -2485,8 +2085,7 @@ export default function SettingsIntegrations() {
                           Social Platforms
                         </CardTitle>
                         <CardDescription>
-                          Configure access tokens for your social media platforms. Need help getting your token?{" "}
-                          Use the setup wizard for step-by-step guidance.
+                          Configure access tokens for your social media platforms.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-6">
@@ -2502,25 +2101,12 @@ export default function SettingsIntegrations() {
                                   <IconComponent className="h-5 w-5 text-primary" />
                                   <span className="font-medium">{platform.name}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  {existingIntegration?.is_active && (
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                      Connected
-                                    </Badge>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSocialWizardPlatform(platform.id as any);
-                                      setSocialWizardOpen(true);
-                                    }}
-                                  >
-                                    <Sparkles className="h-4 w-4 mr-1" />
-                                    Setup Wizard
-                                  </Button>
-                                </div>
+                                {existingIntegration?.is_active && (
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                    Connected
+                                  </Badge>
+                                )}
                               </div>
                               
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2551,26 +2137,7 @@ export default function SettingsIntegrations() {
                                 </div>
                               </div>
                               
-                              {socialTestResults[platform.id] && (
-                                <div className={`p-2 rounded text-sm ${socialTestResults[platform.id].success ? "bg-green-500/10 text-green-700" : "bg-destructive/10 text-destructive"}`}>
-                                  {socialTestResults[platform.id].message}
-                                </div>
-                              )}
-                              
-                              <div className="flex justify-end gap-2">
-                                <Button 
-                                  variant="outline"
-                                  size="sm" 
-                                  onClick={() => testSocialConnection(platform.id)}
-                                  disabled={testingSocial === platform.id || !tokenData.token}
-                                >
-                                  {testingSocial === platform.id ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                                  )}
-                                  Test Connection
-                                </Button>
+                              <div className="flex justify-end">
                                 <Button 
                                   size="sm" 
                                   onClick={() => saveSocialIntegration(platform.id)}
@@ -2588,20 +2155,6 @@ export default function SettingsIntegrations() {
                       </CardContent>
                     </Card>
                   </div>
-                  
-                  {/* Social Token Wizard */}
-                  <SocialTokenWizard
-                    open={socialWizardOpen}
-                    onOpenChange={setSocialWizardOpen}
-                    platform={socialWizardPlatform}
-                    onComplete={(token, accountName) => {
-                      setSocialTokens(prev => ({
-                        ...prev,
-                        [socialWizardPlatform]: { token, accountName }
-                      }));
-                      saveSocialIntegration(socialWizardPlatform);
-                    }}
-                  />
                 </TabsContent>
               </Tabs>
             </div>
@@ -2664,6 +2217,7 @@ export default function SettingsIntegrations() {
               </Card>
             </div>
           </div>
+          </WorkspaceGate>
         </main>
         <Footer />
       </div>

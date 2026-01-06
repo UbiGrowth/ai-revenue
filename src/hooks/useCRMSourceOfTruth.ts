@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
 export type DataQualityStatus = 'DEMO_MODE' | 'REVENUE_UNVERIFIED' | 'NO_STRIPE_CONNECTED' | 'EMPTY_CRM' | 'LIVE_OK';
 
@@ -77,23 +78,7 @@ const defaultState: Omit<CRMSourceOfTruth, 'refresh'> = {
 
 export function useCRMSourceOfTruth(): CRMSourceOfTruth {
   const [state, setState] = useState<Omit<CRMSourceOfTruth, 'refresh'>>(defaultState);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const resolveWorkspace = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ws } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-
-      setWorkspaceId(ws?.id || null);
-    };
-    resolveWorkspace();
-  }, []);
+  const workspaceId = useActiveWorkspaceId();
 
   const fetchCRMTruth = useCallback(async () => {
     if (!workspaceId) {
@@ -104,11 +89,13 @@ export function useCRMSourceOfTruth(): CRMSourceOfTruth {
     setState(prev => ({ ...prev, loading: true }));
 
     try {
-      const { data, error } = await supabase
+      const { data: dataArr, error } = await supabase
         .from('v_crm_source_of_truth')
         .select('*')
         .eq('workspace_id', workspaceId)
-        .maybeSingle();
+        .limit(1);
+
+      const data = dataArr?.[0] ?? null;
 
       if (error) {
         setState(prev => ({ ...prev, loading: false, error: error.message }));

@@ -10,6 +10,7 @@ import { Upload, FileSpreadsheet, Download, Database, CheckCircle2, XCircle, Ale
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
 interface ParsedLead {
   first_name: string;
@@ -74,6 +75,7 @@ const MondayLeadConverter = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const workspaceId = useActiveWorkspaceId();
 
   const parseExcelFile = useCallback((file: File) => {
     setIsLoading(true);
@@ -233,19 +235,9 @@ const MondayLeadConverter = () => {
 
     setIsDeploying(true);
     try {
-      // Get user's workspace
-      const { data: workspaceMember } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (!workspaceMember?.workspace_id) {
-        throw new Error("No workspace found");
+      if (!workspaceId) {
+        throw new Error("No workspace selected. Please select or create a workspace first.");
       }
-
-      const workspaceId = workspaceMember.workspace_id;
 
       // Check for existing emails to avoid duplicates
       const emails = validLeads.map(l => l.email);

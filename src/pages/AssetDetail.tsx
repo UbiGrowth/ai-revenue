@@ -24,6 +24,8 @@ import AIAssistant from "@/components/AIAssistant";
 import { MultiSegmentSelector } from "@/components/MultiSegmentSelector";
 import { SegmentSelector } from "@/components/SegmentSelector";
 import { z } from "zod";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 const assetSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(200),
@@ -37,6 +39,7 @@ const AssetDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const workspaceId = useActiveWorkspaceId();
   
   const [asset, setAsset] = useState<any>(null);
   const [segments, setSegments] = useState<any[]>([]);
@@ -142,17 +145,18 @@ const AssetDetail = () => {
   const fetchAsset = async () => {
     try {
       // Fetch asset directly from database
-      const { data, error } = await supabase
+      const { data: dataArr, error } = await supabase
         .from("assets")
         .select("*, segments(id, name)")
         .eq("id", id)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         console.error("Database error:", error);
         throw error;
       }
 
+      const data = dataArr?.[0] ?? null;
       if (!data) {
         toast({
           variant: "destructive",
@@ -178,11 +182,13 @@ const AssetDetail = () => {
       setLastRefreshedAt(new Date());
 
       // Check if associated campaign is locked
-      const { data: campaign } = await supabase
+      const { data: campaignArr } = await supabase
         .from("campaigns")
         .select("is_locked, locked_reason")
         .eq("asset_id", id)
-        .maybeSingle();
+        .limit(1);
+
+      const campaign = campaignArr?.[0] ?? null;
 
       if (campaign?.is_locked) {
         setIsLocked(true);
@@ -548,37 +554,24 @@ const AssetDetail = () => {
     setGenerating(true);
     try {
       // Fetch business profile to pass to content generation
-      const { data: { user } } = await supabase.auth.getUser();
       let businessProfile = null;
       
-      if (user) {
-        // Get workspace ID
-        const { data: ownedWorkspace } = await supabase
-          .from("workspaces")
-          .select("id")
-          .eq("owner_id", user.id)
-          .maybeSingle();
-
-        let workspaceId = ownedWorkspace?.id;
-
-        if (!workspaceId) {
-          const { data: membership } = await supabase
-            .from("workspace_members")
-            .select("workspace_id")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          workspaceId = membership?.workspace_id;
-        }
-
-        if (workspaceId) {
-          const { data: profile } = await supabase
-            .from('business_profiles')
-            .select('*')
-            .eq('workspace_id', workspaceId)
-            .maybeSingle();
-          businessProfile = profile;
-        }
+      if (!workspaceId) {
+        toast({
+          variant: "destructive",
+          title: "Workspace Required",
+          description: "Select a workspace to generate content.",
+        });
+        setGenerating(false);
+        return;
       }
+
+      const { data: profileArr } = await supabase
+        .from('business_profiles')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .limit(1);
+      businessProfile = profileArr?.[0] ?? null;
       
       const { data, error } = await supabase.functions.invoke('content-generate', {
         body: {
@@ -1027,8 +1020,8 @@ const AssetDetail = () => {
           { label: asset?.name || "Asset" }
         ]} />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-
-          <div className="mb-6">
+          <WorkspaceGate feature="asset management">
+            <div className="mb-6">
             <h1 className="text-4xl font-bold text-foreground">{asset.name}</h1>
             <p className="mt-2 text-muted-foreground capitalize">
               {asset.type.replace("_", " ")} Asset
@@ -1678,6 +1671,7 @@ const AssetDetail = () => {
               </Card>
             </div>
           </div>
+          </WorkspaceGate>
         </main>
         <Footer />
 

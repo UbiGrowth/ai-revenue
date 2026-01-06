@@ -1,13 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { Building2, Plus, Check, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useWorkspaceContext } from "@/contexts/WorkspaceContext";
 
 interface Workspace {
   id: string;
@@ -21,91 +19,24 @@ interface WorkspaceSelectorProps {
 }
 
 export default function WorkspaceSelector({ onWorkspaceChange }: WorkspaceSelectorProps) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { workspaces, workspaceId, workspace, isLoading, selectWorkspace, createWorkspace } = useWorkspaceContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newWorkspace, setNewWorkspace] = useState({ name: "", slug: "" });
 
-  useEffect(() => {
-    fetchWorkspaces();
-  }, []);
-
-  const fetchWorkspaces = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("workspaces")
-      .select("*")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Failed to fetch workspaces:", error);
-    } else {
-      setWorkspaces(data || []);
-      
-      // Set first workspace as current if none selected
-      const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
-      const savedWorkspace = data?.find(w => w.id === savedWorkspaceId);
-      
-      if (savedWorkspace) {
-        setCurrentWorkspace(savedWorkspace);
-      } else if (data && data.length > 0) {
-        setCurrentWorkspace(data[0]);
-        localStorage.setItem("currentWorkspaceId", data[0].id);
-      }
-    }
-    setLoading(false);
-  };
-
-  const handleSelectWorkspace = (workspace: Workspace) => {
-    setCurrentWorkspace(workspace);
-    localStorage.setItem("currentWorkspaceId", workspace.id);
-    onWorkspaceChange?.(workspace.id);
-    toast.success(`Switched to ${workspace.name}`);
-  };
-
   const handleCreateWorkspace = async () => {
     if (!newWorkspace.name || !newWorkspace.slug) {
-      toast.error("Please fill in all fields");
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast.error("You must be logged in");
-      return;
-    }
+    const created = await createWorkspace(
+      newWorkspace.name,
+      newWorkspace.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-")
+    );
 
-    const { data, error } = await supabase
-      .from("workspaces")
-      .insert({
-        name: newWorkspace.name,
-        slug: newWorkspace.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-        owner_id: user.id,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === "23505") {
-        toast.error("A workspace with this slug already exists");
-      } else {
-        toast.error("Failed to create workspace");
-      }
-    } else {
-      toast.success("Workspace created!");
+    if (created) {
       setDialogOpen(false);
       setNewWorkspace({ name: "", slug: "" });
-      fetchWorkspaces();
-      if (data) {
-        handleSelectWorkspace(data);
-      }
+      onWorkspaceChange?.(created.id);
     }
   };
 
@@ -113,7 +44,16 @@ export default function WorkspaceSelector({ onWorkspaceChange }: WorkspaceSelect
     return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   };
 
-  if (loading) {
+  const currentWorkspace = workspaceId
+    ? (workspace ?? workspaces.find((w) => w.id === workspaceId) ?? null)
+    : null;
+
+  const handleSelectWorkspace = async (ws: Workspace) => {
+    await selectWorkspace(ws.id);
+    onWorkspaceChange?.(ws.id);
+  };
+
+  if (isLoading) {
     return (
       <Button variant="outline" disabled className="w-[200px]">
         <Building2 className="h-4 w-4 mr-2" />
@@ -139,14 +79,14 @@ export default function WorkspaceSelector({ onWorkspaceChange }: WorkspaceSelect
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[200px]">
-          {workspaces.map((workspace) => (
+          {workspaces.map((ws) => (
             <DropdownMenuItem
-              key={workspace.id}
-              onClick={() => handleSelectWorkspace(workspace)}
+              key={ws.id}
+              onClick={() => handleSelectWorkspace(ws)}
               className="flex items-center justify-between"
             >
-              {workspace.name}
-              {currentWorkspace?.id === workspace.id && (
+              {ws.name}
+              {currentWorkspace?.id === ws.id && (
                 <Check className="h-4 w-4 text-primary" />
               )}
             </DropdownMenuItem>
