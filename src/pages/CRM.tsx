@@ -29,6 +29,7 @@ import WorkspaceSelector from "@/components/WorkspaceSelector";
 import { useTenantSegments } from "@/hooks/useTenantSegments";
 import { SegmentBadge } from "@/components/crm/SegmentBadge";
 import { useDemoMode } from "@/hooks/useDemoMode";
+import { UniversalCSVImport } from "@/components/crm/UniversalCSVImport";
 
 interface Lead {
   id: string;
@@ -78,7 +79,6 @@ const CRM = () => {
   const [scraping, setScraping] = useState(false);
   // DEMO MODE: Use centralized workspace demo_mode instead of local toggle
   const { demoMode: showSampleData } = useDemoMode();
-  const [isDragging, setIsDragging] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   const [campaignMetrics, setCampaignMetrics] = useState<any[]>([]);
   const [emailConnected, setEmailConnected] = useState(false);
@@ -114,9 +114,6 @@ const CRM = () => {
     notes: "",
     segment_code: "",
   });
-  
-  // Import segment selection
-  const [importSegmentCode, setImportSegmentCode] = useState("");
 
   useEffect(() => {
     const validateWorkspace = async () => {
@@ -448,127 +445,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
     window.URL.revokeObjectURL(url);
   };
 
-  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      // First verify user is authenticated
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) {
-        throw new Error("Please log in to import leads");
-      }
-
-      // Find user's workspace - check owned workspaces first, then membership
-      let validWorkspaceId = workspaceId;
-      
-      // Check if user owns a workspace
-      const { data: ownedWorkspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (ownedWorkspace) {
-        validWorkspaceId = ownedWorkspace.id;
-      } else {
-        // Check workspace membership
-        const { data: memberWorkspace } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("user_id", user.user.id)
-          .limit(1)
-          .maybeSingle();
-        
-        if (memberWorkspace) {
-          validWorkspaceId = memberWorkspace.workspace_id;
-        }
-      }
-
-      if (!validWorkspaceId) {
-        throw new Error("No workspace found. Please contact support.");
-      }
-
-      // Update localStorage if needed
-      if (validWorkspaceId !== workspaceId) {
-        localStorage.setItem("currentWorkspaceId", validWorkspaceId);
-        setWorkspaceId(validWorkspaceId);
-        console.log("Updated workspace to:", validWorkspaceId);
-      }
-
-      const csvContent = await file.text();
-      
-      // Use AI to automatically map CSV columns
-      sonnerToast.info("AI is analyzing your CSV format...");
-      
-      const { data, error: fnError } = await supabase.functions.invoke('ai-csv-mapper', {
-        body: { csvContent }
-      });
-
-      if (fnError) throw fnError;
-      
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      if (!data?.leads || data.leads.length === 0) {
-        throw new Error("No valid leads found. Make sure your CSV has email addresses.");
-      }
-
-      console.log("AI mapped leads:", data.leads.length);
-      console.log("Column mapping:", data.mapping);
-      console.log("Using workspace:", validWorkspaceId);
-
-      // Show mapping info
-      if (data.confidence && data.confidence < 0.7) {
-        sonnerToast.warning("Low confidence mapping - please verify imported data");
-      }
-
-      const leadsWithMetadata = data.leads.map((lead: any) => ({
-        ...lead,
-        created_by: user.user?.id,
-        workspace_id: validWorkspaceId,
-        segment_code: importSegmentCode || null,
-        source: 'user', // Explicit: imported leads count in live analytics
-      }));
-
-      const { error: insertError } = await supabase.from("leads").insert(leadsWithMetadata);
-
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        if (insertError.message?.includes("row-level security")) {
-          throw new Error("Permission denied. Please ensure you have the correct role to import leads.");
-        }
-        throw insertError;
-      }
-
-      toast({
-        title: "Success",
-        description: `AI imported ${data.validLeads} leads from ${data.totalRows} rows`,
-      });
-
-      if (data.errors && data.errors.length > 0) {
-        sonnerToast.warning(`${data.errors.length} rows skipped (missing email)`);
-      }
-
-      setShowImportDialog(false);
-      setImportSegmentCode("");
-      fetchLeads();
-    } catch (error) {
-      console.error("Error importing leads:", error);
-      toast({
-        variant: "destructive",
-        title: "Import Failed",
-        description: error instanceof Error ? error.message : "Failed to import CSV file",
-      });
-    } finally {
-      setImporting(false);
-      // Reset file input
-      event.target.value = '';
-    }
-  };
+  // CSV import is now handled by UniversalCSVImport component
 
   const handleGoogleMapsScrape = async () => {
     if (!scraperParams.location || !scraperParams.businessType) {
@@ -715,7 +592,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setShowImportDialog(true)}>
                       <Upload className="mr-2 h-4 w-4" />
-                      Import CSV
+                      Universal CSV Import
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/crm/import/monday")}>
                       <ExternalLink className="mr-2 h-4 w-4" />
@@ -724,161 +601,12 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-              <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <span className="bg-gradient-to-r from-primary to-cyan bg-clip-text text-transparent">AI-Powered</span> CSV Import
-                    </DialogTitle>
-                    <DialogDescription>
-                      Upload any CSV file - AI will automatically detect and map columns to lead fields.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    {/* Workspace validation error */}
-                    {!workspaceId && (
-                      <div 
-                        data-testid="import-workspace-error"
-                        className="border border-destructive/50 bg-destructive/10 rounded-lg p-4 space-y-3"
-                      >
-                        <div className="flex items-start gap-2">
-                          <Building2 className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="font-medium text-destructive">No workspace selected</p>
-                            <p className="text-sm text-muted-foreground">
-                              Create or select a workspace to import leads.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              setShowImportDialog(false);
-                              // Trigger workspace selector dropdown
-                              const wsSelector = document.querySelector('[data-workspace-selector]') as HTMLElement;
-                              wsSelector?.click();
-                            }}
-                          >
-                            Select workspace
-                          </Button>
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                            onClick={() => {
-                              setShowImportDialog(false);
-                              navigate("/settings?tab=workspaces&new=1");
-                            }}
-                          >
-                            Create workspace
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {workspaceId && segments.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <Tags className="h-4 w-4" />
-                          Assign Segment to All Imported Leads
-                        </Label>
-                        <Select
-                          value={importSegmentCode || "__none__"}
-                          onValueChange={(v) => setImportSegmentCode(v === "__none__" ? "" : v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select segment (optional)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">No segment</SelectItem>
-                            {segments.map((seg) => (
-                              <SelectItem key={seg.code} value={seg.code}>
-                                <div className="flex items-center gap-2">
-                                  <div 
-                                    className="w-2 h-2 rounded-full" 
-                                    style={{ backgroundColor: seg.color }}
-                                  />
-                                  {seg.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    {workspaceId && (
-                      <>
-                        <Button variant="outline" size="sm" onClick={downloadCSVTemplate} className="w-full">
-                          <Download className="mr-2 h-4 w-4" />
-                          Download Sample CSV
-                        </Button>
-                        <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-                          <strong>AI auto-maps:</strong> Names, emails, phones, companies, job titles, industry, and more. Just upload your file in any format!
-                        </div>
-                        <div
-                          data-testid="import-dropzone"
-                          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                            isDragging 
-                              ? 'border-primary bg-primary/5' 
-                              : 'border-muted-foreground/25 hover:border-muted-foreground/50'
-                          } ${importing ? 'opacity-50 pointer-events-none' : ''}`}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsDragging(true);
-                          }}
-                          onDragEnter={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsDragging(true);
-                          }}
-                          onDragLeave={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsDragging(false);
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsDragging(false);
-                            const file = e.dataTransfer.files?.[0];
-                            if (file && file.name.endsWith('.csv')) {
-                              const event = { target: { files: [file], value: '' } } as unknown as React.ChangeEvent<HTMLInputElement>;
-                              handleCSVImport(event);
-                            } else {
-                              toast({
-                                variant: "destructive",
-                                title: "Invalid File",
-                                description: "Please upload a CSV file",
-                              });
-                            }
-                          }}
-                        >
-                          <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                          <p className="text-sm font-medium">
-                            {isDragging ? 'Drop CSV file here' : 'Drag & drop CSV file here'}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
-                          <Input
-                            type="file"
-                            accept=".csv"
-                            onChange={handleCSVImport}
-                            disabled={importing}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          />
-                        </div>
-                        {importing && (
-                          <div className="flex items-center justify-center gap-2 text-sm text-primary">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            AI is analyzing and importing leads...
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <UniversalCSVImport 
+                open={showImportDialog} 
+                onOpenChange={setShowImportDialog}
+                workspaceId={workspaceId}
+                onImportComplete={fetchLeads}
+              />
 
               <Dialog open={showScraperDialog} onOpenChange={setShowScraperDialog}>
                 <DialogTrigger asChild>
