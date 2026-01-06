@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout, Tags } from 'lucide-react';
+import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout, Tags, Users } from 'lucide-react';
 import { buildAutopilotCampaign } from '@/lib/cmo/api';
 import { getTenantContextSafe, requireTenantId } from '@/lib/tenant';
 import { cmoKeys } from '@/hooks/useCMO';
@@ -31,6 +31,13 @@ interface AutopilotCampaignWizardProps {
   workspaceId?: string;
   tenantId?: string;
   onComplete?: (result: any) => void;
+}
+
+interface TenantSegment {
+  id: string;
+  code: string;
+  name: string;
+  color: string;
 }
 
 const CHANNEL_OPTIONS = [
@@ -69,14 +76,49 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
   const [offer, setOffer] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['email']);
   const [desiredResult, setDesiredResult] = useState<CampaignGoal>('leads');
+  
+  // Tags filtering
   const [filterByTags, setFilterByTags] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  
+  // Segments filtering
+  const [filterBySegments, setFilterBySegments] = useState(false);
+  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
+  const [availableSegments, setAvailableSegments] = useState<TenantSegment[]>([]);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  
   const [matchingLeadsCount, setMatchingLeadsCount] = useState<number | null>(null);
   const [loadingCount, setLoadingCount] = useState(false);
 
-  // Fetch matching leads count when tags change
+  // Fetch available segments
   useEffect(() => {
-    if (!filterByTags || selectedTags.length === 0) {
+    const fetchSegments = async () => {
+      setSegmentsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("tenant_segments")
+          .select("id, code, name, color")
+          .eq("is_active", true)
+          .order("sort_order");
+        
+        if (!error && data) {
+          setAvailableSegments(data);
+        }
+      } catch (err) {
+        console.error("Error fetching segments:", err);
+      } finally {
+        setSegmentsLoading(false);
+      }
+    };
+    fetchSegments();
+  }, []);
+
+  // Fetch matching leads count when tags or segments change
+  useEffect(() => {
+    const hasTagFilter = filterByTags && selectedTags.length > 0;
+    const hasSegmentFilter = filterBySegments && selectedSegments.length > 0;
+    
+    if (!hasTagFilter && !hasSegmentFilter) {
       setMatchingLeadsCount(null);
       return;
     }
@@ -84,10 +126,16 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
     const fetchCount = async () => {
       setLoadingCount(true);
       try {
-        const { count, error } = await supabase
-          .from("leads")
-          .select("id", { count: "exact", head: true })
-          .overlaps("tags", selectedTags);
+        let query = supabase.from("leads").select("id", { count: "exact", head: true });
+        
+        if (hasTagFilter) {
+          query = query.overlaps("tags", selectedTags);
+        }
+        if (hasSegmentFilter) {
+          query = query.in("segment_code", selectedSegments);
+        }
+
+        const { count, error } = await query;
 
         if (!error) {
           setMatchingLeadsCount(count ?? 0);
@@ -100,7 +148,7 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
     };
 
     fetchCount();
-  }, [filterByTags, selectedTags]);
+  }, [filterByTags, selectedTags, filterBySegments, selectedSegments]);
 
   const handleChannelToggle = (channelId: string) => {
     setSelectedChannels((prev) =>
@@ -115,6 +163,14 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
       prev.includes(tag)
         ? prev.filter((t) => t !== tag)
         : [...prev, tag]
+    );
+  };
+
+  const handleSegmentToggle = (code: string) => {
+    setSelectedSegments((prev) =>
+      prev.includes(code)
+        ? prev.filter((c) => c !== code)
+        : [...prev, code]
     );
   };
 
@@ -150,6 +206,7 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
         desiredResult,
         workspaceId: resolvedWorkspaceId || undefined,
         targetTags: filterByTags && selectedTags.length > 0 ? selectedTags : undefined,
+        targetSegments: filterBySegments && selectedSegments.length > 0 ? selectedSegments : undefined,
       });
       setResult(data);
       
@@ -312,23 +369,81 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
                     </Badge>
                   ))}
                 </div>
-                {selectedTags.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">
-                      Matching leads:
-                    </span>
-                    {loadingCount ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Badge variant="secondary">
-                        {matchingLeadsCount?.toLocaleString() ?? 0}
+              </div>
+            )}
+          </fieldset>
+
+          {/* Target Segments */}
+          <fieldset className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="filter-by-segments"
+                checked={filterBySegments} 
+                onCheckedChange={(checked) => {
+                  setFilterBySegments(checked === true);
+                  if (!checked) setSelectedSegments([]);
+                }}
+              />
+              <Label htmlFor="filter-by-segments" className="cursor-pointer flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Target specific lead segments
+              </Label>
+            </div>
+            
+            {filterBySegments && (
+              <div className="space-y-3 pl-6">
+                <p className="text-sm text-muted-foreground">
+                  Only leads in these segments will be included in the campaign:
+                </p>
+                {segmentsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {availableSegments.map((segment) => (
+                      <Badge
+                        key={segment.code}
+                        variant="outline"
+                        className={`cursor-pointer transition-all ${
+                          selectedSegments.includes(segment.code)
+                            ? "ring-2 ring-offset-1 ring-primary"
+                            : "opacity-60 hover:opacity-100"
+                        }`}
+                        style={{
+                          backgroundColor: selectedSegments.includes(segment.code) ? `${segment.color}20` : undefined,
+                          borderColor: segment.color,
+                          color: segment.color,
+                        }}
+                        onClick={() => handleSegmentToggle(segment.code)}
+                      >
+                        <Checkbox 
+                          checked={selectedSegments.includes(segment.code)} 
+                          className="mr-1.5 h-3 w-3"
+                          onCheckedChange={() => handleSegmentToggle(segment.code)}
+                        />
+                        {segment.name}
                       </Badge>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>
             )}
           </fieldset>
+
+          {/* Matching leads count */}
+          {(selectedTags.length > 0 || selectedSegments.length > 0) && (
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-md bg-muted/50">
+              <span className="text-muted-foreground">
+                Matching leads:
+              </span>
+              {loadingCount ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Badge variant="secondary">
+                  {matchingLeadsCount?.toLocaleString() ?? 0}
+                </Badge>
+              )}
+            </div>
+          )}
 
           {/* Goal */}
           <div className="space-y-2">

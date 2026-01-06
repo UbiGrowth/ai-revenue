@@ -40,7 +40,7 @@ serve(async (req) => {
     }
 
     // Parse request
-    const { icp, offer, channels, desiredResult, target_tags } = await req.json();
+    const { icp, offer, channels, desiredResult, target_tags, target_segments } = await req.json();
     
     // Validate inputs
     if (!icp || typeof icp !== "string") {
@@ -121,6 +121,12 @@ serve(async (req) => {
     if (Array.isArray(target_tags) && target_tags.length > 0) {
       campaignData.target_tags = target_tags;
       console.log(`Campaign will target leads with tags: ${target_tags.join(", ")}`);
+    }
+
+    // Add target_segments if provided
+    if (Array.isArray(target_segments) && target_segments.length > 0) {
+      campaignData.target_segments = target_segments;
+      console.log(`Campaign will target leads in segments: ${target_segments.join(", ")}`);
     }
 
     const { data: campaign, error: campaignError } = await supabase

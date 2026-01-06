@@ -29,6 +29,7 @@ interface Lead {
 }
 
 type TagCountRow = { tag: string; leads: number };
+type SegmentCountRow = { segment: string; segmentName: string; color: string; leads: number };
 
 interface Deal {
   id: string;
@@ -59,6 +60,10 @@ export function CRMReports() {
   // Lead tags report
   const [tagCounts, setTagCounts] = useState<TagCountRow[]>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
+
+  // Lead segments report
+  const [segmentCounts, setSegmentCounts] = useState<SegmentCountRow[]>([]);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
 
   useEffect(() => {
     // Only fetch raw leads for trend visualization - NOT for KPI computation
@@ -152,6 +157,73 @@ export function CRMReports() {
     fetchTagCounts();
   }, [dataIntegrity.workspaceId]);
 
+  useEffect(() => {
+    // All-time segment report
+    const fetchSegmentCounts = async () => {
+      if (!dataIntegrity.workspaceId) return;
+
+      setSegmentsLoading(true);
+      try {
+        // First get all segments for names and colors
+        const { data: segments } = await supabase
+          .from("tenant_segments")
+          .select("code, name, color")
+          .eq("is_active", true);
+
+        const segmentMap = new Map<string, { name: string; color: string }>();
+        (segments || []).forEach((s: any) => {
+          segmentMap.set(s.code, { name: s.name, color: s.color });
+        });
+
+        // Then count leads per segment
+        const pageSize = 1000;
+        let offset = 0;
+        const counts = new Map<string, number>();
+
+        while (true) {
+          const { data, error } = await supabase
+            .from("leads")
+            .select("id, segment_code")
+            .eq("workspace_id", dataIntegrity.workspaceId)
+            .order("created_at", { ascending: false })
+            .range(offset, offset + pageSize - 1);
+
+          if (error) throw error;
+
+          const batch = (data || []) as { id: string; segment_code: string | null }[];
+
+          for (const row of batch) {
+            const code = row.segment_code?.trim();
+            if (!code) continue;
+            counts.set(code, (counts.get(code) || 0) + 1);
+          }
+
+          if (batch.length < pageSize) break;
+          offset += pageSize;
+        }
+
+        const rows: SegmentCountRow[] = Array.from(counts.entries())
+          .map(([segment, leads]) => ({
+            segment,
+            segmentName: segmentMap.get(segment)?.name || segment,
+            color: segmentMap.get(segment)?.color || "#6B7280",
+            leads,
+          }))
+          .sort((a, b) => b.leads - a.leads);
+
+        setSegmentCounts(rows);
+      } catch (e) {
+        console.error("[CRMReports] Failed to compute segment counts:", e);
+        toast.error("Failed to load segment report");
+        setSegmentCounts([]);
+      } finally {
+        setSegmentsLoading(false);
+      }
+    };
+
+    fetchSegmentCounts();
+  }, [dataIntegrity.workspaceId]);
+
   // CRM-SPECIFIC STRICTER RULES (no demo carryover, no inference)
   // Data quality status determines what we can show
   const isStripeConnected = dataQuality?.stripe_connected === true;
@@ -209,6 +281,16 @@ export function CRMReports() {
       .slice(0, 12)
       .map((r) => ({ name: r.tag.length > 14 ? `${r.tag.slice(0, 14)}…` : r.tag, leads: r.leads }));
   }, [tagCounts]);
+
+  const segmentChartData = useMemo(() => {
+    return segmentCounts
+      .slice(0, 12)
+      .map((r) => ({ 
+        name: r.segmentName.length > 14 ? `${r.segmentName.slice(0, 14)}…` : r.segmentName, 
+        leads: r.leads,
+        fill: r.color,
+      }));
+  }, [segmentCounts]);
 
   // Lead status breakdown - for visualization
   const statusData = useMemo(() => {
@@ -564,7 +646,58 @@ export function CRMReports() {
         </CardContent>
       </Card>
 
-      {/* Lead Status Summary */}
+      {/* Leads by Segment */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Leads by Segment</CardTitle>
+          <CardDescription>All-time counts of leads per segment</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {segmentsLoading ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : segmentCounts.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No segments assigned to leads yet.</div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={segmentChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} interval={0} angle={-20} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                    <Bar dataKey="leads" name="Leads">
+                      {segmentChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-2">
+                {segmentCounts.slice(0, 20).map((row) => (
+                  <div key={row.segment} className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: row.color }}
+                      />
+                      <div className="font-medium truncate" title={row.segmentName}>{row.segmentName}</div>
+                    </div>
+                    <Badge variant="secondary">{row.leads.toLocaleString()}</Badge>
+                  </div>
+                ))}
+                {segmentCounts.length > 20 && (
+                  <div className="text-xs text-muted-foreground">Showing top 20 of {segmentCounts.length.toLocaleString()} segments.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Lead Status Distribution</CardTitle>
