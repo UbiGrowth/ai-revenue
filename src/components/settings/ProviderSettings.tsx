@@ -67,25 +67,28 @@ export function ProviderSettings({ workspaceId, onUpdate }: ProviderSettingsProp
     setLoading(true);
     try {
       const [emailRes, voiceRes, socialRes] = await Promise.all([
-        supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-        supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-        supabase.from("ai_settings_social").select("*").eq("tenant_id", workspaceId).maybeSingle(),
+        supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).limit(1),
+        supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).limit(1),
+        supabase.from("ai_settings_social").select("*").eq("tenant_id", workspaceId).limit(1),
       ]);
 
-      if (emailRes.data) {
-        const data = emailRes.data as EmailSettings;
+      const emailRow = emailRes.data?.[0] as EmailSettings | undefined;
+      if (emailRow) {
+        const data = emailRow;
         setEmailSettings(data);
         setSelectedEmailProvider(data.email_provider || "resend");
       }
 
-      if (voiceRes.data) {
-        const data = voiceRes.data as VoiceSettings;
+      const voiceRow = voiceRes.data?.[0] as VoiceSettings | undefined;
+      if (voiceRow) {
+        const data = voiceRow;
         setVoiceSettings(data);
         setSelectedVoiceProvider(data.voice_provider || "vapi");
       }
 
-      if (socialRes.data) {
-        const data = socialRes.data as SocialSettings;
+      const socialRow = socialRes.data?.[0] as SocialSettings | undefined;
+      if (socialRow) {
+        const data = socialRow;
         setSocialSettings(data);
         setSelectedSocialProvider(data.social_provider || "coming_soon");
       }

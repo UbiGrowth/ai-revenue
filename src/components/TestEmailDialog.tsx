@@ -47,13 +47,11 @@ export function TestEmailDialog({ open, onOpenChange, asset, workspaceId }: Test
         .from("ai_settings_email")
         .select("sender_name, from_address, reply_to_address")
         .eq("tenant_id", workspaceId)
-        .maybeSingle();
+        .limit(1);
 
       if (error) throw error;
 
-      if (data) {
-        setEmailSettings(data);
-      }
+      setEmailSettings(data?.[0] ?? null);
     } catch (error) {
       console.error("Error fetching email settings:", error);
     } finally {

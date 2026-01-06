@@ -184,12 +184,14 @@ export default function OutboundLinkedInQueue() {
           const nextStepOrder = (run.last_step_sent || 0) + 1;
           
           // Get the next step's delay
-          const { data: nextStep } = await supabase
+          const { data: nextStepArr } = await supabase
             .from("outbound_sequence_steps")
             .select("delay_days")
             .eq("sequence_id", run.sequence_id)
             .eq("step_order", nextStepOrder + 1)
-            .maybeSingle();
+            .limit(1);
+
+          const nextStep = nextStepArr?.[0] ?? null;
 
           const nextDueAt = nextStep
             ? new Date(Date.now() + (nextStep.delay_days || 3) * 24 * 60 * 60 * 1000).toISOString()

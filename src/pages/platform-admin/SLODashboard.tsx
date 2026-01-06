@@ -88,11 +88,12 @@ export default function SLODashboard() {
       .from("user_tenants")
       .select("role")
       .eq("user_id", user.id)
-      .maybeSingle();
+      .limit(1);
 
     // For now, allow any authenticated user to view (can tighten later)
     // In production, you'd check is_platform_admin from profiles
-    const isPlatformAdmin = userTenant?.role === "owner" || userTenant?.role === "admin";
+    const userTenantRow = userTenant?.[0] ?? null;
+    const isPlatformAdmin = userTenantRow?.role === "owner" || userTenantRow?.role === "admin";
     
     if (!isPlatformAdmin) {
       toast.error("Access denied. Admin role required.");
@@ -123,13 +124,13 @@ export default function SLODashboard() {
       // Fetch latest metrics for each config
       const metricsMap: Record<string, SLOMetric> = {};
       for (const config of (configData || []) as unknown as SLOConfig[]) {
-        const { data: metricData } = await supabase
+        const { data: metricDataArr } = await supabase
           .from("slo_metrics")
           .select("*")
           .eq("metric_name", config.metric_name)
           .order("measured_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+        const metricData = metricDataArr?.[0] ?? null;
         if (metricData) {
           metricsMap[config.metric_name] = metricData as unknown as SLOMetric;
         }

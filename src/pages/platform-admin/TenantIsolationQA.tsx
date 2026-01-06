@@ -145,9 +145,10 @@ export default function TenantIsolationQA() {
         .from('workspaces')
         .select('id')
         .eq('name', `QA Workspace B - ${tenantB.id}`)
-        .maybeSingle();
+        .limit(1);
 
-      let workspaceBId = workspaceB?.id;
+      const workspaceBRow = workspaceB?.[0] ?? null;
+      let workspaceBId = workspaceBRow?.id;
       
       if (!workspaceBId) {
         const { data: newWorkspace, error: wsErr } = await supabase
@@ -319,14 +320,15 @@ export default function TenantIsolationQA() {
 
       try {
         // Attempt to fetch Tenant B's record using raw fetch to avoid type issues
-        const { data, error, status } = await supabase
+        const { data: dataArr, error, status } = await supabase
           .from(table.name as 'leads')
           .select('id')
           .eq('id', record.id)
-          .maybeSingle();
+          .limit(1);
 
         // PASS condition: data is null AND we get no error OR we get a permission error
         // The key is that we should NOT get the actual data back
+        const data = dataArr?.[0] ?? null;
         const passed = data === null;
 
         results.push({

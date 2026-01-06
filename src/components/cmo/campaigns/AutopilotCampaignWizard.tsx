@@ -20,14 +20,14 @@ import {
 } from '@/components/ui/select';
 import { Bot, Loader2, CheckCircle2, Mail, MessageSquare, Linkedin, Phone, Layout } from 'lucide-react';
 import { buildAutopilotCampaign } from '@/lib/cmo/api';
-import { getTenantContextSafe, requireTenantId } from '@/lib/tenant';
+import { requireTenantId } from '@/lib/tenant';
 import { cmoKeys } from '@/hooks/useCMO';
 import { toast } from 'sonner';
 import type { CampaignGoal } from '@/lib/cmo/types';
+import { useWorkspaceContext, useActiveWorkspaceId } from '@/contexts/WorkspaceContext';
+import { WorkspaceGate } from '@/components/WorkspaceGate';
 
 interface AutopilotCampaignWizardProps {
-  workspaceId?: string;
-  tenantId?: string;
   onComplete?: (result: any) => void;
 }
 
@@ -46,8 +46,10 @@ const GOAL_OPTIONS: { value: CampaignGoal; label: string }[] = [
   { value: 'engagement', label: 'Grow engagement' },
 ];
 
-export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, onComplete }: AutopilotCampaignWizardProps) {
+export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardProps) {
   const queryClient = useQueryClient();
+  const workspaceId = useActiveWorkspaceId();
+  const { workspace } = useWorkspaceContext();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [icp, setIcp] = useState('');
@@ -66,6 +68,11 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
   const handleBuild = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!workspaceId) {
+      toast.error('Select a workspace to build an autopilot campaign');
+      return;
+    }
+
     if (!icp.trim() || !offer.trim()) {
       toast.error('Please fill in ICP and offer details');
       return;
@@ -78,14 +85,10 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
 
     setLoading(true);
     try {
-      // Resolve tenant context from multiple sources
-      const context = await getTenantContextSafe();
-      const resolvedWorkspaceId = workspaceId || context.workspaceId;
-      
       // Validate we have tenant context
       requireTenantId({
-        activeTenantId: propTenantId || context.tenantId,
-        workspaceId: resolvedWorkspaceId,
+        activeTenantId: workspace?.tenant_id ?? null,
+        workspaceId,
       });
 
       const data = await buildAutopilotCampaign({
@@ -93,7 +96,7 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
         offer,
         channels: selectedChannels,
         desiredResult,
-        workspaceId: resolvedWorkspaceId || undefined,
+        workspaceId,
       });
       setResult(data);
       
@@ -112,7 +115,8 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
 
   if (result) {
     return (
-      <Card className="border-green-500/20 bg-green-500/5">
+      <WorkspaceGate feature="autopilot campaign creation">
+        <Card className="border-green-500/20 bg-green-500/5">
         <CardHeader>
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -143,12 +147,14 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
             </Button>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </WorkspaceGate>
     );
   }
 
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/5">
+    <WorkspaceGate feature="autopilot campaign creation">
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/5">
       <CardHeader>
         <div className="flex items-center gap-3">
           <Bot className="h-8 w-8 text-primary" />
@@ -249,6 +255,7 @@ export function AutopilotCampaignWizard({ workspaceId, tenantId: propTenantId, o
           </Button>
         </form>
       </CardContent>
-    </Card>
+      </Card>
+    </WorkspaceGate>
   );
 }

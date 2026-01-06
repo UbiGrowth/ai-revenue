@@ -33,7 +33,7 @@ interface AppContext {
 const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
   const { toast } = useToast();
   const location = useLocation();
-  const { workspaceId } = useWorkspaceContext();
+  const { workspaceId, workspace } = useWorkspaceContext();
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -58,7 +58,9 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
           .from("business_profiles")
           .select("business_name, industry")
           .eq("workspace_id", workspaceId)
-          .maybeSingle();
+          .limit(1);
+
+        const profileRow = profile?.[0] ?? null;
 
         // Fetch ICP segments
         const { data: segments } = await supabase
@@ -68,19 +70,14 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
           .limit(5);
 
         // Fetch lead count - crm_leads uses tenant_id, not workspace_id
-        // Get tenant_id from workspace first
-        const { data: wsData } = await supabase
-          .from("workspaces")
-          .select("tenant_id")
-          .eq("id", workspaceId)
-          .maybeSingle();
-        
+        const tenantId = workspace?.tenant_id ?? null;
+
         let leadCount = 0;
-        if (wsData?.tenant_id) {
+        if (tenantId) {
           const { count } = await supabase
             .from("crm_leads")
             .select("*", { count: "exact", head: true })
-            .eq("tenant_id", wsData.tenant_id);
+            .eq("tenant_id", tenantId);
           leadCount = count || 0;
         }
 
@@ -100,8 +97,8 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
         const icpSegments = segments?.map(s => s.segment_name).filter(Boolean) as string[] || [];
 
         setAppContext({
-          businessName: profile?.business_name || null,
-          industry: profile?.industry || null,
+          businessName: profileRow?.business_name || null,
+          industry: profileRow?.industry || null,
           currentRoute: location.pathname,
           leadCount: leadCount || 0,
           campaignCount: campaignCount || 0,

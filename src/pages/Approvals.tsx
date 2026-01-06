@@ -15,6 +15,8 @@ import { Progress } from "@/components/ui/progress";
 import { getCampaignPlaceholder } from "@/lib/placeholders";
 import { CampaignRunDetailsDrawer } from "@/components/campaigns/CampaignRunDetailsDrawer";
 import { TestEmailDialog } from "@/components/TestEmailDialog";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 interface PendingAsset {
   id: string;
@@ -57,9 +59,16 @@ const Approvals = () => {
   const [selectedAssetForRun, setSelectedAssetForRun] = useState<PendingAsset | null>(null);
   const [testEmailOpen, setTestEmailOpen] = useState(false);
   const [selectedAssetForTest, setSelectedAssetForTest] = useState<PendingAsset | null>(null);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const workspaceId = useActiveWorkspaceId();
 
   useEffect(() => {
+    if (!workspaceId) {
+      setPendingAssets([]);
+      setBusinessProfile(null);
+      setLoading(false);
+      return;
+    }
+
     fetchBusinessProfile();
     fetchPendingAssets();
     
@@ -73,8 +82,7 @@ const Approvals = () => {
           schema: 'public',
           table: 'assets',
         },
-        (payload) => {
-          // Refresh the asset list when videos are generated
+        () => {
           fetchPendingAssets();
         }
       )
@@ -83,54 +91,34 @@ const Approvals = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [workspaceId]);
 
   const fetchBusinessProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get workspace ID
-      const { data: ownedWorkspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-
-      let workspaceId = ownedWorkspace?.id;
-
-      if (!workspaceId) {
-        const { data: membership } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        workspaceId = membership?.workspace_id;
-      }
-
       if (!workspaceId) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("business_profiles")
         .select("business_name, industry, logo_url")
         .eq("workspace_id", workspaceId)
-        .single();
+        .limit(1);
 
-      if (data) {
-        setBusinessProfile(data);
+      if (!error) {
+        setBusinessProfile(data?.[0] ?? null);
       }
-      setWorkspaceId(workspaceId);
     } catch (error) {
       console.error("Error fetching business profile:", error);
     }
   };
 
   const fetchPendingAssets = async () => {
+    if (!workspaceId) return;
     try {
       // Fetch assets with their campaigns
       const { data: assets, error } = await supabase
         .from("assets")
         .select("*, campaigns(id)")
+        .eq("workspace_id", workspaceId)
         .in("status", ["review", "draft"])
         .is("external_project_url", null)
         .order("created_at", { ascending: false });
@@ -628,6 +616,7 @@ const Approvals = () => {
         <NavBar />
         <PageBreadcrumbs items={[{ label: "Approvals" }]} />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <WorkspaceGate feature="approvals">
           <WorkflowProgress
             steps={[
               { label: "Create", status: "completed" },
@@ -952,6 +941,7 @@ const Approvals = () => {
               </CardContent>
             </Card>
           )}
+          </WorkspaceGate>
         </main>
         <Footer />
 

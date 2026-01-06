@@ -17,6 +17,8 @@ import ModuleToggles from "@/components/ModuleToggles";
 import ChannelToggles from "@/components/ChannelToggles";
 import TeamManagement from "@/components/TeamManagement";
 import { SampleDataToggle } from "@/components/DemoModeToggle";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -34,48 +36,28 @@ export default function Settings() {
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const workspaceId = useActiveWorkspaceId();
 
   useEffect(() => {
-    initializeWorkspace();
-  }, []);
-
-  const initializeWorkspace = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Get workspace ID
-    const { data: ownedWorkspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
-
-    let wsId = ownedWorkspace?.id;
-
-    if (!wsId) {
-      const { data: membership } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      wsId = membership?.workspace_id;
+    if (!workspaceId) {
+      setBusinessProfile(null);
+      setLoadingProfile(false);
+      return;
     }
 
-    if (wsId) {
-      setWorkspaceId(wsId);
-      fetchBusinessProfile(wsId);
-    }
-  };
+    fetchBusinessProfile(workspaceId);
+  }, [workspaceId]);
 
   const fetchBusinessProfile = async (wsId: string) => {
     setLoadingProfile(true);
 
-    const { data, error } = await supabase
+    const { data: dataArr, error } = await supabase
       .from("business_profiles")
       .select("*")
       .eq("workspace_id", wsId)
-      .maybeSingle();
+      .limit(1);
+
+    const data = dataArr?.[0] ?? null;
 
     if (!error && data) {
       setBusinessProfile(data);
@@ -212,8 +194,9 @@ export default function Settings() {
       <div className="min-h-screen bg-background flex flex-col">
         <NavBar />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-8">
+          <WorkspaceGate feature="settings">
+            <div className="max-w-4xl mx-auto">
+              <div className="mb-8">
               <Button
                 variant="ghost"
                 size="sm"
@@ -495,8 +478,9 @@ export default function Settings() {
                   </Card>
                 )}
               </TabsContent>
-            </Tabs>
-          </div>
+              </Tabs>
+            </div>
+          </WorkspaceGate>
         </main>
         <Footer />
       </div>

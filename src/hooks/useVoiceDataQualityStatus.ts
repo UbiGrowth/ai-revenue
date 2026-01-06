@@ -49,14 +49,15 @@ export function useVoiceDataQualityStatus(workspaceId?: string | null): VoiceDat
         .from("workspaces")
         .select("demo_mode")
         .eq("id", workspaceId)
-        .maybeSingle();
+        .limit(1);
 
       if (workspaceError) {
         console.error("[useVoiceDataQualityStatus] Workspace query error:", workspaceError);
         throw new Error("Failed to fetch workspace settings");
       }
 
-      setIsDemoMode(workspace?.demo_mode === true);
+      const workspaceRow = workspace?.[0];
+      setIsDemoMode(workspaceRow?.demo_mode === true);
 
       // 2. Check voice provider connectivity from ai_settings_voice
       // ╔══════════════════════════════════════════════════════════════════════════╗
@@ -64,11 +65,13 @@ export function useVoiceDataQualityStatus(workspaceId?: string | null): VoiceDat
       // ║ workspaces.tenant_id is NULL in production and must NOT be used.        ║
       // ║ This matches how SettingsIntegrations.tsx saves the data.               ║
       // ╚══════════════════════════════════════════════════════════════════════════╝
-      const { data: voiceSettings, error: voiceError } = await supabase
+      const { data: voiceSettingsData, error: voiceError } = await supabase
         .from("ai_settings_voice")
         .select("is_connected, vapi_private_key, elevenlabs_api_key, voice_provider")
         .eq("tenant_id", workspaceId)
-        .maybeSingle();
+        .limit(1);
+
+      const voiceSettings = voiceSettingsData?.[0];
 
       if (voiceError) {
         console.error("[useVoiceDataQualityStatus] Voice settings query error:", voiceError);

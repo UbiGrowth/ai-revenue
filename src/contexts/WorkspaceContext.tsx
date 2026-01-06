@@ -1,4 +1,4 @@
-// Workspace Context - Auto-selects workspace on login, persists selection
+// Workspace Context - Persists an explicitly selected workspace (no heuristic auto-selection)
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -81,6 +81,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspaceId(null);
         setWorkspace(null);
         setWorkspaces([]);
+        setDemoMode(false);
+        setStripeConnected(false);
+        setAnalyticsConnected(false);
         return;
       }
 
@@ -114,23 +117,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       setWorkspaces(uniqueWorkspaces);
 
-      // Auto-select workspace
+      // Resolve active workspace ONLY from explicit persisted selection.
+      // No default/first fallbacks: if nothing is selected, force user selection.
       const savedId = localStorage.getItem(STORAGE_KEY);
       let selectedWorkspace: Workspace | null = null;
 
-      // Try saved workspace first
       if (savedId) {
         selectedWorkspace = uniqueWorkspaces.find((w) => w.id === savedId) || null;
-      }
-
-      // If no valid saved, try default workspace
-      if (!selectedWorkspace) {
-        selectedWorkspace = uniqueWorkspaces.find((w) => w.is_default) || null;
-      }
-
-      // Fall back to first workspace
-      if (!selectedWorkspace && uniqueWorkspaces.length > 0) {
-        selectedWorkspace = uniqueWorkspaces[0];
+        if (!selectedWorkspace) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
 
       if (selectedWorkspace) {
@@ -138,25 +134,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspace(selectedWorkspace);
         setDemoMode(selectedWorkspace.demo_mode ?? false);
         setStripeConnected(selectedWorkspace.stripe_connected ?? false);
-        localStorage.setItem(STORAGE_KEY, selectedWorkspace.id);
         
         // Fetch full integration status from view
         fetchIntegrationStatus(selectedWorkspace.id);
         
-        // Update last used in DB (fire and forget)
-        (async () => {
-          try {
-            await supabase.rpc("set_last_used_workspace", {
-              p_user_id: user.id,
-              p_workspace_id: selectedWorkspace.id,
-            });
-          } catch (e) {
-            console.error(e);
-          }
-        })();
       } else {
         setWorkspaceId(null);
         setWorkspace(null);
+        setDemoMode(false);
+        setStripeConnected(false);
+        setAnalyticsConnected(false);
       }
     } catch (err) {
       console.error("Workspace context error:", err);
@@ -177,7 +164,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspaceId(null);
         setWorkspace(null);
         setWorkspaces([]);
-        localStorage.removeItem(STORAGE_KEY);
+        // Intentionally do NOT clear persisted selection here.
+        // On next login we validate access; invalid IDs are cleared during fetch.
       }
     });
 
@@ -341,6 +329,10 @@ export function useWorkspaceContext() {
     throw new Error("useWorkspaceContext must be used within a WorkspaceProvider");
   }
   return context;
+}
+
+export function useActiveWorkspaceId(): string | null {
+  return useWorkspaceContext().workspaceId;
 }
 
 // Re-export for backwards compatibility

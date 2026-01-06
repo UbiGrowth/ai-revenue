@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getWorkspaceId } from "@/hooks/useWorkspace";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
 export interface ChannelPreferences {
   email_enabled: boolean;
@@ -19,15 +19,15 @@ const DEFAULT_PREFERENCES: ChannelPreferences = {
 };
 
 export function useChannelPreferences() {
+  const workspaceId = useActiveWorkspaceId();
   const [preferences, setPreferences] = useState<ChannelPreferences>(DEFAULT_PREFERENCES);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetchPreferences();
-  }, []);
+  }, [workspaceId]);
 
   const fetchPreferences = async () => {
-    const workspaceId = await getWorkspaceId();
     if (!workspaceId) {
       setIsLoading(false);
       return;
@@ -37,15 +37,17 @@ export function useChannelPreferences() {
       .from("channel_preferences")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .maybeSingle();
+      .limit(1);
 
-    if (!error && data) {
+    const row = data?.[0];
+
+    if (!error && row) {
       setPreferences({
-        email_enabled: data.email_enabled,
-        social_enabled: data.social_enabled,
-        voice_enabled: data.voice_enabled,
-        video_enabled: data.video_enabled,
-        landing_pages_enabled: data.landing_pages_enabled,
+        email_enabled: row.email_enabled,
+        social_enabled: row.social_enabled,
+        voice_enabled: row.voice_enabled,
+        video_enabled: row.video_enabled,
+        landing_pages_enabled: row.landing_pages_enabled,
       });
     }
     setIsLoading(false);

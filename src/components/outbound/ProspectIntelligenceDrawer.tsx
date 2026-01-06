@@ -93,9 +93,9 @@ export default function ProspectIntelligenceDrawer({ prospectId, onClose }: Pros
         .from("prospect_scores")
         .select("score, band, last_scored_at")
         .eq("prospect_id", prospectId)
-        .maybeSingle();
+        .limit(1);
 
-      setScore(scoreData);
+      setScore(scoreData?.[0] ?? null);
 
       // Fetch signals
       const { data: signalsData } = await supabase

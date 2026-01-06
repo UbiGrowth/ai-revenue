@@ -73,11 +73,13 @@ export function usePipelineMetrics(workspaceId: string | null): UsePipelineMetri
     try {
       // Fetch pipeline metrics from authoritative view
       // Use type assertion since views aren't in generated types
-      const { data: pipelineData, error: pipelineError } = await supabase
+      const { data: pipelineDataArr, error: pipelineError } = await supabase
         .from('v_pipeline_metrics_by_workspace' as any)
         .select('*')
         .eq('workspace_id', workspaceId)
-        .maybeSingle() as { data: any; error: any };
+        .limit(1) as { data: any[]; error: any };
+
+      const pipelineData = pipelineDataArr?.[0];
 
       if (pipelineError) {
         console.error('[usePipelineMetrics] Error fetching pipeline:', pipelineError);
@@ -126,11 +128,13 @@ export function usePipelineMetrics(workspaceId: string | null): UsePipelineMetri
       }
 
       // Fetch data quality flags from authoritative view
-      const { data: qualityData, error: qualityError } = await supabase
+      const { data: qualityDataArr, error: qualityError } = await supabase
         .from('v_data_quality_by_workspace' as any)
         .select('*')
         .eq('workspace_id', workspaceId)
-        .maybeSingle() as { data: any; error: any };
+        .limit(1) as { data: any[]; error: any };
+
+      const qualityData = qualityDataArr?.[0];
 
       if (qualityError) {
         console.error('[usePipelineMetrics] Error fetching data quality:', qualityError);

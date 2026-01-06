@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspaceContext } from "@/contexts/WorkspaceContext";
 
 export interface IntegrationStatus {
   stripe: boolean;
@@ -66,109 +67,54 @@ const DEFAULT_INTEGRATIONS: IntegrationStatus = {
 };
 
 export function useDataIntegrity(): DataIntegrityContext {
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [metricsMode, setMetricsMode] = useState<"real" | "demo">("real");
+  const {
+    workspaceId,
+    workspace,
+    demoMode,
+    stripeConnected,
+    analyticsConnected,
+    isLoading: workspaceLoading,
+  } = useWorkspaceContext();
+
+  const tenantId = workspace?.tenant_id ?? null;
+  const metricsMode: "real" | "demo" = demoMode ? "demo" : "real";
   const [integrations, setIntegrations] = useState<IntegrationStatus>(DEFAULT_INTEGRATIONS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchIntegrityContext = useCallback(async () => {
     try {
+      if (workspaceLoading) {
+        setLoading(true);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
+      // No workspace selected => return clean empty state (force user selection elsewhere)
+      if (!workspaceId) {
+        setIntegrations(DEFAULT_INTEGRATIONS);
         return;
       }
 
-      // Get user's tenant
-      const { data: userTenant } = await supabase
-        .from("user_tenants")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (!userTenant?.tenant_id) {
-        setError("No tenant found for user");
-        setLoading(false);
-        return;
-      }
-
-      setTenantId(userTenant.tenant_id);
-
-      // Get user's workspace (with demo_mode)
-      const { data: ownedWorkspace } = await supabase
-        .from("workspaces")
-        .select("id, demo_mode")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-
-      let wsId = ownedWorkspace?.id;
-      let wsMode = ownedWorkspace?.demo_mode;
-      
-      if (!wsId) {
-        const { data: membership } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        wsId = membership?.workspace_id;
-        
-        // Fetch demo_mode for member workspace
-        if (wsId) {
-          const { data: memberWs } = await supabase
-            .from("workspaces")
-            .select("demo_mode")
-            .eq("id", wsId)
-            .maybeSingle();
-          wsMode = memberWs?.demo_mode;
-        }
-      }
-
-      setWorkspaceId(wsId || null);
-      
-      // Set metrics mode from workspace demo_mode (primary) or tenant metrics_mode (fallback)
-      if (wsMode !== undefined && wsMode !== null) {
-        setMetricsMode(wsMode ? "demo" : "real");
-      } else {
-        // Fallback to tenant's metrics_mode
-        const { data: tenant } = await supabase
-          .from("tenants")
-          .select("metrics_mode")
-          .eq("id", userTenant.tenant_id)
-          .single();
-        const mode = (tenant?.metrics_mode as "real" | "demo") || "real";
-        setMetricsMode(mode);
-      }
-
-      // Check integrations (tenant_id scoped)
+      // Check integrations scoped to the ACTIVE workspace only
       const integrationStatus: IntegrationStatus = { ...DEFAULT_INTEGRATIONS };
 
-      // Check Stripe connection
-      const { data: stripeSettings } = await supabase
-        .from("ai_settings_stripe")
-        .select("is_connected")
-        .eq("tenant_id", userTenant.tenant_id)
-        .maybeSingle();
-      
-      integrationStatus.stripe = stripeSettings?.is_connected === true;
+      // Use centralized WorkspaceContext as the source of truth for provider connectivity
+      integrationStatus.stripe = stripeConnected === true;
+      integrationStatus.googleAnalytics = analyticsConnected === true;
 
       // Check social/analytics integrations
-      if (wsId) {
+      if (workspaceId) {
         const { data: socialIntegrations } = await supabase
           .from("social_integrations")
           .select("platform, is_active")
-          .eq("workspace_id", wsId)
+          .eq("workspace_id", workspaceId)
           .eq("is_active", true);
 
         for (const integration of socialIntegrations || []) {
-          if (integration.platform === "google_analytics") {
-            integrationStatus.googleAnalytics = true;
-          } else if (integration.platform === "meta" || integration.platform === "facebook") {
+          if (integration.platform === "meta" || integration.platform === "facebook") {
             integrationStatus.metaAds = true;
           } else if (integration.platform === "linkedin") {
             integrationStatus.linkedInAds = true;
@@ -177,11 +123,13 @@ export function useDataIntegrity(): DataIntegrityContext {
       }
 
       // Check email connection
-      const { data: emailSettings } = await supabase
+      const { data: emailSettingsArr } = await supabase
         .from("ai_settings_email")
         .select("is_connected")
-        .eq("tenant_id", userTenant.tenant_id)
-        .maybeSingle();
+        .eq("tenant_id", workspaceId)
+        .limit(1);
+
+      const emailSettings = emailSettingsArr?.[0];
       
       integrationStatus.email = emailSettings?.is_connected === true;
 
@@ -192,7 +140,7 @@ export function useDataIntegrity(): DataIntegrityContext {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [workspaceId, workspaceLoading, stripeConnected, analyticsConnected]);
 
   useEffect(() => {
     fetchIntegrityContext();

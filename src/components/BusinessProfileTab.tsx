@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Building2, Target, FileText, Palette, CheckCircle2 } from "lucide-react";
-import { getWorkspaceId } from "@/hooks/useWorkspace";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 interface BrandColors {
   primary?: string;
@@ -41,9 +42,9 @@ interface BusinessProfile {
 
 export default function BusinessProfileTab() {
   const { toast } = useToast();
+  const workspaceId = useActiveWorkspaceId();
   const [loading, setLoading] = useState(false);
   const [profileExists, setProfileExists] = useState(false);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [profile, setProfile] = useState<BusinessProfile>({
     business_name: "",
     business_description: "",
@@ -62,26 +63,30 @@ export default function BusinessProfileTab() {
   const [uspInput, setUspInput] = useState("");
 
   useEffect(() => {
+    if (!workspaceId) {
+      setProfileExists(false);
+      return;
+    }
     fetchProfile();
-  }, []);
+  }, [workspaceId]);
 
   const fetchProfile = async () => {
-    const wsId = await getWorkspaceId();
-    if (!wsId) return;
-    setWorkspaceId(wsId);
+    if (!workspaceId) return;
 
     const { data, error } = await supabase
       .from("business_profiles")
       .select("*")
-      .eq("workspace_id", wsId)
-      .maybeSingle();
+      .eq("workspace_id", workspaceId)
+      .limit(1);
 
-    if (!error && data) {
+    const row = data?.[0];
+
+    if (!error && row) {
       setProfile({
-        ...data,
-        unique_selling_points: data.unique_selling_points || [],
-        brand_colors: (data.brand_colors as BrandColors) || {},
-        brand_fonts: (data.brand_fonts as BrandFonts) || {},
+        ...row,
+        unique_selling_points: row.unique_selling_points || [],
+        brand_colors: (row.brand_colors as BrandColors) || {},
+        brand_fonts: (row.brand_fonts as BrandFonts) || {},
       });
       setProfileExists(true);
     }
@@ -90,7 +95,17 @@ export default function BusinessProfileTab() {
   const saveProfile = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !workspaceId) {
+    if (!workspaceId) {
+      toast({
+        title: "Workspace required",
+        description: "Select a workspace to save your business profile.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (!user) {
       setLoading(false);
       return;
     }
@@ -150,7 +165,8 @@ export default function BusinessProfileTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <WorkspaceGate feature="business profile">
+      <div className="space-y-6">
       <Card className="bg-primary/5 border-primary/20">
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -425,6 +441,7 @@ export default function BusinessProfileTab() {
       >
         {loading ? "Saving..." : profileExists ? "Update Business Profile" : "Save Business Profile"}
       </Button>
-    </div>
+      </div>
+    </WorkspaceGate>
   );
 }

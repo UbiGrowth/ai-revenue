@@ -127,13 +127,14 @@ export default function LeadDetail() {
 
   const fetchLead = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: dataArr, error } = await supabase
         .from("leads")
         .select("*")
         .eq("id", id)
-        .maybeSingle();
+        .limit(1);
 
       if (error) throw error;
+      const data = dataArr?.[0] ?? null;
       if (!data) {
         toast.error("Lead not found");
         navigate("/crm");

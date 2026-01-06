@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Send, FileText, Mail, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
 interface Lead {
   id: string;
@@ -103,6 +104,7 @@ ${businessName}`,
 ];
 
 export function EmailOutreachDialog({ open, onOpenChange, lead, onEmailSent }: EmailOutreachDialogProps) {
+  const workspaceId = useActiveWorkspaceId();
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -123,10 +125,13 @@ export function EmailOutreachDialog({ open, onOpenChange, lead, onEmailSent }: E
       if (!user) return;
 
       // Fetch Gmail token status
-      const { data: gmailToken } = await supabase
+      const { data: gmailTokenArr } = await supabase
         .from("user_gmail_tokens")
         .select("email")
-        .maybeSingle();
+        .eq("user_id", user.id)
+        .limit(1);
+
+      const gmailToken = gmailTokenArr?.[0] ?? null;
       
       if (gmailToken?.email) {
         setGmailConnected(true);
@@ -137,42 +142,28 @@ export function EmailOutreachDialog({ open, onOpenChange, lead, onEmailSent }: E
         setSendVia("resend"); // Reset to resend if Gmail not connected
       }
 
-      // Get workspace ID
-      const { data: ownedWorkspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-
-      let workspaceId = ownedWorkspace?.id;
-
-      if (!workspaceId) {
-        const { data: membership } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        workspaceId = membership?.workspace_id;
-      }
-
       if (workspaceId) {
         // Fetch business profile for templates
-        const { data: profile } = await supabase
+        const { data: profileArr } = await supabase
           .from('business_profiles')
           .select('business_name')
           .eq('workspace_id', workspaceId)
-          .maybeSingle();
+          .limit(1);
+
+        const profile = profileArr?.[0] ?? null;
         
         if (profile?.business_name) {
           setEmailTemplates(getEmailTemplates(profile.business_name));
         }
 
         // Fetch email settings for from address
-        const { data: emailSettings } = await supabase
+        const { data: emailSettingsArr } = await supabase
           .from('ai_settings_email')
           .select('from_address, sender_name')
           .eq('tenant_id', workspaceId)
-          .maybeSingle();
+          .limit(1);
+
+        const emailSettings = emailSettingsArr?.[0] ?? null;
 
         if (emailSettings) {
           setFromEmail(emailSettings.from_address || "onboarding@resend.dev");
@@ -185,7 +176,7 @@ export function EmailOutreachDialog({ open, onOpenChange, lead, onEmailSent }: E
     };
     
     fetchSettings();
-  }, [open]);
+  }, [open, workspaceId]);
 
   const replaceVariables = (text: string): string => {
     if (!lead) return text;
@@ -206,6 +197,11 @@ export function EmailOutreachDialog({ open, onOpenChange, lead, onEmailSent }: E
   };
 
   const handleSend = async () => {
+    if (!workspaceId) {
+      toast.error("Select a workspace to send emails.");
+      return;
+    }
+
     if (!lead || !subject.trim() || !body.trim()) {
       toast.error("Please fill in all fields");
       return;

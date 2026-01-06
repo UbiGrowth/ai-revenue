@@ -1,4 +1,3 @@
-import { useState } from "react";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -6,11 +5,10 @@ import ContentCalendar from "@/components/ContentCalendar";
 import AutomationDashboard from "@/components/AutomationDashboard";
 import WorkspaceSelector from "@/components/WorkspaceSelector";
 import { Building2 } from "lucide-react";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
 export default function Automation() {
-  const [workspaceId, setWorkspaceId] = useState<string | null>(
-    localStorage.getItem("currentWorkspaceId")
-  );
+  const workspaceId = useActiveWorkspaceId();
 
   return (
     <ProtectedRoute>
@@ -24,7 +22,7 @@ export default function Automation() {
                 Schedule content, automate workflows, and let AI handle your daily marketing
               </p>
             </div>
-            <WorkspaceSelector onWorkspaceChange={setWorkspaceId} />
+            <WorkspaceSelector />
           </div>
 
           {workspaceId ? (

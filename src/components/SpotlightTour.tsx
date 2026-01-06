@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { X, ChevronLeft, ChevronRight, Sparkles, Home, CheckSquare, BarChart3, PenSquare, Rocket, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { storageSet } from "@/lib/storage";
 
 interface TourStep {
   title: string;
@@ -148,7 +149,7 @@ const SpotlightTour = ({ isOpen, onComplete }: SpotlightTourProps) => {
         .eq("user_id", user.id);
     }
     sessionStorage.setItem("tour-shown-this-session", "true");
-    localStorage.setItem("ubigrowth_welcome_seen", "true");
+    storageSet("ubigrowth_welcome_seen", "true");
     onComplete();
   };
 

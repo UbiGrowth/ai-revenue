@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
 interface Notification {
   id: string;
@@ -43,7 +44,7 @@ export default function NotificationBell() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const workspaceId = localStorage.getItem("currentWorkspaceId");
+  const workspaceId = useActiveWorkspaceId();
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 

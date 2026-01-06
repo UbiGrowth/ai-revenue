@@ -29,6 +29,7 @@ import WorkspaceSelector from "@/components/WorkspaceSelector";
 import { useTenantSegments } from "@/hooks/useTenantSegments";
 import { SegmentBadge } from "@/components/crm/SegmentBadge";
 import { useDemoMode } from "@/hooks/useDemoMode";
+import { useActiveWorkspaceId, useWorkspaceContext } from "@/contexts/WorkspaceContext";
 
 interface Lead {
   id: string;
@@ -63,8 +64,8 @@ const CRM = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { segments } = useTenantSegments();
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [workspaceValidated, setWorkspaceValidated] = useState(false);
+  const workspaceId = useActiveWorkspaceId();
+  const { isLoading: workspaceLoading } = useWorkspaceContext();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "list" | "pipeline" | "deals" | "tasks" | "sequences" | "calendar" | "reports" | "email_analytics">("dashboard");
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
@@ -119,60 +120,25 @@ const CRM = () => {
   const [importSegmentCode, setImportSegmentCode] = useState("");
 
   useEffect(() => {
-    const validateWorkspace = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setWorkspaceValidated(true);
-        setLoading(false);
-        return;
-      }
+    if (workspaceLoading) return;
 
-      const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
-      
-      // Check if user owns any workspace
-      const { data: ownedWorkspaces } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: true });
-
-      const validWorkspaceIds = ownedWorkspaces?.map(w => w.id) || [];
-
-      // Check if saved workspace is valid for this user
-      if (savedWorkspaceId && validWorkspaceIds.includes(savedWorkspaceId)) {
-        setWorkspaceId(savedWorkspaceId);
-      } else if (validWorkspaceIds.length > 0) {
-        // Use first owned workspace
-        const correctWorkspaceId = validWorkspaceIds[0];
-        localStorage.setItem("currentWorkspaceId", correctWorkspaceId);
-        setWorkspaceId(correctWorkspaceId);
-        console.log("Updated workspace to:", correctWorkspaceId);
-      }
-      
-      setWorkspaceValidated(true);
-    };
-
-    validateWorkspace();
-  }, []);
-
-  useEffect(() => {
-    if (workspaceValidated && workspaceId) {
+    if (workspaceId) {
       fetchLeads();
       fetchCalendarEvents();
       fetchCampaignMetrics();
       fetchEmailConnectionStatus();
-    } else if (workspaceValidated) {
+    } else {
       setLeads([]);
       setCalendarEvents([]);
       setCampaignMetrics([]);
       setEmailConnected(false);
       setLoading(false);
     }
-  }, [workspaceId, workspaceValidated]);
+  }, [workspaceId, workspaceLoading]);
 
   // Keep analytics in sync (preview can be stale if the DB updates outside this page lifecycle)
   useEffect(() => {
-    if (!workspaceValidated || !workspaceId) return;
+    if (workspaceLoading || !workspaceId) return;
 
     const onFocus = () => {
       fetchCampaignMetrics();
@@ -188,7 +154,7 @@ const CRM = () => {
       window.removeEventListener("focus", onFocus);
       window.clearInterval(interval);
     };
-  }, [workspaceId, workspaceValidated]);
+  }, [workspaceId, workspaceLoading]);
 
   useEffect(() => {
     filterLeads();
@@ -258,8 +224,10 @@ const CRM = () => {
         .from("ai_settings_email")
         .select("is_connected")
         .eq("tenant_id", workspaceId)
-        .maybeSingle();
-      setEmailConnected(data?.is_connected === true);
+        .limit(1);
+
+      const row = data?.[0];
+      setEmailConnected(row?.is_connected === true);
     } catch (error) {
       console.error("Error fetching email connection status:", error);
       setEmailConnected(false);
@@ -454,48 +422,14 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
 
     setImporting(true);
     try {
+      if (!workspaceId) {
+        throw new Error("No workspace selected. Please select or create a workspace first.");
+      }
+
       // First verify user is authenticated
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) {
         throw new Error("Please log in to import leads");
-      }
-
-      // Find user's workspace - check owned workspaces first, then membership
-      let validWorkspaceId = workspaceId;
-      
-      // Check if user owns a workspace
-      const { data: ownedWorkspace } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (ownedWorkspace) {
-        validWorkspaceId = ownedWorkspace.id;
-      } else {
-        // Check workspace membership
-        const { data: memberWorkspace } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("user_id", user.user.id)
-          .limit(1)
-          .maybeSingle();
-        
-        if (memberWorkspace) {
-          validWorkspaceId = memberWorkspace.workspace_id;
-        }
-      }
-
-      if (!validWorkspaceId) {
-        throw new Error("No workspace found. Please contact support.");
-      }
-
-      // Update localStorage if needed
-      if (validWorkspaceId !== workspaceId) {
-        localStorage.setItem("currentWorkspaceId", validWorkspaceId);
-        setWorkspaceId(validWorkspaceId);
-        console.log("Updated workspace to:", validWorkspaceId);
       }
 
       const csvContent = await file.text();
@@ -519,7 +453,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
 
       console.log("AI mapped leads:", data.leads.length);
       console.log("Column mapping:", data.mapping);
-      console.log("Using workspace:", validWorkspaceId);
+      console.log("Using workspace:", workspaceId);
 
       // Show mapping info
       if (data.confidence && data.confidence < 0.7) {
@@ -529,7 +463,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
       const leadsWithMetadata = data.leads.map((lead: any) => ({
         ...lead,
         created_by: user.user?.id,
-        workspace_id: validWorkspaceId,
+        workspace_id: workspaceId,
         segment_code: importSegmentCode || null,
         source: 'user', // Explicit: imported leads count in live analytics
       }));
@@ -571,6 +505,15 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
   };
 
   const handleGoogleMapsScrape = async () => {
+    if (!workspaceId) {
+      toast({
+        variant: "destructive",
+        title: "Workspace Required",
+        description: "Select a workspace to import leads.",
+      });
+      return;
+    }
+
     if (!scraperParams.location || !scraperParams.businessType) {
       toast({
         variant: "destructive",
@@ -703,7 +646,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <WorkspaceSelector onWorkspaceChange={setWorkspaceId} />
+                <WorkspaceSelector />
               <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline">

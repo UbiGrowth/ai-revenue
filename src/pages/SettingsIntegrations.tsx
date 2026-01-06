@@ -22,6 +22,8 @@ import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { format, formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 
 // Types for each settings table
 interface EmailSettings {
@@ -183,6 +185,7 @@ const FIELD_LABELS: Record<string, string> = {
 export default function SettingsIntegrations() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const workspaceId = useActiveWorkspaceId();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -263,7 +266,11 @@ export default function SettingsIntegrations() {
   const [socialTokens, setSocialTokens] = useState<Record<string, { token: string; accountName: string }>>({});
 
   useEffect(() => {
-    loadAllSettings();
+    if (workspaceId) {
+      loadAllSettings();
+    } else {
+      setLoading(false);
+    }
     
     // Handle Gmail OAuth callback query params
     const gmailConnectedParam = searchParams.get("gmail_connected");
@@ -293,7 +300,7 @@ export default function SettingsIntegrations() {
       });
       navigate("/settings/integrations", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, workspaceId]);
 
   const loadAllSettings = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -302,24 +309,6 @@ export default function SettingsIntegrations() {
       return;
     }
     setUserId(user.id);
-
-    // Get workspace ID (user may be owner or member)
-    const { data: ownedWorkspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
-
-    let workspaceId = ownedWorkspace?.id;
-
-    if (!workspaceId) {
-      const { data: membership } = await supabase
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      workspaceId = membership?.workspace_id;
-    }
 
     if (!workspaceId) {
       console.error("No workspace found for user");
@@ -334,76 +323,83 @@ export default function SettingsIntegrations() {
 
     // Load all settings and audit logs in parallel using workspace_id
     const [emailRes, linkedinRes, calendarRes, crmRes, domainRes, voiceRes, stripeRes, socialRes, auditRes] = await Promise.all([
-      supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_linkedin").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_calendar").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_crm_webhooks").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_domain").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).maybeSingle(),
-      supabase.from("ai_settings_stripe").select("*").eq("tenant_id", workspaceId).maybeSingle(),
+      supabase.from("ai_settings_email").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_linkedin").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_calendar").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_crm_webhooks").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_domain").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_voice").select("*").eq("tenant_id", workspaceId).limit(1),
+      supabase.from("ai_settings_stripe").select("*").eq("tenant_id", workspaceId).limit(1),
       supabase.from("social_integrations").select("*").eq("workspace_id", workspaceId),
       supabase.from("integration_audit_log").select("*").eq("tenant_id", workspaceId).order("created_at", { ascending: false }).limit(20),
     ]);
 
     // Populate email
-    if (emailRes.data) {
-      setEmailSettings(emailRes.data);
-      setSenderName(emailRes.data.sender_name || "");
-      setFromAddress(emailRes.data.from_address || "");
-      setReplyToAddress(emailRes.data.reply_to_address || "");
-      setSmtpHost(emailRes.data.smtp_host || "");
-      setSmtpPort(emailRes.data.smtp_port);
-      setSmtpUsername(emailRes.data.smtp_username || "");
-      setSmtpPassword(emailRes.data.smtp_password || "");
+    const emailRow = emailRes.data?.[0] ?? null;
+    if (emailRow) {
+      setEmailSettings(emailRow);
+      setSenderName(emailRow.sender_name || "");
+      setFromAddress(emailRow.from_address || "");
+      setReplyToAddress(emailRow.reply_to_address || "");
+      setSmtpHost(emailRow.smtp_host || "");
+      setSmtpPort(emailRow.smtp_port);
+      setSmtpUsername(emailRow.smtp_username || "");
+      setSmtpPassword(emailRow.smtp_password || "");
     }
 
     // Populate LinkedIn
-    if (linkedinRes.data) {
-      setLinkedinSettings(linkedinRes.data);
-      setLinkedinProfileUrl(linkedinRes.data.linkedin_profile_url || "");
-      setDailyConnectionLimit(linkedinRes.data.daily_connection_limit || 20);
-      setDailyMessageLimit(linkedinRes.data.daily_message_limit || 50);
+    const linkedinRow = linkedinRes.data?.[0] ?? null;
+    if (linkedinRow) {
+      setLinkedinSettings(linkedinRow);
+      setLinkedinProfileUrl(linkedinRow.linkedin_profile_url || "");
+      setDailyConnectionLimit(linkedinRow.daily_connection_limit || 20);
+      setDailyMessageLimit(linkedinRow.daily_message_limit || 50);
     }
 
     // Populate Calendar
-    if (calendarRes.data) {
-      setCalendarSettings(calendarRes.data);
-      setCalendarProvider(calendarRes.data.calendar_provider || "google");
-      setBookingUrl(calendarRes.data.booking_url || "");
+    const calendarRow = calendarRes.data?.[0] ?? null;
+    if (calendarRow) {
+      setCalendarSettings(calendarRow);
+      setCalendarProvider(calendarRow.calendar_provider || "google");
+      setBookingUrl(calendarRow.booking_url || "");
     }
 
     // Populate CRM
-    if (crmRes.data) {
-      setCrmSettings(crmRes.data);
-      setInboundWebhookUrl(crmRes.data.inbound_webhook_url || "");
-      setOutboundWebhookUrl(crmRes.data.outbound_webhook_url || "");
+    const crmRow = crmRes.data?.[0] ?? null;
+    if (crmRow) {
+      setCrmSettings(crmRow);
+      setInboundWebhookUrl(crmRow.inbound_webhook_url || "");
+      setOutboundWebhookUrl(crmRow.outbound_webhook_url || "");
     }
 
     // Populate Domain
-    if (domainRes.data) {
-      setDomainSettings(domainRes.data);
-      setDomain(domainRes.data.domain || "");
+    const domainRow = domainRes.data?.[0] ?? null;
+    if (domainRow) {
+      setDomainSettings(domainRow);
+      setDomain(domainRow.domain || "");
     }
 
     // Populate Voice
-    if (voiceRes.data) {
-      setVoiceSettings(voiceRes.data as VoiceSettings);
-      setVapiPublicKey(voiceRes.data.vapi_public_key || "");
-      setVapiPrivateKey(voiceRes.data.vapi_private_key || "");
-      setElevenlabsApiKey(voiceRes.data.elevenlabs_api_key || "");
-      setDefaultVapiAssistantId(voiceRes.data.default_vapi_assistant_id || "");
-      setDefaultElevenlabsVoiceId(voiceRes.data.default_elevenlabs_voice_id || "EXAVITQu4vr4xnSDxMaL");
-      setElevenlabsModel(voiceRes.data.elevenlabs_model || "eleven_multilingual_v2");
+    const voiceRow = voiceRes.data?.[0] ?? null;
+    if (voiceRow) {
+      setVoiceSettings(voiceRow as VoiceSettings);
+      setVapiPublicKey(voiceRow.vapi_public_key || "");
+      setVapiPrivateKey(voiceRow.vapi_private_key || "");
+      setElevenlabsApiKey(voiceRow.elevenlabs_api_key || "");
+      setDefaultVapiAssistantId(voiceRow.default_vapi_assistant_id || "");
+      setDefaultElevenlabsVoiceId(voiceRow.default_elevenlabs_voice_id || "EXAVITQu4vr4xnSDxMaL");
+      setElevenlabsModel(voiceRow.elevenlabs_model || "eleven_multilingual_v2");
     }
 
     // Populate Stripe
-    if (stripeRes.data) {
-      setStripeSettings(stripeRes.data as StripeSettings);
-      setStripePublishableKey(stripeRes.data.stripe_publishable_key || "");
-      setStripeSecretKeyHint(stripeRes.data.stripe_secret_key_hint || "");
-      setStripeWebhookSecretHint(stripeRes.data.webhook_secret_hint || "");
-      setStripeAccountName(stripeRes.data.account_name || "");
-      setStripeIsConnected(stripeRes.data.is_connected || false);
+    const stripeRow = stripeRes.data?.[0] ?? null;
+    if (stripeRow) {
+      setStripeSettings(stripeRow as StripeSettings);
+      setStripePublishableKey(stripeRow.stripe_publishable_key || "");
+      setStripeSecretKeyHint(stripeRow.stripe_secret_key_hint || "");
+      setStripeWebhookSecretHint(stripeRow.webhook_secret_hint || "");
+      setStripeAccountName(stripeRow.account_name || "");
+      setStripeIsConnected(stripeRow.is_connected || false);
     }
 
     // Populate Social integrations
@@ -429,14 +425,24 @@ export default function SettingsIntegrations() {
 
   const fetchGmailStatus = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setGmailConnected(false);
+        setGmailEmail(null);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("user_gmail_tokens")
         .select("email")
-        .maybeSingle();
+        .eq("user_id", user.id)
+        .limit(1);
+
+      const row = data?.[0] ?? null;
       
-      if (data && !error) {
+      if (row && !error) {
         setGmailConnected(true);
-        setGmailEmail(data.email);
+        setGmailEmail(row.email);
       } else {
         setGmailConnected(false);
         setGmailEmail(null);
@@ -1191,6 +1197,7 @@ export default function SettingsIntegrations() {
       <div className="min-h-screen flex flex-col bg-background">
         <NavBar />
         <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <WorkspaceGate feature="integrations">
           <div className="mb-8">
             <Button
               variant="ghost"
@@ -2210,6 +2217,7 @@ export default function SettingsIntegrations() {
               </Card>
             </div>
           </div>
+          </WorkspaceGate>
         </main>
         <Footer />
       </div>

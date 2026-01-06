@@ -32,11 +32,13 @@ export function SampleDataToggle({ workspaceId, compact = false }: SampleDataTog
     let mounted = true;
 
     (async () => {
-      const { data: wsData, error: wsErr } = await supabase
+      const { data: wsDataArr, error: wsErr } = await supabase
         .from("workspaces")
         .select("id,tenant_id,demo_mode,stripe_connected,owner_id")
         .eq("id", workspaceId)
-        .maybeSingle();
+        .limit(1);
+
+      const wsData = wsDataArr?.[0] ?? null;
 
       if (!mounted) return;
 
@@ -258,11 +260,13 @@ export function DataModeBanner({ workspaceId, onConnectStripe, onConnectAnalytic
     let mounted = true;
 
     (async () => {
-      const { data: wsData } = await supabase
+      const { data: wsDataArr } = await supabase
         .from("workspaces")
         .select("id,tenant_id,demo_mode,stripe_connected")
         .eq("id", workspaceId)
-        .maybeSingle();
+        .limit(1);
+
+      const wsData = wsDataArr?.[0] ?? null;
 
       if (!mounted || !wsData) return;
       setWs(wsData);

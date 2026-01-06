@@ -7,6 +7,7 @@ import { X, Send, Sparkles, Bot, User, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaceContext } from "@/contexts/WorkspaceContext";
 import { supabase } from "@/integrations/supabase/client";
+import { storageGet, storageSet } from "@/lib/storage";
 
 interface Message {
   role: "user" | "assistant";
@@ -44,7 +45,7 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
       return;
     }
 
-    const hasSeenWalkthrough = localStorage.getItem("ai-walkthrough-seen");
+    const hasSeenWalkthrough = storageGet("ai-walkthrough-seen");
     if (!hasSeenWalkthrough) {
       const timer = setTimeout(() => {
         setIsVisible(true);
@@ -178,7 +179,7 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
   };
 
   const handleClose = () => {
-    localStorage.setItem("ai-walkthrough-seen", "true");
+    storageSet("ai-walkthrough-seen", "true");
     setIsVisible(false);
     onClose?.();
   };

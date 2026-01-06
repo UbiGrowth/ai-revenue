@@ -97,9 +97,10 @@ export default function TenantRateLimits() {
         .from("user_tenants")
         .select("role")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .limit(1);
       
-      const isAdmin = userTenant?.role === "owner" || userTenant?.role === "admin";
+      const userTenantRow = userTenant?.[0] ?? null;
+      const isAdmin = userTenantRow?.role === "owner" || userTenantRow?.role === "admin";
       if (!isAdmin) {
         toast.error("Access denied. Platform admin role required.");
         navigate("/");

@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useWorkspace } from '@/hooks/useWorkspace';
+import { useActiveWorkspaceId } from '@/contexts/WorkspaceContext';
 import { toast } from 'sonner';
 
 export interface VoicePhoneNumber {
@@ -70,7 +70,7 @@ interface UseVoiceDataOptions {
 
 export function useVoiceData(options: UseVoiceDataOptions = {}) {
   const { timeframeDays = 30 } = options;
-  const { workspaceId } = useWorkspace();
+  const workspaceId = useActiveWorkspaceId();
   const queryClient = useQueryClient();
   const [tenantId, setTenantId] = useState<string | null>(null);
 
@@ -83,8 +83,9 @@ export function useVoiceData(options: UseVoiceDataOptions = {}) {
         .from('user_tenants')
         .select('tenant_id')
         .eq('user_id', user.id)
-        .maybeSingle();
-      if (data?.tenant_id) setTenantId(data.tenant_id);
+        .limit(1);
+      const row = data?.[0];
+      if (row?.tenant_id) setTenantId(row.tenant_id);
     }
     fetchTenantId();
   }, []);

@@ -72,11 +72,13 @@ export default function CRODashboard() {
       // GATED: Fetch pipeline metrics from authoritative view (not raw deals table)
       let openPipeline = 0;
       if (workspaceId) {
-        const { data: pipelineData } = await supabase
+        const { data: pipelineDataArr } = await supabase
           .from('v_pipeline_metrics_by_workspace' as any)
           .select('*')
           .eq('workspace_id', workspaceId)
-          .maybeSingle() as { data: any };
+          .limit(1) as { data: any[] };
+
+        const pipelineData = pipelineDataArr?.[0];
         
         if (pipelineData) {
           // Use gated pipeline value from view
