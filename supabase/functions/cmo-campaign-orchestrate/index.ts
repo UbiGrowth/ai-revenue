@@ -478,30 +478,99 @@ async function launchCampaign(
   return { channelsLaunched, errors };
 }
 
-// Emit kernel event for revenue optimization (logs to agent_runs for audit trail)
+// Generate idempotency key for kernel events
+async function makeIdempotencyKey(parts: string[]): Promise<string> {
+  const data = new TextEncoder().encode(parts.join('|'));
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+}
+
+// Emit kernel event to kernel_events table (OS v1 contract)
+// CRITICAL: tenant_id and workspace_id must be kept separate
 async function emitKernelEvent(
-  supabase: any,
+  supabaseAdmin: any,
+  tenantId: string,
   workspaceId: string,
   campaignId: string,
   eventType: string,
   payload: any
+): Promise<{ event_id: string | null; inserted: boolean }> {
+  const occurredAt = new Date().toISOString();
+  const correlationId = `campaign_${campaignId}_${eventType}`;
+  
+  // Deterministic idempotency key per OS v1 contract
+  const idempotencyKey = await makeIdempotencyKey([
+    tenantId,
+    eventType,
+    'cmo_campaigns',
+    'campaign',
+    campaignId,
+    correlationId,
+    occurredAt.slice(0, 10), // Daily granularity for campaign events
+  ]);
+
+  try {
+    // Insert into kernel_events (OS v1 contract: Event → Kernel → Decision → Action)
+    const { data: inserted, error: insertError } = await supabaseAdmin
+      .from('kernel_events')
+      .insert({
+        tenant_id: tenantId,
+        correlation_id: correlationId,
+        type: eventType,
+        source: 'cmo_campaigns',
+        entity_type: 'campaign',
+        entity_id: campaignId,
+        payload_json: payload,
+        status: 'pending',
+        idempotency_key: idempotencyKey,
+        occurred_at: occurredAt,
+      })
+      .select('id')
+      .single();
+
+    if (!insertError && inserted?.id) {
+      console.log(`[kernel] Event emitted: ${eventType} (id: ${inserted.id})`);
+      return { event_id: inserted.id, inserted: true };
+    }
+
+    // Handle idempotency conflict (23505 = unique_violation)
+    if (insertError?.code === '23505') {
+      console.log(`[kernel] Duplicate event suppressed: ${eventType} (key: ${idempotencyKey})`);
+      return { event_id: null, inserted: false };
+    }
+
+    console.error('[kernel] Event insert failed:', insertError);
+    return { event_id: null, inserted: false };
+  } catch (e) {
+    console.error('[kernel] Event emission error:', e);
+    return { event_id: null, inserted: false };
+  }
+}
+
+// Also log to agent_runs for audit trail (separate from kernel)
+async function logAuditEvent(
+  supabaseAdmin: any,
+  tenantId: string,
+  workspaceId: string,
+  agent: string,
+  mode: string,
+  input: any,
+  output: any,
+  status: string
 ): Promise<void> {
   try {
-    // Log campaign event to agent_runs for audit trail
-    // kernel_events table may not exist in all environments
-    await supabase
-      .from('agent_runs')
-      .insert({
-        workspace_id: workspaceId,
-        tenant_id: workspaceId,
-        agent: 'kernel-event',
-        mode: eventType,
-        input: payload,
-        output: { logged: true, event_type: eventType },
-        status: 'completed',
-      });
+    await supabaseAdmin.from('agent_runs').insert({
+      tenant_id: tenantId,
+      workspace_id: workspaceId,
+      agent,
+      mode,
+      input,
+      output,
+      status,
+    });
   } catch (e) {
-    console.error('Failed to emit kernel event:', e);
+    console.error('[audit] Failed to log:', e);
   }
 }
 
@@ -568,6 +637,11 @@ serve(async (req) => {
       });
     }
 
+    // CRITICAL: tenant_id and workspace_id are distinct concepts
+    // tenant_id = logical tenant for RLS and isolation
+    // workspace_id = operational workspace for data scoping
+    // They may be the same in single-workspace tenants, but must be tracked separately
+    const tenantId = tenant_id;
     const workspaceId = workspace_id || tenant_id;
     const result: OrchestrationResult = {
       success: false,
@@ -618,12 +692,13 @@ serve(async (req) => {
 
     // Step 3: Handle action
     if (action === 'launch') {
-      // Emit kernel event for campaign launch
-      await emitKernelEvent(supabase, workspaceId, campaign_id, 'campaign_launched', {
+      // Emit kernel event for campaign launch (OS v1 contract)
+      const kernelResult = await emitKernelEvent(supabaseAdmin, tenantId, workspaceId, campaign_id, 'campaign_launched', {
         campaign_id,
         channels: campaignChannels,
         leads_count: result.leads_processed,
         deals_created: result.deals_created,
+        workspace_id: workspaceId,
       });
 
       // Launch across channels
@@ -710,16 +785,17 @@ serve(async (req) => {
       result.success = true;
     }
 
-    // Log orchestration run
-    await supabase.from('agent_runs').insert({
-      workspace_id: workspaceId,
-      tenant_id: workspaceId,
-      agent: 'cmo-campaign-orchestrate',
-      mode: action,
+    // Log orchestration run to audit trail (separate from kernel events)
+    await logAuditEvent(
+      supabaseAdmin,
+      tenantId,
+      workspaceId,
+      'cmo-campaign-orchestrate',
+      action,
       input,
-      output: result,
-      status: result.success ? 'completed' : 'failed',
-    });
+      result,
+      result.success ? 'completed' : 'failed'
+    );
 
     console.log(`[cmo-campaign-orchestrate] Completed: ${result.success ? 'Success' : 'Failed'}, channels: ${result.channels_launched.join(', ')}`);
 
