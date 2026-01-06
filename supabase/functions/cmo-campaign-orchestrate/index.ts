@@ -488,26 +488,34 @@ async function makeIdempotencyKey(parts: string[]): Promise<string> {
 
 // Emit kernel event to kernel_events table (OS v1 contract)
 // CRITICAL: tenant_id and workspace_id must be kept separate
+// CORRELATION_ID: Request-level unique ID for tracing (includes requestId)
+// IDEMPOTENCY_KEY: Hash that prevents duplicate processing (action-level)
 async function emitKernelEvent(
   supabaseAdmin: any,
   tenantId: string,
   workspaceId: string,
   campaignId: string,
   eventType: string,
-  payload: any
-): Promise<{ event_id: string | null; inserted: boolean }> {
+  action: string,
+  payload: any,
+  requestId: string
+): Promise<{ event_id: string | null; inserted: boolean; correlation_id: string }> {
   const occurredAt = new Date().toISOString();
-  const correlationId = `campaign_${campaignId}_${eventType}`;
   
-  // Deterministic idempotency key per OS v1 contract
+  // Correlation ID is request-level for tracing (unique per request)
+  const correlationId = `campaign_${campaignId}_${eventType}_${action}_${requestId}`;
+  
+  // Idempotency key is action-level (daily granularity prevents duplicate processing)
+  // Same action on same campaign within same day = blocked
+  // Same action on same campaign on different day = allowed
   const idempotencyKey = await makeIdempotencyKey([
     tenantId,
     eventType,
+    action,
     'cmo_campaigns',
     'campaign',
     campaignId,
-    correlationId,
-    occurredAt.slice(0, 10), // Daily granularity for campaign events
+    occurredAt.slice(0, 10), // Daily granularity
   ]);
 
   try {
@@ -521,7 +529,11 @@ async function emitKernelEvent(
         source: 'cmo_campaigns',
         entity_type: 'campaign',
         entity_id: campaignId,
-        payload_json: payload,
+        payload_json: {
+          ...payload,
+          workspace_id: workspaceId, // Include workspace_id in payload for context
+          request_id: requestId,
+        },
         status: 'pending',
         idempotency_key: idempotencyKey,
         occurred_at: occurredAt,
@@ -530,21 +542,21 @@ async function emitKernelEvent(
       .single();
 
     if (!insertError && inserted?.id) {
-      console.log(`[kernel] Event emitted: ${eventType} (id: ${inserted.id})`);
-      return { event_id: inserted.id, inserted: true };
+      console.log(`[kernel] Event emitted: ${eventType}/${action} (id: ${inserted.id}, correlation: ${correlationId})`);
+      return { event_id: inserted.id, inserted: true, correlation_id: correlationId };
     }
 
     // Handle idempotency conflict (23505 = unique_violation)
     if (insertError?.code === '23505') {
-      console.log(`[kernel] Duplicate event suppressed: ${eventType} (key: ${idempotencyKey})`);
-      return { event_id: null, inserted: false };
+      console.log(`[kernel] Duplicate event suppressed: ${eventType}/${action} (key: ${idempotencyKey})`);
+      return { event_id: null, inserted: false, correlation_id: correlationId };
     }
 
     console.error('[kernel] Event insert failed:', insertError);
-    return { event_id: null, inserted: false };
+    return { event_id: null, inserted: false, correlation_id: correlationId };
   } catch (e) {
     console.error('[kernel] Event emission error:', e);
-    return { event_id: null, inserted: false };
+    return { event_id: null, inserted: false, correlation_id: correlationId };
   }
 }
 
@@ -608,6 +620,9 @@ serve(async (req) => {
 
     const input: OrchestrationInput = await req.json();
     const { tenant_id, workspace_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
+
+    // Generate unique request ID for correlation tracking
+    const requestId = crypto.randomUUID();
 
     // Input validation with defensive null checks
     if (!tenant_id || typeof tenant_id !== 'string' || tenant_id.length < 10) {
@@ -693,13 +708,21 @@ serve(async (req) => {
     // Step 3: Handle action
     if (action === 'launch') {
       // Emit kernel event for campaign launch (OS v1 contract)
-      const kernelResult = await emitKernelEvent(supabaseAdmin, tenantId, workspaceId, campaign_id, 'campaign_launched', {
-        campaign_id,
-        channels: campaignChannels,
-        leads_count: result.leads_processed,
-        deals_created: result.deals_created,
-        workspace_id: workspaceId,
-      });
+      const kernelResult = await emitKernelEvent(
+        supabaseAdmin, 
+        tenantId, 
+        workspaceId, 
+        campaign_id, 
+        'campaign_launched', 
+        action,
+        {
+          campaign_id,
+          channels: campaignChannels,
+          leads_count: result.leads_processed,
+          deals_created: result.deals_created,
+        },
+        requestId
+      );
 
       // Launch across channels
       const launchResult = await launchCampaign(
