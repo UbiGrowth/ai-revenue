@@ -102,6 +102,7 @@ export function UniversalCSVImport({
   // Import options
   const [advancedMode, setAdvancedMode] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState<string>("");
+  const [applyTags, setApplyTags] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   // Import results
@@ -119,6 +120,7 @@ export function UniversalCSVImport({
     setTotalRows(0);
     setAdvancedMode(false);
     setSelectedSegment("");
+    setApplyTags(false);
     setSelectedTags([]);
     setImportStats({ created: 0, updated: 0, skipped: 0, errors: 0 });
     setFailedRows([]);
@@ -587,33 +589,51 @@ Jane Smith,jane@example.com,+1-555-0101,Tech Corp,CTO`;
             </div>
 
             {/* Tag selection */}
-            <div className="space-y-2">
-              <Label>Apply tags to all imported leads:</Label>
-              <div className="flex flex-wrap gap-2">
-                {AVAILABLE_TAGS.map(tag => (
-                  <Badge
-                    key={tag.name}
-                    variant="outline"
-                    className={`cursor-pointer transition-all ${
-                      selectedTags.includes(tag.name) 
-                        ? tag.color + " ring-2 ring-offset-1 ring-primary" 
-                        : "opacity-60 hover:opacity-100"
-                    }`}
-                    onClick={() => toggleTag(tag.name)}
-                  >
-                    <Checkbox 
-                      checked={selectedTags.includes(tag.name)} 
-                      className="mr-1.5 h-3 w-3"
-                      onCheckedChange={() => toggleTag(tag.name)}
-                    />
-                    {tag.name}
-                  </Badge>
-                ))}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="apply-tags"
+                  checked={applyTags} 
+                  onCheckedChange={(checked) => {
+                    setApplyTags(checked === true);
+                    if (!checked) setSelectedTags([]);
+                  }}
+                />
+                <Label htmlFor="apply-tags" className="cursor-pointer">
+                  Apply tags to imported leads
+                </Label>
               </div>
-              {selectedTags.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedTags.length} tag{selectedTags.length > 1 ? 's' : ''} will be applied to all imported leads
-                </p>
+              
+              {applyTags && (
+                <div className="space-y-2 pl-6">
+                  <p className="text-sm text-muted-foreground">Select tags to apply:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {AVAILABLE_TAGS.map(tag => (
+                      <Badge
+                        key={tag.name}
+                        variant="outline"
+                        className={`cursor-pointer transition-all ${
+                          selectedTags.includes(tag.name) 
+                            ? tag.color + " ring-2 ring-offset-1 ring-primary" 
+                            : "opacity-60 hover:opacity-100"
+                        }`}
+                        onClick={() => toggleTag(tag.name)}
+                      >
+                        <Checkbox 
+                          checked={selectedTags.includes(tag.name)} 
+                          className="mr-1.5 h-3 w-3"
+                          onCheckedChange={() => toggleTag(tag.name)}
+                        />
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                  {selectedTags.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {selectedTags.length} tag{selectedTags.length > 1 ? 's' : ''} will be applied to all imported leads
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
