@@ -478,7 +478,7 @@ async function launchCampaign(
   return { channelsLaunched, errors };
 }
 
-// Emit kernel event for revenue optimization
+// Emit kernel event for revenue optimization (logs to agent_runs for audit trail)
 async function emitKernelEvent(
   supabase: any,
   workspaceId: string,
@@ -487,16 +487,18 @@ async function emitKernelEvent(
   payload: any
 ): Promise<void> {
   try {
-    // Insert kernel event for processing
+    // Log campaign event to agent_runs for audit trail
+    // kernel_events table may not exist in all environments
     await supabase
-      .from('kernel_events')
+      .from('agent_runs')
       .insert({
+        workspace_id: workspaceId,
         tenant_id: workspaceId,
-        correlation_id: `campaign_${campaignId}_${Date.now()}`,
-        type: eventType,
-        source: 'cmo_campaigns',
-        event_json: payload,
-        status: 'pending',
+        agent: 'kernel-event',
+        mode: eventType,
+        input: payload,
+        output: { logged: true, event_type: eventType },
+        status: 'completed',
       });
   } catch (e) {
     console.error('Failed to emit kernel event:', e);
@@ -538,9 +540,28 @@ serve(async (req) => {
     const input: OrchestrationInput = await req.json();
     const { tenant_id, workspace_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
 
-    if (!tenant_id || !campaign_id || !action) {
+    // Input validation with defensive null checks
+    if (!tenant_id || typeof tenant_id !== 'string' || tenant_id.length < 10) {
       return new Response(JSON.stringify({ 
-        error: 'Missing required fields: tenant_id, campaign_id, action' 
+        error: 'Invalid tenant_id: must be a valid UUID string' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!campaign_id || typeof campaign_id !== 'string') {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid campaign_id: must be a non-empty string' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!action || !['validate', 'launch', 'optimize', 'pause', 'resume'].includes(action)) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid action: must be validate, launch, optimize, pause, or resume' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
