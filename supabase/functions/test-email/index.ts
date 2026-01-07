@@ -65,10 +65,10 @@ serve(async (req) => {
   ): Promise<{ valid: string[]; missing: string[]; leads: Map<string, any> }> => {
     const lowerEmails = emails.map((e) => e.toLowerCase().trim());
 
-    console.log(`[test-email] CRM lookup: workspaceId=${workspaceId}, emails=${JSON.stringify(lowerEmails)}`);
+    console.log(`[test-email] CRM lookup: workspaceId=${workspaceId}, searching for ${lowerEmails.length} emails`);
 
-    // Use case-insensitive matching by querying all leads and filtering
-    // Also try both with and without workspace filter for debugging
+    // Fetch all leads from workspace and filter client-side for case-insensitive matching
+    // This works around PostgreSQL's case-sensitive .in() operator
     const { data: leadRows, error } = await supabase
       .from("leads")
       .select(
@@ -78,6 +78,7 @@ serve(async (req) => {
 
     if (error) {
       console.error("[test-email] CRM lookup error:", error);
+      return { valid: [], missing: emails, leads: new Map() };
     }
 
     console.log(`[test-email] Found ${leadRows?.length || 0} total leads in workspace ${workspaceId}`);
@@ -91,7 +92,11 @@ serve(async (req) => {
 
     const leads = new Map<string, any>();
     for (const l of matchedLeads) {
-      if (l?.email) leads.set(String(l.email).toLowerCase().trim(), l);
+      if (l?.email) {
+        const key = String(l.email).toLowerCase().trim();
+        leads.set(key, l);
+        console.log(`[test-email] ✓ Matched: ${l.email} → ${l.first_name} ${l.last_name}`);
+      }
     }
 
     const valid: string[] = [];
@@ -106,8 +111,9 @@ serve(async (req) => {
       }
     }
 
-    // If emails are missing, log sample emails from the workspace for debugging
-    if (missing.length > 0 && leadRows?.length > 0) {
+<<<<<<< HEAD
+    // If emails are missing, log sample for debugging
+    if (missing.length > 0 && leadRows && leadRows.length > 0) {
       const sampleEmails = leadRows.slice(0, 5).map((l: any) => l?.email).filter(Boolean);
       console.log(`[test-email] Sample emails in workspace: ${JSON.stringify(sampleEmails)}`);
     }
