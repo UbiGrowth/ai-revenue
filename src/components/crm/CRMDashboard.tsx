@@ -59,9 +59,12 @@ interface Lead {
 
 interface CRMDashboardProps {
   leads: Lead[];
+  totalLeadCount?: number; // Total count from database
   showSampleData: boolean;
   onToggleSampleData?: (show: boolean) => void;
   workspaceId?: string | null;
+  isLoading?: boolean;
+  loadingProgress?: number;
 }
 
 const SAMPLE_LEADS: Lead[] = [
@@ -83,7 +86,7 @@ const FUNNEL_COLORS = {
   lost: { bg: "hsl(var(--muted))", badge: "bg-muted-foreground/50", text: "text-muted-foreground", glow: "none" },
 };
 
-export default function CRMDashboard({ leads, showSampleData, onToggleSampleData, workspaceId }: CRMDashboardProps) {
+export default function CRMDashboard({ leads, totalLeadCount, showSampleData, onToggleSampleData, workspaceId, isLoading, loadingProgress }: CRMDashboardProps) {
   const [dateRange, setDateRange] = useState<string>("all");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -139,7 +142,7 @@ export default function CRMDashboard({ leads, showSampleData, onToggleSampleData
   }, [baseLeads, dateRange, segmentFilter]);
 
   // Core metrics
-  const totalLeadsInDatabase = baseLeads.length; // Total in database (unfiltered)
+  const totalLeadsInDatabase = totalLeadCount ?? baseLeads.length; // Total in database (from prop or calculated)
   const totalLeads = displayLeads.length; // Filtered count
   const newLeads = displayLeads.filter(l => l.status === "new").length;
   const contactedLeads = displayLeads.filter(l => l.status === "contacted").length;
@@ -256,11 +259,16 @@ export default function CRMDashboard({ leads, showSampleData, onToggleSampleData
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{totalLeadsInDatabase}</div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-3xl font-bold">{totalLeadsInDatabase.toLocaleString()}</div>
+              {isLoading && loadingProgress !== undefined && loadingProgress < 100 && (
+                <span className="text-xs text-muted-foreground">({loadingProgress}% loaded)</span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               {totalLeads !== totalLeadsInDatabase ? (
                 <>
-                  <span className="text-blue-500 font-medium">{totalLeads}</span> shown ({dateRange !== "all" ? "filtered" : segmentFilter !== "all" ? "segment filtered" : "all"}) • {" "}
+                  <span className="text-blue-500 font-medium">{totalLeads.toLocaleString()}</span> shown ({dateRange !== "all" ? "filtered" : segmentFilter !== "all" ? "segment filtered" : "all"}) • {" "}
                   <span className="text-green-500 font-medium">+{newLeads}</span> new
                 </>
               ) : (

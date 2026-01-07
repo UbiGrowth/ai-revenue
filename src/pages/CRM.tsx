@@ -67,9 +67,11 @@ const CRM = () => {
   const workspaceId = useActiveWorkspaceId();
   const { isLoading: workspaceLoading } = useWorkspaceContext();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [totalLeadCount, setTotalLeadCount] = useState<number>(0); // Total count from database
   const [activeTab, setActiveTab] = useState<"dashboard" | "list" | "pipeline" | "deals" | "tasks" | "sequences" | "calendar" | "reports" | "email_analytics">("dashboard");
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showNewLeadDialog, setShowNewLeadDialog] = useState(false);
@@ -163,14 +165,27 @@ const CRM = () => {
   const fetchLeads = async () => {
     if (!workspaceId) return;
     
+    setLoading(true);
+    setLoadingProgress(0);
+    
     try {
-      // Master Prompt v3: Implement 1000-row batch pagination
-      // Fetch ALL leads in batches to avoid silent caps
+      // STEP 1: Get total count FIRST (fast query, no data fetch)
+      const { count, error: countError } = await supabase
+        .from("leads")
+        .select("*", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId);
+
+      if (countError) throw countError;
+      
+      const totalCount = count || 0;
+      setTotalLeadCount(totalCount);
+      
+      // STEP 2: Fetch leads in batches with progress updates
       const pageSize = 1000;
       let offset = 0;
       const allLeads: any[] = [];
 
-      while (true) {
+      while (offset < totalCount) {
         const { data, error } = await supabase
           .from("leads")
           .select("*")
@@ -183,6 +198,13 @@ const CRM = () => {
         const batch = data || [];
         allLeads.push(...batch);
         
+        // Update UI incrementally
+        setLeads([...allLeads]);
+        
+        // Update progress
+        const progress = Math.min(100, Math.round((allLeads.length / totalCount) * 100));
+        setLoadingProgress(progress);
+        
         // If we got fewer results than pageSize, we've reached the end
         if (batch.length < pageSize) break;
         
@@ -190,6 +212,7 @@ const CRM = () => {
       }
 
       setLeads(allLeads);
+      setLoadingProgress(100);
     } catch (error) {
       console.error("Error fetching leads:", error);
       toast({
@@ -1176,10 +1199,34 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard">
+              {loading && loadingProgress < 100 && (
+                <Card className="mb-4">
+                  <CardContent className="pt-6">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Loading leads...</span>
+                        <span className="font-medium">{loadingProgress}%</span>
+                      </div>
+                      <div className="w-full bg-secondary rounded-full h-2">
+                        <div 
+                          className="bg-primary h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${loadingProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Loaded {leads.length.toLocaleString()} of {totalLeadCount.toLocaleString()} leads
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <CRMDashboard 
-                leads={leads} 
+                leads={leads}
+                totalLeadCount={totalLeadCount}
                 showSampleData={showSampleData}
                 workspaceId={workspaceId}
+                isLoading={loading}
+                loadingProgress={loadingProgress}
               />
             </TabsContent>
 
