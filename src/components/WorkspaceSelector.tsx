@@ -55,9 +55,9 @@ export default function WorkspaceSelector({ onWorkspaceChange }: WorkspaceSelect
 
   if (isLoading) {
     return (
-      <Button variant="outline" disabled className="w-[200px]">
+      <Button variant="outline" disabled className="w-[160px] max-w-[160px]">
         <Building2 className="h-4 w-4 mr-2" />
-        Loading...
+        <span className="truncate">Loading...</span>
       </Button>
     );
   }
@@ -68,17 +68,19 @@ export default function WorkspaceSelector({ onWorkspaceChange }: WorkspaceSelect
         <DropdownMenuTrigger asChild>
           <Button 
             variant="outline" 
-            className="w-[200px] justify-between"
+            className="w-[160px] max-w-[160px] justify-between"
             data-workspace-selector
           >
-            <span className="flex items-center">
-              <Building2 className="h-4 w-4 mr-2" />
-              {currentWorkspace?.name || "Select Workspace"}
+            <span className="flex items-center min-w-0 flex-1">
+              <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span className="truncate">
+                {currentWorkspace?.name || "Select Workspace"}
+              </span>
             </span>
-            <ChevronDown className="h-4 w-4 ml-2 opacity-50" />
+            <ChevronDown className="h-4 w-4 ml-2 opacity-50 flex-shrink-0" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[200px]">
+        <DropdownMenuContent align="end" className="w-[220px]">
           {workspaces.map((ws) => (
             <DropdownMenuItem
               key={ws.id}

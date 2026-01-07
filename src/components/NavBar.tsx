@@ -105,14 +105,14 @@ const NavBar = () => {
   });
 
   return (
-    <nav className="border-b border-border bg-card">
+    <nav className="border-b border-border bg-card sticky top-0 z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <div className="flex items-center min-w-0 flex-1 mr-4">
             <Link to="/dashboard" className="flex-shrink-0">
               <Logo className="h-8" showCompanyName />
             </Link>
-            <div className="hidden md:block ml-10">
+            <div className="hidden lg:block ml-6 flex-1 min-w-0">
               <div className="flex items-baseline space-x-1">
                 {/* Primary nav items */}
                 {filteredPrimaryNav.map((link) => (
@@ -198,7 +198,7 @@ const NavBar = () => {
               </div>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             {/* Workspace Selector */}
             <WorkspaceSelector />
             
