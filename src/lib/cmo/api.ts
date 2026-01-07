@@ -110,16 +110,17 @@ export async function updateBrandProfile(id: string, updates: Partial<CMOBrandPr
 }
 
 // ICP Segments
-export async function getICPSegments(workspaceId: string) {
+export async function getICPSegments(workspaceId: string): Promise<CMOICPSegment[]> {
+  // @ts-ignore - Supabase type instantiation depth issue
   const { data, error } = await supabase
     .from("cmo_icp_segments")
     .select("*")
     .eq("workspace_id", workspaceId)
-    .eq("is_active", true)  // Master Prompt v3: Only return active segments
+    .eq("is_active", true)
     .order("priority_score", { ascending: false });
 
   if (error) throw error;
-  return data as unknown as CMOICPSegment[];
+  return (data ?? []) as CMOICPSegment[];
 }
 
 export async function createICPSegment(segment: Partial<CMOICPSegment>) {

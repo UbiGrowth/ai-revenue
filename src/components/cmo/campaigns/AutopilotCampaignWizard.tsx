@@ -92,6 +92,7 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
       }
       
       // Fetch active segments (Master Prompt requirement: tenant_id + is_active)
+      // @ts-ignore - Supabase type instantiation depth issue
       const { data: segmentsData } = await supabase
         .from('cmo_icp_segments')
         .select('segment_code, segment_name')
@@ -336,7 +337,7 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
               <Checkbox
                 id="enable-tag-targeting"
                 checked={enableTagTargeting}
-                onCheckedChange={setEnableTagTargeting}
+                onCheckedChange={(checked) => setEnableTagTargeting(checked === true)}
               />
               <div className="flex-1">
                 <Label htmlFor="enable-tag-targeting" className="flex items-center gap-2 cursor-pointer">
@@ -388,7 +389,7 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
               <Checkbox
                 id="enable-segment-targeting"
                 checked={enableSegmentTargeting}
-                onCheckedChange={setEnableSegmentTargeting}
+                onCheckedChange={(checked) => setEnableSegmentTargeting(checked === true)}
               />
               <div className="flex-1">
                 <Label htmlFor="enable-segment-targeting" className="flex items-center gap-2 cursor-pointer">
