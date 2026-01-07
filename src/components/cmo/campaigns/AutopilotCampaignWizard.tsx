@@ -92,6 +92,7 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
       }
       
       // Fetch active segments (Master Prompt requirement: tenant_id + is_active)
+      // @ts-ignore - Supabase type instantiation depth issue
       const { data: segmentsData } = await supabase
         .from('cmo_icp_segments')
         .select('segment_code, segment_name')
