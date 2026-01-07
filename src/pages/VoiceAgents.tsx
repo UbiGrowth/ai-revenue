@@ -539,12 +539,23 @@ const VoiceAgents = () => {
     setUpgradeRequired(false); // Reset on refetch
     setErrorStatusCode(null); // Reset status code
     try {
+      // CRITICAL: Build leads query with workspace_id filter to prevent cross-workspace data leak
+      let leadsQuery = supabase
+        .from('leads')
+        .select('id, first_name, last_name, phone, company, status')
+        .not('phone', 'is', null)
+        .limit(100);
+      
+      if (workspaceId) {
+        leadsQuery = leadsQuery.eq('workspace_id', workspaceId);
+      }
+      
       const [assistantsRes, phoneNumbersRes, callsRes, analyticsRes, leadsRes, campaignsRes] = await Promise.all([
         supabase.functions.invoke('vapi-list-assistants'),
         supabase.functions.invoke('vapi-list-phone-numbers'),
         supabase.functions.invoke('vapi-list-calls', { body: { limit: 50 } }),
         supabase.functions.invoke('vapi-analytics'),
-        supabase.from('leads').select('id, first_name, last_name, phone, company, status').not('phone', 'is', null).limit(100),
+        leadsQuery,
         supabase.from('assets').select('id, name, status, goal, content, created_at').eq('type', 'voice').in('status', ['approved', 'review']).order('created_at', { ascending: false }),
       ]);
 

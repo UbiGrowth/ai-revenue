@@ -87,15 +87,21 @@ export default function CRODashboard() {
       }
       
       // Fetch deals for display list only (not for metrics calculation)
-      const { data: deals } = await supabase
-        .from("deals")
-        .select("id, name, value, stage, probability")
-        .neq("stage", "closed_won")
-        .neq("stage", "closed_lost")
-        .order("value", { ascending: false })
-        .limit(10);
+      // CRITICAL: Must filter by workspace_id to prevent cross-workspace data leak
+      let deals = [];
+      if (workspaceId) {
+        const { data: dealsData } = await supabase
+          .from("deals")
+          .select("id, name, value, stage, probability")
+          .eq("workspace_id", workspaceId)
+          .neq("stage", "closed_won")
+          .neq("stage", "closed_lost")
+          .order("value", { ascending: false })
+          .limit(10);
+        deals = dealsData || [];
+      }
 
-      setTopDeals(deals || []);
+      setTopDeals(deals);
 
       // Fetch current period forecast
       const { data: forecasts } = await supabase
