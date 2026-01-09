@@ -1,7 +1,10 @@
--- Add metrics_mode to tenants table (defaults to 'real', can be 'demo')
-ALTER TABLE public.tenants 
-ADD COLUMN IF NOT EXISTS metrics_mode text NOT NULL DEFAULT 'real'
-CHECK (metrics_mode IN ('real', 'demo'));
+-- Add metrics_mode to tenants table (defaults to 'real', can be 'demo') - skip if table doesn't exist
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
+    EXECUTE 'ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS metrics_mode text NOT NULL DEFAULT ''real'' CHECK (metrics_mode IN (''real'', ''demo''))';
+  END IF;
+END $$;
 
 -- Create deploy_campaign RPC function with SECURITY DEFINER
 CREATE OR REPLACE FUNCTION public.deploy_campaign(p_campaign_id uuid)
@@ -135,14 +138,20 @@ BEGIN
 END;
 $function$;
 
--- Create function to get tenant metrics mode
+-- Create function to get tenant metrics mode (return 'real' if tenants table doesn't exist)
 CREATE OR REPLACE FUNCTION public.get_tenant_metrics_mode(p_tenant_id uuid)
 RETURNS text
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
-  SELECT COALESCE(metrics_mode, 'real')
-  FROM tenants
-  WHERE id = p_tenant_id
+BEGIN
+  -- Return 'real' by default if tenants table doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
+    RETURN 'real';
+  END IF;
+  
+  -- Otherwise query tenants table
+  RETURN (SELECT COALESCE(metrics_mode, 'real') FROM tenants WHERE id = p_tenant_id);
+END;
 $function$;

@@ -114,6 +114,7 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
   useEffect(() => {
     if (!workspaceId || (!enableTagTargeting && !enableSegmentTargeting)) {
       setMatchingLeadsCount(null);
+      setLoadingCount(false);
       return;
     }
     
@@ -145,7 +146,15 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
     };
     
     fetchMatchingCount();
-  }, [workspaceId, enableTagTargeting, enableSegmentTargeting, selectedTags, selectedSegments]);
+  }, [
+    workspaceId,
+    enableTagTargeting,
+    enableSegmentTargeting,
+    selectedTags.length,
+    selectedTags.join(','),
+    selectedSegments.length,
+    selectedSegments.join(',')
+  ]);
 
   const handleChannelToggle = (channelId: string) => {
     setSelectedChannels((prev) =>

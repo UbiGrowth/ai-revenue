@@ -1,7 +1,7 @@
 -- Create kernel_events table with idempotency
 CREATE TABLE IF NOT EXISTS public.kernel_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL, -- Note: FK to tenants table omitted as it may not exist
   correlation_id TEXT NOT NULL,
   type TEXT NOT NULL,
   source TEXT NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.kernel_events (
 -- Create kernel_decisions table
 CREATE TABLE IF NOT EXISTS public.kernel_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL, -- Note: FK to tenants table omitted as it may not exist
   event_id UUID NOT NULL REFERENCES public.kernel_events(id) ON DELETE CASCADE,
   correlation_id TEXT NOT NULL,
   policy_name TEXT NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.kernel_decisions (
 -- Create kernel_actions table
 CREATE TABLE IF NOT EXISTS public.kernel_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL, -- Note: FK to tenants table omitted as it may not exist
   decision_id UUID NOT NULL REFERENCES public.kernel_decisions(id) ON DELETE CASCADE,
   correlation_id TEXT NOT NULL,
   action_type TEXT NOT NULL,
@@ -44,14 +44,31 @@ CREATE TABLE IF NOT EXISTS public.kernel_actions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_kernel_events_tenant_status ON public.kernel_events(tenant_id, status);
-CREATE INDEX IF NOT EXISTS idx_kernel_events_correlation ON public.kernel_events(correlation_id);
-CREATE INDEX IF NOT EXISTS idx_kernel_events_type ON public.kernel_events(type);
-CREATE INDEX IF NOT EXISTS idx_kernel_decisions_event ON public.kernel_decisions(event_id);
-CREATE INDEX IF NOT EXISTS idx_kernel_decisions_tenant_status ON public.kernel_decisions(tenant_id, status);
-CREATE INDEX IF NOT EXISTS idx_kernel_actions_decision ON public.kernel_actions(decision_id);
-CREATE INDEX IF NOT EXISTS idx_kernel_actions_tenant_status ON public.kernel_actions(tenant_id, status);
+-- Create indexes for performance (only if columns exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_events' AND column_name = 'status') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_events_tenant_status ON public.kernel_events(tenant_id, status);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_events' AND column_name = 'correlation_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_events_correlation ON public.kernel_events(correlation_id);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_events' AND column_name = 'type') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_events_type ON public.kernel_events(type);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_decisions' AND column_name = 'event_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_decisions_event ON public.kernel_decisions(event_id);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_decisions' AND column_name = 'status') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_decisions_tenant_status ON public.kernel_decisions(tenant_id, status);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_actions' AND column_name = 'decision_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_actions_decision ON public.kernel_actions(decision_id);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_actions' AND column_name = 'status') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_actions_tenant_status ON public.kernel_actions(tenant_id, status);
+  END IF;
+END $$;
 
 -- Enable RLS on all kernel tables
 ALTER TABLE public.kernel_events ENABLE ROW LEVEL SECURITY;

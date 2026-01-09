@@ -101,7 +101,14 @@ const NewCampaign = () => {
         landing_page: channelPrefs.landing_pages_enabled,
       });
     }
-  }, [loadingPrefs, channelPrefs]);
+  }, [
+    loadingPrefs,
+    channelPrefs.email_enabled,
+    channelPrefs.social_enabled,
+    channelPrefs.voice_enabled,
+    channelPrefs.video_enabled,
+    channelPrefs.landing_pages_enabled
+  ]);
 
   const insertTagAtCursor = (tag: string) => {
     const textarea = emailContentRef.current;

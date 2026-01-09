@@ -1,7 +1,7 @@
 -- Create tenant rate limits configuration table
 CREATE TABLE public.tenant_rate_limits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL, -- Note: FK to tenants table omitted as it may not exist
   
   -- Email limits
   email_daily_limit integer NOT NULL DEFAULT 1000,
@@ -49,7 +49,7 @@ CREATE INDEX idx_tenant_rate_limits_tenant ON public.tenant_rate_limits(tenant_i
 -- Create rate limit events table for tracking cap hits
 CREATE TABLE public.rate_limit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL, -- Note: FK to tenants table omitted as it may not exist
   event_type text NOT NULL, -- 'cap_hit', 'warning_threshold', 'reset'
   channel text NOT NULL, -- 'email', 'voice'
   limit_type text NOT NULL, -- 'daily', 'hourly'

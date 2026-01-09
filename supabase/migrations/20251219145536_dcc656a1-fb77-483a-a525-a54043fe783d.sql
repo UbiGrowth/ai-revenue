@@ -1,12 +1,12 @@
--- Fix 1: Restrict release_notes to authenticated users only
-DROP POLICY IF EXISTS "Anyone can view release notes" ON public.release_notes;
-DROP POLICY IF EXISTS "Authenticated users can view release notes" ON public.release_notes;
-
-CREATE POLICY "Authenticated users can view release notes"
-ON public.release_notes
-FOR SELECT
-TO authenticated
-USING (true);
+-- Fix 1: Restrict release_notes to authenticated users only (skip if table doesn't exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'release_notes') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Anyone can view release notes" ON public.release_notes';
+    EXECUTE 'DROP POLICY IF EXISTS "Authenticated users can view release notes" ON public.release_notes';
+    EXECUTE 'CREATE POLICY "Authenticated users can view release notes" ON public.release_notes FOR SELECT TO authenticated USING (true)';
+  END IF;
+END $$;
 
 -- Fix 2: Restrict tenant_segments - only allow viewing segments user has access to
 DROP POLICY IF EXISTS "Users can view their tenant segments or global" ON public.tenant_segments;

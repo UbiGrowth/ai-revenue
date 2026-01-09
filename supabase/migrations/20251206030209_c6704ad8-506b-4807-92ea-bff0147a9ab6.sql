@@ -53,22 +53,27 @@ VALUES (
   }'::jsonb
 );
 
--- Create workspace for FTS tenant
+-- Create workspace for FTS tenant (only if a user exists)
 INSERT INTO public.workspaces (id, name, slug, owner_id)
 SELECT 
   otr.tenant_id,
   'First Touch Coaching',
   'first-touch-coaching',
-  (SELECT id FROM auth.users LIMIT 1) -- Will be associated with first admin user
+  u.id
 FROM public.os_tenant_registry otr
-WHERE otr.slug = 'first-touch-coaching';
+CROSS JOIN (SELECT id FROM auth.users LIMIT 1) u
+WHERE otr.slug = 'first-touch-coaching'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.workspaces WHERE id = otr.tenant_id
+  );
 
--- Add user_tenant mapping for FTS
+-- Add user_tenant mapping for FTS (only if a user exists)
 INSERT INTO public.user_tenants (tenant_id, user_id, role)
 SELECT 
   otr.tenant_id,
-  (SELECT id FROM auth.users LIMIT 1),
+  u.id,
   'admin'
 FROM public.os_tenant_registry otr
+CROSS JOIN (SELECT id FROM auth.users LIMIT 1) u
 WHERE otr.slug = 'first-touch-coaching'
 ON CONFLICT DO NOTHING;

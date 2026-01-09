@@ -12,6 +12,7 @@ import { useVapiConversation } from "@/hooks/useVapiConversation";
 import { useVoiceDataQualityStatus } from "@/hooks/useVoiceDataQualityStatus";
 import { useWorkspaceContext } from "@/contexts/WorkspaceContext";
 import { DataQualityBanner } from "@/components/DataQualityBadge";
+import { VoiceSetupStatusSimple } from "@/components/VoiceSetupStatusSimple";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -27,7 +28,16 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { normalizeError } from "@/lib/normalizeError";
 import { getVoiceBannerType, shouldDisableVoiceActions, type VoiceBannerInput } from "@/lib/voiceBannerLogic";
 
+// VAPI removed - using ElevenLabs directly
 const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "";
+
+interface ElevenLabsAgent {
+  agent_id: string;
+  name: string;
+  created_at?: string;
+  first_message?: string;
+  system_prompt?: string;
+}
 
 interface VapiAssistant {
   id: string;
@@ -465,6 +475,10 @@ const VoiceAgents = () => {
   const [campaignAssistantId, setCampaignAssistantId] = useState<string>("");
   const [campaignPhoneNumberId, setCampaignPhoneNumberId] = useState<string>("");
 
+  // Auto-provisioning state
+  const [isAutoProvisioning, setIsAutoProvisioning] = useState(false);
+  const [hasCheckedProvisioning, setHasCheckedProvisioning] = useState(false);
+
   const toggleTranscript = (callId: string) => {
     setExpandedCallIds(prev => {
       const next = new Set(prev);
@@ -509,6 +523,24 @@ const VoiceAgents = () => {
     setPlayingCallId(call.id);
   };
 
+  // VAPI conversation hook disabled - using ElevenLabs direct API calls
+  // Keep these as stubs for backward compatibility
+  const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [transcript, setTranscript] = useState<any>("");
+  const error = null;
+  const startCall = async (assistantId?: string) => {
+    console.log('VAPI startCall disabled - use ElevenLabs direct integration');
+    toast.info('Voice calling via ElevenLabs - use campaign execution instead');
+  };
+  const endCall = () => {
+    console.log('VAPI endCall disabled');
+  };
+  const setVolume = (vol: number) => {
+    console.log('VAPI setVolume disabled');
+  };
+  
+  /* Old VAPI hook - kept for reference
   const {
     status,
     isSpeaking,
@@ -520,19 +552,18 @@ const VoiceAgents = () => {
   } = useVapiConversation({
     publicKey: VAPI_PUBLIC_KEY,
     onError: (message) => {
-      // onError now receives string only - safe for toast
       if (!message.toLowerCase().includes('upgrade')) {
         toast.error(message);
       }
     },
     onErrorPayload: (payload) => {
-      // Structured payload for 402/paywall detection
       setErrorStatusCode(payload.statusCode);
       if (payload.statusCode === 402) {
         setUpgradeRequired(true);
       }
     },
   });
+  */
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -551,7 +582,9 @@ const VoiceAgents = () => {
       }
       
       const [assistantsRes, phoneNumbersRes, callsRes, analyticsRes, leadsRes, campaignsRes] = await Promise.all([
-        supabase.functions.invoke('vapi-list-assistants'),
+        // Using ElevenLabs directly instead of VAPI
+        supabase.functions.invoke('elevenlabs-list-agents'),
+        // Keeping phone numbers and calls for now (can be removed later)
         supabase.functions.invoke('vapi-list-phone-numbers'),
         supabase.functions.invoke('vapi-list-calls', { body: { limit: 50 } }),
         supabase.functions.invoke('vapi-analytics'),
@@ -572,8 +605,42 @@ const VoiceAgents = () => {
       // Check all responses for paywall
       [assistantsRes, phoneNumbersRes, callsRes, analyticsRes].forEach(checkPaywall);
 
-      if (assistantsRes.data?.assistants) {
+      // Handle ElevenLabs agents response
+      if (assistantsRes.data?.agents) {
+        // Convert ElevenLabs agents to assistant format
+        const elevenLabsAgents = assistantsRes.data.agents.map((agent: any) => ({
+          id: agent.id || agent.agent_id, // Support both 'id' and 'agent_id' fields
+          name: agent.name || 'Unnamed Agent',
+          firstMessage: agent.first_message || '',
+          model: 'elevenlabs',
+          voice: 'elevenlabs',
+          createdAt: agent.created_at || new Date().toISOString(),
+        }));
+        
+        console.log('✅ Loaded ElevenLabs agents:', elevenLabsAgents);
+        
+        setAssistants(elevenLabsAgents);
+        
+        // Check if current selected assistant still exists
+        const currentAssistantExists = selectedAssistantId && 
+          elevenLabsAgents.some((a: VapiAssistant) => a.id === selectedAssistantId);
+        
+        // Auto-select first assistant if none selected OR current one doesn't exist
+        if (elevenLabsAgents.length > 0) {
+          if (!selectedAssistantId || !currentAssistantExists) {
+            setSelectedAssistantId(elevenLabsAgents[0].id);
+            if (!currentAssistantExists && selectedAssistantId) {
+              console.log('Previously selected assistant no longer exists, switching to:', elevenLabsAgents[0].name);
+            }
+          }
+        } else {
+          // No assistants available, clear selection
+          setSelectedAssistantId("");
+        }
+      } else if (assistantsRes.data?.assistants) {
+        // Fallback: Handle old VAPI format if still present
         setAssistants(assistantsRes.data.assistants);
+        
         if (assistantsRes.data.assistants.length > 0 && !selectedAssistantId) {
           setSelectedAssistantId(assistantsRes.data.assistants[0].id);
         }
@@ -613,9 +680,118 @@ const VoiceAgents = () => {
     }
   };
 
+  // Auto-provision agents if none exist
+  const checkAndProvisionAgents = async () => {
+    console.log('🔍 checkAndProvisionAgents called', {
+      workspaceId,
+      hasCheckedProvisioning,
+      isAutoProvisioning
+    });
+
+    if (!workspaceId) {
+      console.warn('⚠️ No workspaceId available yet');
+      return;
+    }
+
+    if (hasCheckedProvisioning) {
+      console.log('ℹ️ Already checked provisioning, skipping');
+      return;
+    }
+
+    if (isAutoProvisioning) {
+      console.log('ℹ️ Already provisioning, skipping');
+      return;
+    }
+
+    setHasCheckedProvisioning(true);
+    console.log('🚀 Starting auto-provision check for workspace:', workspaceId);
+
+    try {
+      // Check if workspace has any agents
+      const { data: existingAgents, error: checkError } = await supabase
+        .from('voice_agents')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('status', 'active');
+
+      console.log('📊 Check results:', {
+        existingAgents,
+        error: checkError,
+        count: existingAgents?.length || 0
+      });
+
+      if (checkError) {
+        console.error('❌ Error checking agents:', checkError);
+        // If table doesn't exist, try to provision anyway
+        if (checkError.code !== 'PGRST116') {
+          // Not a "table doesn't exist" error, so skip provisioning
+          return;
+        }
+        console.log('📝 Table might not exist, will try to provision anyway');
+      }
+
+      // If agents exist, no need to provision
+      if (existingAgents && existingAgents.length > 0) {
+        console.log('✅ Agents already exist, skipping auto-provision');
+        toast.success(`Found ${existingAgents.length} existing voice agents`, { duration: 2000 });
+        return;
+      }
+
+      // No agents found - auto-provision them!
+      console.log('🤖 No agents found, auto-provisioning now...');
+      setIsAutoProvisioning(true);
+      
+      toast.loading('Creating voice agents...', { id: 'auto-provision' });
+
+      const { data: provisionData, error: provisionError } = await supabase.functions.invoke(
+        'elevenlabs-auto-provision',
+        {
+          body: { workspace_id: workspaceId },
+        }
+      );
+
+      console.log('📦 Provision response:', { provisionData, provisionError });
+
+      if (provisionError) {
+        console.error('❌ Auto-provision error:', provisionError);
+        toast.error('Failed to create voice agents. Please try again.', { id: 'auto-provision' });
+        return;
+      }
+
+      if (provisionData?.success) {
+        const agentCount = provisionData.agents?.length || 0;
+        console.log(`✅ Auto-provisioned ${agentCount} agents successfully!`);
+        
+        toast.success(
+          `🎉 Voice agents created! ${agentCount} agents ready to call.`,
+          { id: 'auto-provision', duration: 5000 }
+        );
+
+        // Refresh data to show new agents
+        console.log('🔄 Refreshing data to show new agents...');
+        await fetchAllData();
+      } else {
+        console.warn('⚠️ Auto-provision returned but not successful:', provisionData);
+        toast.info('Voice agents setup in progress...', { id: 'auto-provision' });
+      }
+    } catch (error) {
+      console.error('💥 Exception during auto-provision:', error);
+      toast.error(`Setup error: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'auto-provision' });
+    } finally {
+      setIsAutoProvisioning(false);
+      console.log('✓ Auto-provision check complete');
+    }
+  };
+
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (workspaceId && !isLoading && !hasCheckedProvisioning) {
+      checkAndProvisionAgents();
+    }
+  }, [workspaceId, isLoading, hasCheckedProvisioning]);
 
   const handleStartCall = async () => {
     if (!selectedAssistantId) {
@@ -940,24 +1116,8 @@ const VoiceAgents = () => {
     }
   };
 
-  if (!VAPI_PUBLIC_KEY) {
-    return (
-      <ProtectedRoute>
-        <div className="flex min-h-screen flex-col bg-background">
-          <NavBar />
-          <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Voice agents not configured. Please contact support.
-              </AlertDescription>
-            </Alert>
-          </main>
-          <Footer />
-        </div>
-      </ProtectedRoute>
-    );
-  }
+  // VAPI check removed - using ElevenLabs directly
+  // ElevenLabs API key is configured in Supabase secrets
 
   return (
     <ProtectedRoute>
@@ -1025,9 +1185,9 @@ const VoiceAgents = () => {
           {bannerType === 'DEMO_MODE' && (
             <DataQualityBanner status="DEMO_MODE" />
           )}
-          {bannerType === 'NO_VOICE_PROVIDER_CONNECTED' && (
-            <DataQualityBanner status="NO_VOICE_PROVIDER_CONNECTED" />
-          )}
+          
+          {/* Smart Voice Setup Status - Simplified version */}
+          <VoiceSetupStatusSimple />
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid w-full grid-cols-7">
@@ -1038,10 +1198,6 @@ const VoiceAgents = () => {
               <TabsTrigger value="call" className="gap-2">
                 <PhoneCall className="h-4 w-4" />
                 Live Call
-              </TabsTrigger>
-              <TabsTrigger value="bulk" className="gap-2">
-                <Zap className="h-4 w-4" />
-                Bulk Calls
               </TabsTrigger>
               <TabsTrigger value="agents" className="gap-2">
                 <Users className="h-4 w-4" />
@@ -1203,22 +1359,51 @@ const VoiceAgents = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                      <Label>Select Agent</Label>
-                      <Select value={selectedAssistantId} onValueChange={setSelectedAssistantId} disabled={status === 'connected'}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an agent" />
-                        </SelectTrigger>
-                        <SelectContent>
+                    <div className="space-y-3">
+                      <Label>Choose Your Agent</Label>
+                      {displayAssistants.length === 0 ? (
+                        <div className="text-center py-6 text-muted-foreground text-sm">
+                          No agents available. Go to the Agents tab to create one.
+                        </div>
+                      ) : (
+                        <div className="grid gap-3">
                           {displayAssistants.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                            <div
+                              key={a.id}
+                              onClick={() => status !== 'connected' && setSelectedAssistantId(a.id)}
+                              className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                                selectedAssistantId === a.id 
+                                  ? 'border-primary bg-primary/5 shadow-sm' 
+                                  : 'border-border hover:border-primary/50 hover:bg-accent'
+                              } ${status === 'connected' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  selectedAssistantId === a.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                                }`}>
+                                  <Phone className="h-5 w-5" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-sm">{a.name}</h4>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {a.firstMessage ? a.firstMessage.substring(0, 60) + (a.firstMessage.length > 60 ? '...' : '') : 'Ready to call'}
+                                  </p>
+                                  <div className="flex gap-2 mt-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {a.model === 'elevenlabs' ? 'ElevenLabs' : a.model}
+                                    </Badge>
+                                    {selectedAssistantId === a.id && (
+                                      <Badge variant="default" className="text-xs">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Selected
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedAssistant && (
-                        <p className="text-xs text-muted-foreground">
-                          Model: {selectedAssistant.model} | Voice: {selectedAssistant.voice}
-                        </p>
+                        </div>
                       )}
                     </div>
 
@@ -1431,7 +1616,30 @@ const VoiceAgents = () => {
                   {isLoading ? (
                     <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                   ) : displayAssistants.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No agents yet. Create your first one!</p>
+                    <div className="flex flex-col items-center gap-4 py-8">
+                      <p className="text-center text-muted-foreground">No voice agents found</p>
+                      <Button
+                        onClick={() => {
+                          setHasCheckedProvisioning(false);
+                          checkAndProvisionAgents();
+                        }}
+                        disabled={isAutoProvisioning}
+                        className="gap-2"
+                      >
+                        {isAutoProvisioning ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Creating Agents...
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="h-4 w-4" />
+                            Create Default Agents
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">This will create 3 ready-to-use voice agents</p>
+                    </div>
                   ) : (
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {displayAssistants.map((a) => (
@@ -1495,152 +1703,6 @@ const VoiceAgents = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            {/* Bulk Calls Tab */}
-            <TabsContent value="bulk">
-              <div className="grid gap-6 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Select Leads</CardTitle>
-                        <CardDescription>Choose leads with phone numbers for bulk calling</CardDescription>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={selectAllLeads}>
-                        {selectedLeadIds.size === leads.length ? 'Deselect All' : 'Select All'}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {leads.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">No leads with phone numbers found. Add leads in the CRM first.</p>
-                    ) : (
-                      <ScrollArea className="h-[400px]">
-                        <div className="space-y-2">
-                          {leads.map((lead) => {
-                            const callStatus = bulkCallStatuses.get(lead.id);
-                            return (
-                              <div
-                                key={lead.id}
-                                className={`flex items-center justify-between p-3 rounded-lg border ${
-                                  selectedLeadIds.has(lead.id) ? 'border-primary bg-primary/5' : 'border-border'
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Checkbox
-                                    checked={selectedLeadIds.has(lead.id)}
-                                    onCheckedChange={() => toggleLeadSelection(lead.id)}
-                                    disabled={isBulkCalling}
-                                  />
-                                  <div>
-                                    <p className="font-medium">{lead.first_name} {lead.last_name}</p>
-                                    <p className="text-sm text-muted-foreground">{lead.phone}</p>
-                                    {lead.company && (
-                                      <p className="text-xs text-muted-foreground">{lead.company}</p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="capitalize">{lead.status}</Badge>
-                                  {callStatus && (
-                                    <>
-                                      {callStatus.status === 'pending' && <Clock className="h-4 w-4 text-muted-foreground" />}
-                                      {callStatus.status === 'calling' && <Loader2 className="h-4 w-4 text-primary animate-spin" />}
-                                      {callStatus.status === 'completed' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                                      {callStatus.status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </ScrollArea>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Call Settings</CardTitle>
-                    <CardDescription>Configure bulk call parameters</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Voice Agent</Label>
-                      <Select value={bulkAssistantId} onValueChange={setBulkAssistantId} disabled={isBulkCalling}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an agent" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {displayAssistants.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>From Phone Number</Label>
-                      <Select value={bulkPhoneNumberId} onValueChange={setBulkPhoneNumberId} disabled={isBulkCalling}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a phone number" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {displayPhoneNumbers.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.number}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="pt-4 border-t">
-                      <div className="flex items-center justify-between text-sm mb-4">
-                        <span className="text-muted-foreground">Selected leads:</span>
-                        <span className="font-medium">{selectedLeadIds.size}</span>
-                      </div>
-                      <Button 
-                        className="w-full" 
-                        onClick={handleBulkCall}
-                        disabled={isBulkCalling || selectedLeadIds.size === 0 || !bulkAssistantId || !bulkPhoneNumberId}
-                      >
-                        {isBulkCalling ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Calling...
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="h-4 w-4 mr-2" />
-                            Start Bulk Calls
-                          </>
-                        )}
-                      </Button>
-                    </div>
-
-                    {bulkCallStatuses.size > 0 && (
-                      <div className="pt-4 border-t space-y-2">
-                        <p className="text-sm font-medium">Call Progress</p>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <div className="flex justify-between">
-                            <span>Completed:</span>
-                            <span>{Array.from(bulkCallStatuses.values()).filter(s => s.status === 'completed').length}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Failed:</span>
-                            <span>{Array.from(bulkCallStatuses.values()).filter(s => s.status === 'failed').length}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Pending:</span>
-                            <span>{Array.from(bulkCallStatuses.values()).filter(s => s.status === 'pending').length}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
             </TabsContent>
 
             {/* Call History Tab */}

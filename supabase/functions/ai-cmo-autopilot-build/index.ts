@@ -79,14 +79,15 @@ serve(async (req) => {
       );
     }
 
-    // Get tenant context
-    const { data: userTenant } = await supabase
-      .from("user_tenants")
-      .select("tenant_id")
+    // Get tenant context via workspace membership
+    const { data: membershipData } = await supabase
+      .from("workspace_members")
+      .select("workspaces!inner(tenant_id)")
       .eq("user_id", user.id)
+      .limit(1)
       .maybeSingle();
 
-    const tenantId = userTenant?.tenant_id || user.id;
+    const tenantId = (membershipData as any)?.workspaces?.tenant_id || user.id;
 
     // Get workspace
     const { data: workspace } = await supabase

@@ -1,4 +1,4 @@
-project_id = "nyzgsizvtqhafoxixyrd"
+project_id = "ddwqkkiqgjptguzoeohr"
 
 [functions.ab-test-create]
 verify_jwt = true
@@ -296,7 +296,6 @@ verify_jwt = true
 
 [functions.run-job-queue]
 verify_jwt = false
-schedule = "* * * * *"
 
 [functions.send-feedback-email]
 verify_jwt = true
@@ -324,4 +323,3 @@ verify_jwt = false
 
 [functions.process-scheduled-emails]
 verify_jwt = false
-schedule = "* * * * *"

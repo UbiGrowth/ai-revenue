@@ -22,9 +22,13 @@ $$;
 
 -- Recreate all RLS policies using the new function
 
--- tenants policies
-CREATE POLICY tenant_isolation ON public.tenants FOR ALL
-USING (is_platform_admin() OR id = auth.uid() OR id IN (SELECT tenant_id FROM user_tenants WHERE user_id = auth.uid()));
+-- tenants policies (skip if table doesn't exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
+    EXECUTE 'CREATE POLICY tenant_isolation ON public.tenants FOR ALL USING (is_platform_admin() OR id = auth.uid() OR id IN (SELECT tenant_id FROM user_tenants WHERE user_id = auth.uid()))';
+  END IF;
+END $$;
 
 -- workspaces policies
 CREATE POLICY "Users can view workspaces" ON public.workspaces FOR SELECT

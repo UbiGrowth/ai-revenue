@@ -24,16 +24,18 @@ serve(async (req) => {
 
     console.log(`[sync-campaign-metrics] User ${userId} requesting metrics sync...`);
 
-    // Get user's tenant to check metrics_mode
-    const { data: userTenant } = await supabase
-      .from('user_tenants')
-      .select('tenant_id')
+    // Get user's tenant via workspace membership
+    const { data: membershipData } = await supabase
+      .from('workspace_members')
+      .select('workspaces!inner(tenant_id)')
       .eq('user_id', userId)
       .limit(1)
       .maybeSingle();
 
-    if (!userTenant?.tenant_id) {
-      console.log('[sync-campaign-metrics] No tenant found for user');
+    const tenantId = (membershipData as any)?.workspaces?.tenant_id;
+
+    if (!tenantId) {
+      console.log('[sync-campaign-metrics] No tenant found for user via workspace membership');
       return new Response(
         JSON.stringify({ success: false, error: 'No tenant found', mode: 'unknown' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -44,7 +46,7 @@ serve(async (req) => {
     const { data: tenant } = await supabase
       .from('tenants')
       .select('metrics_mode')
-      .eq('id', userTenant.tenant_id)
+      .eq('id', tenantId)
       .single();
 
     const metricsMode = tenant?.metrics_mode || 'real';

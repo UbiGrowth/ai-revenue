@@ -67,16 +67,18 @@ USING (
 
 -- Update key tables RLS policies to include platform admin access
 
--- tenants table
-DROP POLICY IF EXISTS "tenant_isolation" ON public.tenants;
-CREATE POLICY "tenant_isolation"
-ON public.tenants
-FOR ALL
-USING (
-  is_platform_admin()
-  OR id = auth.uid()
-  OR id IN (SELECT tenant_id FROM user_tenants WHERE user_id = auth.uid())
-);
+-- tenants table (skip if doesn't exist - legacy table)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "tenant_isolation" ON public.tenants';
+    EXECUTE 'CREATE POLICY "tenant_isolation" ON public.tenants FOR ALL USING (
+      is_platform_admin()
+      OR id = auth.uid()
+      OR id IN (SELECT tenant_id FROM user_tenants WHERE user_id = auth.uid())
+    )';
+  END IF;
+END $$;
 
 -- user_tenants table - allow platform admins to see all mappings
 DROP POLICY IF EXISTS "Users can view their tenant memberships" ON public.user_tenants;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 
@@ -23,11 +23,7 @@ export function useChannelPreferences() {
   const [preferences, setPreferences] = useState<ChannelPreferences>(DEFAULT_PREFERENCES);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchPreferences();
-  }, [workspaceId]);
-
-  const fetchPreferences = async () => {
+  const fetchPreferences = useCallback(async () => {
     if (!workspaceId) {
       setIsLoading(false);
       return;
@@ -51,7 +47,11 @@ export function useChannelPreferences() {
       });
     }
     setIsLoading(false);
-  };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    fetchPreferences();
+  }, [fetchPreferences]);
 
   const isChannelEnabled = (channel: keyof ChannelPreferences) => {
     return preferences[channel];

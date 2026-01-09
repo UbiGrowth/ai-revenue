@@ -32,7 +32,7 @@ CREATE TABLE public.rollout_gate_checks (
 CREATE TABLE public.rollout_tenant_assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   phase_id uuid REFERENCES rollout_phases(id) ON DELETE CASCADE NOT NULL,
-  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
+  tenant_id uuid NOT NULL, -- Note: FK to tenants table omitted as it may not exist
   assigned_at timestamptz NOT NULL DEFAULT now(),
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'removed')),
   UNIQUE(phase_id, tenant_id)

@@ -14,30 +14,31 @@
 -- --------------------------------
 
 -- Query: Filter by workspace + status (CRM dashboard)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_status 
+CREATE INDEX IF NOT EXISTS idx_leads_workspace_status 
   ON public.leads(workspace_id, status);
 
 -- Query: Filter by workspace + sort by created_at (Recent leads)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_created 
+CREATE INDEX IF NOT EXISTS idx_leads_workspace_created 
   ON public.leads(workspace_id, created_at DESC);
 
 -- Query: Filter by workspace + sort by score (Top leads)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_score 
+CREATE INDEX IF NOT EXISTS idx_leads_workspace_score 
   ON public.leads(workspace_id, score DESC) 
   WHERE score IS NOT NULL;
 
 -- Query: Filter by workspace + search by email
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_email 
+CREATE INDEX IF NOT EXISTS idx_leads_workspace_email 
   ON public.leads(workspace_id, email) 
   WHERE email IS NOT NULL;
 
 -- Query: Filter by workspace + tags (tag filtering)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_tags 
-  ON public.leads USING GIN(workspace_id, tags) 
+-- Note: GIN index only on tags (workspace_id filtering uses separate index)
+CREATE INDEX IF NOT EXISTS idx_leads_tags 
+  ON public.leads USING GIN(tags) 
   WHERE tags IS NOT NULL AND array_length(tags, 1) > 0;
 
 -- Query: Filter by workspace + segment_code (segment filtering)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_segment 
+CREATE INDEX IF NOT EXISTS idx_leads_workspace_segment 
   ON public.leads(workspace_id, segment_code) 
   WHERE segment_code IS NOT NULL;
 
@@ -45,15 +46,15 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_workspace_segment
 -- --------------------------------
 
 -- Query: Filter by workspace + status
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_campaigns_workspace_status 
+CREATE INDEX IF NOT EXISTS idx_campaigns_workspace_status 
   ON public.campaigns(workspace_id, status);
 
 -- Query: Filter by workspace + channel
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_campaigns_workspace_channel 
+CREATE INDEX IF NOT EXISTS idx_campaigns_workspace_channel 
   ON public.campaigns(workspace_id, channel);
 
 -- Query: Filter by workspace + deployed_at
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_campaigns_workspace_deployed 
+CREATE INDEX IF NOT EXISTS idx_campaigns_workspace_deployed 
   ON public.campaigns(workspace_id, deployed_at DESC) 
   WHERE deployed_at IS NOT NULL;
 
@@ -61,33 +62,35 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_campaigns_workspace_deployed
 -- --------------------------------
 
 -- Query: Filter by workspace + status
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cmo_campaigns_workspace_status 
+CREATE INDEX IF NOT EXISTS idx_cmo_campaigns_workspace_status 
   ON public.cmo_campaigns(workspace_id, status);
 
--- Query: Filter by workspace + target_tags (Master Prompt v3)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cmo_campaigns_workspace_tags 
-  ON public.cmo_campaigns USING GIN(workspace_id, target_tags) 
+-- Query: Filter by target_tags (Master Prompt v3)
+-- Note: GIN index only on tags (workspace_id filtering uses separate index)
+CREATE INDEX IF NOT EXISTS idx_cmo_campaigns_tags 
+  ON public.cmo_campaigns USING GIN(target_tags) 
   WHERE target_tags IS NOT NULL AND array_length(target_tags, 1) > 0;
 
--- Query: Filter by workspace + target_segment_codes (Master Prompt v3)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cmo_campaigns_workspace_segments 
-  ON public.cmo_campaigns USING GIN(workspace_id, target_segment_codes) 
+-- Query: Filter by target_segment_codes (Master Prompt v3)
+-- Note: GIN index only on segment codes (workspace_id filtering uses separate index)
+CREATE INDEX IF NOT EXISTS idx_cmo_campaigns_segments 
+  ON public.cmo_campaigns USING GIN(target_segment_codes) 
   WHERE target_segment_codes IS NOT NULL AND array_length(target_segment_codes, 1) > 0;
 
 -- CHANNEL_OUTBOX TABLE (Critical for job processing)
 -- --------------------------------
 
 -- Query: Job processor - find scheduled messages
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_channel_outbox_processing 
+CREATE INDEX IF NOT EXISTS idx_channel_outbox_processing 
   ON public.channel_outbox(workspace_id, status, scheduled_at) 
   WHERE status IN ('scheduled', 'pending');
 
 -- Query: Filter by workspace + channel + status
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_channel_outbox_workspace_channel 
+CREATE INDEX IF NOT EXISTS idx_channel_outbox_workspace_channel 
   ON public.channel_outbox(workspace_id, channel, status);
 
 -- Query: Find messages by recipient
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_channel_outbox_recipient 
+CREATE INDEX IF NOT EXISTS idx_channel_outbox_recipient 
   ON public.channel_outbox(workspace_id, recipient_id) 
   WHERE recipient_id IS NOT NULL;
 
@@ -95,17 +98,17 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_channel_outbox_recipient
 -- --------------------------------
 
 -- Query: Filter by workspace + stage + value
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_deals_workspace_stage_value 
+CREATE INDEX IF NOT EXISTS idx_deals_workspace_stage_value 
   ON public.deals(workspace_id, stage, value DESC) 
   WHERE value IS NOT NULL;
 
 -- Query: Filter by workspace + expected_close_date
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_deals_workspace_close_date 
+CREATE INDEX IF NOT EXISTS idx_deals_workspace_close_date 
   ON public.deals(workspace_id, expected_close_date) 
   WHERE expected_close_date IS NOT NULL;
 
 -- Query: Filter by workspace + owner
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_deals_workspace_owner 
+CREATE INDEX IF NOT EXISTS idx_deals_workspace_owner 
   ON public.deals(workspace_id, owner_id) 
   WHERE owner_id IS NOT NULL;
 
@@ -113,12 +116,12 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_deals_workspace_owner
 -- --------------------------------
 
 -- Query: Filter by workspace + status + due_date
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_workspace_status_due 
+CREATE INDEX IF NOT EXISTS idx_tasks_workspace_status_due 
   ON public.tasks(workspace_id, status, due_date) 
   WHERE due_date IS NOT NULL;
 
 -- Query: Filter by workspace + assigned_to
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_workspace_assigned 
+CREATE INDEX IF NOT EXISTS idx_tasks_workspace_assigned 
   ON public.tasks(workspace_id, assigned_to) 
   WHERE assigned_to IS NOT NULL;
 
@@ -126,11 +129,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_workspace_assigned
 -- --------------------------------
 
 -- Query: Filter by tenant + status
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_crm_contacts_tenant_status 
+CREATE INDEX IF NOT EXISTS idx_crm_contacts_tenant_status 
   ON public.crm_contacts(tenant_id, status);
 
 -- Query: Search by email
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_crm_contacts_tenant_email 
+CREATE INDEX IF NOT EXISTS idx_crm_contacts_tenant_email 
   ON public.crm_contacts(tenant_id, email) 
   WHERE email IS NOT NULL;
 
@@ -138,24 +141,32 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_crm_contacts_tenant_email
 -- --------------------------------
 
 -- Query: Filter by tenant + created_at
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_voice_calls_tenant_created 
+CREATE INDEX IF NOT EXISTS idx_voice_calls_tenant_created 
   ON public.voice_call_records(tenant_id, created_at DESC);
 
 -- Query: Filter by tenant + lead_id
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_voice_calls_tenant_lead 
+CREATE INDEX IF NOT EXISTS idx_voice_calls_tenant_lead 
   ON public.voice_call_records(tenant_id, lead_id) 
   WHERE lead_id IS NOT NULL;
 
 -- KERNEL_EVENTS TABLE (Event log)
 -- --------------------------------
 
--- Query: Filter by workspace + event_type + created_at
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_kernel_events_workspace_type 
-  ON public.kernel_events(workspace_id, event_type, created_at DESC);
+-- Query: Filter by workspace + event_type + created_at (skip if workspace_id column doesn't exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_events' AND column_name = 'workspace_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_events_workspace_type ON public.kernel_events(workspace_id, event_type, created_at DESC);
+  END IF;
+END $$;
 
--- Query: Filter by workspace + entity
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_kernel_events_workspace_entity 
-  ON public.kernel_events(workspace_id, entity_type, entity_id);
+-- Query: Filter by workspace + entity (skip if workspace_id column doesn't exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kernel_events' AND column_name = 'workspace_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_kernel_events_workspace_entity ON public.kernel_events(workspace_id, entity_type, entity_id);
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 2. DATA RETENTION & CLEANUP JOBS (using pg_cron)
@@ -329,16 +340,17 @@ SELECT
   ARRAY[COUNT(*)::text]
 FROM public.channel_outbox
 WHERE created_at < now() - interval '30 days'
-  AND status IN ('sent', 'delivered', 'failed')
-UNION ALL
-SELECT
-  'Slow queries (>1s avg)' as check_name,
-  COUNT(*),
-  array_agg(substring(query from 1 for 100))
-FROM pg_stat_statements
-WHERE mean_exec_time > 1000
-  AND query NOT LIKE '%pg_stat_statements%'
-LIMIT 10;
+  AND status IN ('sent', 'delivered', 'failed');
+-- Note: Slow query check commented out as pg_stat_statements extension may not be available
+-- UNION ALL
+-- SELECT
+--   'Slow queries (>1s avg)' as check_name,
+--   COUNT(*),
+--   array_agg(substring(query from 1 for 100))
+-- FROM pg_stat_statements
+-- WHERE mean_exec_time > 1000
+--   AND query NOT LIKE '%pg_stat_statements%'
+-- LIMIT 10
 
 -- Grant access to database_health view
 GRANT SELECT ON public.database_health TO authenticated;
