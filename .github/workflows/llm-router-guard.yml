@@ -1,0 +1,45 @@
+name: LLM Router Guard
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  router-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Guard vendor URLs stay behind adapters
+        run: |
+          set -euo pipefail
+          if rg -n "ai\.gateway\.lovable\.dev|api\.openai\.com/v1|generativelanguage\.googleapis\.com" supabase/functions \
+            --glob '!supabase/functions/_shared/providers/**' ; then
+            echo "ERROR: Vendor URLs must only exist in _shared/providers/* (or be removed)."
+            exit 1
+          fi
+
+      - name: Guard provider SDK imports stay behind adapters
+        run: |
+          set -euo pipefail
+          if rg -n "from ['\"]openai['\"]|@google/generative-ai|from ['\"]@google/generative-ai['\"]|from ['\"]anthropic['\"]|Anthropic\\b" supabase/functions \
+            --glob '!supabase/functions/_shared/providers/**' ; then
+            echo "ERROR: Provider SDK imports must only exist in _shared/providers/*."
+            exit 1
+          fi
+
+      - name: Guard frontend stays provider-agnostic
+        run: |
+          set -euo pipefail
+          if rg -n "\\bOpenAI\\b|\\bGemini\\b|\\bClaude\\b|\\bAnthropic\\b|\\bopenai\\b|\\bgemini\\b|\\bclaude\\b|\\banthropic\\b|ai\.gateway" src ; then
+            echo "ERROR: Frontend must not reference LLM providers or gateways."
+            exit 1
+          fi
+
