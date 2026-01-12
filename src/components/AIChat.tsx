@@ -265,7 +265,7 @@ const AIChat = ({ onClose, initialPrompt }: AIChatProps) => {
 
           try {
             const parsed = JSON.parse(jsonStr);
-            // Support both OpenAI and Gemini formats
+            // Support multiple streaming response formats
             const content = parsed.choices?.[0]?.delta?.content || 
                            parsed.candidates?.[0]?.content?.parts?.[0]?.text;
             
