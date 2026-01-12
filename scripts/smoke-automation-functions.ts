@@ -148,6 +148,91 @@ async function main() {
     return r;
   };
 
+  // ============================================================
+  // DAY 1 SMS SMOKES (merge-blocking)
+  // Notes:
+  // - CI should run without Twilio creds; sms_send defaults to sandbox mode when TWILIO_* are missing.
+  // - These are contract-level checks for the new `sms_*` Edge Functions.
+  // ============================================================
+
+  // Use a deterministic synthetic campaign id for smoke purposes (does not need to exist in DB for our tables).
+  // Assumption: campaign_id is treated as an opaque UUID string for the new additive tables.
+  const smokeCampaignId = "00000000-0000-0000-0000-000000000001";
+  const smokeLeadId = userId; // Fastest viable: use authed user id as a stand-in UUID for lead_id.
+  const smokePhone = "+15550001001";
+
+  // sms_generate.smoke: asserts <=160 chars + contains opt-out.
+  const smsGen = await run("sms_generate", {
+    tenant_id: workspaceId,
+    campaign_id: smokeCampaignId,
+    audience_context: {
+      persona: "Busy founder",
+      offer: "AI-Revenue helps you book more qualified demos without hiring SDRs",
+      cta: "Reply YES to get a quick overview",
+    },
+    constraints: { max_chars: 160, include_opt_out: true },
+  });
+
+  try {
+    const parsed = JSON.parse(smsGen.bodyText || "{}");
+    const smsText = String(parsed.sms_text || "");
+    const charCount = Number(parsed.char_count || 0);
+    const contains = !!parsed.contains_opt_out;
+    if (!smsText || smsText.length > 160 || charCount > 160 || !contains) {
+      throw new Error(`sms_generate contract failed: len=${smsText.length}, char_count=${charCount}, contains_opt_out=${contains}`);
+    }
+  } catch (e) {
+    failed = true;
+    console.error(`FAIL sms_generate.smoke -> ${(e as Error).message}`);
+  }
+
+  // sms_unsubscribe.smoke: simulate STOP -> opt_out persisted.
+  const smsUnsub = await run("sms_unsubscribe", {
+    tenant_id: workspaceId,
+    phone: smokePhone,
+    keyword: "STOP",
+  });
+
+  if (!smsUnsub.ok) {
+    failed = true;
+  }
+
+  // sms_cap.smoke: opted-out should block usage guard.
+  const cap = await run("sms_usage_guard", {
+    tenant_id: workspaceId,
+    campaign_id: smokeCampaignId,
+    lead_id: smokeLeadId,
+    phone: smokePhone,
+  });
+
+  try {
+    const parsed = JSON.parse(cap.bodyText || "{}");
+    if (parsed.allowed !== false || parsed.reason !== "opted_out") {
+      throw new Error(`sms_usage_guard expected opted_out block, got allowed=${parsed.allowed}, reason=${parsed.reason}`);
+    }
+  } catch (e) {
+    failed = true;
+    console.error(`FAIL sms_cap.smoke -> ${(e as Error).message}`);
+  }
+
+  // sms_send.smoke: sandbox Twilio send + logs created.
+  const smsSend = await run("sms_send", {
+    tenant_id: workspaceId,
+    campaign_id: smokeCampaignId,
+    recipient: { phone: "+15550001002", lead_id: smokeLeadId },
+    sms_text: "Quick note: want the 2-minute overview? Reply YES. Reply STOP to opt out",
+  });
+
+  try {
+    const parsed = JSON.parse(smsSend.bodyText || "{}");
+    if (parsed.provider !== "twilio" || parsed.status !== "sent" || !parsed.message_sid) {
+      throw new Error(`sms_send bad response shape: ${smsSend.bodyText}`);
+    }
+  } catch (e) {
+    failed = true;
+    console.error(`FAIL sms_send.smoke -> ${(e as Error).message}`);
+  }
+
   // 1) Autopilot (AI Voice + AI Email)
   const autopilot = await run("ai-cmo-autopilot-build", {
     icp: "B2B SaaS founders with 10-50 employees",
