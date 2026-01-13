@@ -13,6 +13,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    // Prevent stale cross-project / cross-origin session collisions during local dev.
+    // (Supabase otherwise uses sb-<project-ref> keys which can linger across setups.)
+    storageKey: "sb-ai-revenue-local",
   },
 });
 
