@@ -93,38 +93,17 @@ const NewCampaign = () => {
   // Update channel defaults when user preferences load (only once)
   useEffect(() => {
     if (!loadingPrefs) {
-      setSelectedChannels(prev => {
-        // Only update if values have actually changed to prevent infinite loops
-        const newChannels = {
-          email: channelPrefs.email_enabled,
-          social: channelPrefs.social_enabled,
-          voice: channelPrefs.voice_enabled,
-          video: channelPrefs.video_enabled,
-          landing_page: channelPrefs.landing_pages_enabled,
-        };
-        
-        // Check if anything actually changed
-        if (
-          prev.email === newChannels.email &&
-          prev.social === newChannels.social &&
-          prev.voice === newChannels.voice &&
-          prev.video === newChannels.video &&
-          prev.landing_page === newChannels.landing_page
-        ) {
-          return prev; // No change, return same object to prevent re-render
-        }
-        
-        return newChannels;
+      setSelectedChannels({
+        email: channelPrefs.email_enabled,
+        social: channelPrefs.social_enabled,
+        voice: channelPrefs.voice_enabled,
+        video: channelPrefs.video_enabled,
+        landing_page: channelPrefs.landing_pages_enabled,
       });
     }
-  }, [
-    loadingPrefs,
-    channelPrefs.email_enabled,
-    channelPrefs.social_enabled,
-    channelPrefs.voice_enabled,
-    channelPrefs.video_enabled,
-    channelPrefs.landing_pages_enabled
-  ]);
+    // Only run when loadingPrefs changes to false (initial load)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingPrefs]);
 
   const insertTagAtCursor = (tag: string) => {
     const textarea = emailContentRef.current;
