@@ -99,19 +99,37 @@ const NewCampaign = () => {
   // Campaign schedule
   const [schedule, setSchedule] = useState<ScheduleConfig>(DEFAULT_SCHEDULE);
 
-  // Track initialization and user edits
-  const didInitRef = useRef(false);
-  const userEditedRef = useRef(false);
+  // Track initialization and user edits per workspace/draft
+  const initRef = useRef<{
+    key: string | null;
+    didInit: boolean;
+    userEdited: boolean;
+  }>({ key: null, didInit: false, userEdited: false });
 
-  // Initialize channel selection once per mount (not on every pref change)
+  // Create stable init key (workspace + draft/session)
+  const initKey = `new-campaign:${campaignName || 'draft'}`;
+
+  // Initialize channel selection once per workspace/draft
   useEffect(() => {
+    // Reset guard if identity changed
+    if (initRef.current.key !== initKey) {
+      initRef.current.key = initKey;
+      initRef.current.didInit = false;
+      initRef.current.userEdited = false;
+    }
+
+    // Wait for prefs to load
     if (loadingPrefs) return;
-    if (didInitRef.current) return;
-    if (userEditedRef.current) return;
-    
-    didInitRef.current = true;
+
+    // Never overwrite after user interaction
+    if (initRef.current.userEdited) return;
+
+    // Initialize exactly once per key
+    if (initRef.current.didInit) return;
+
     setSelectedChannels(defaultChannels);
-  }, [loadingPrefs, defaultChannels]);
+    initRef.current.didInit = true;
+  }, [initKey, loadingPrefs, defaultChannels]);
 
   const insertTagAtCursor = (tag: string) => {
     const textarea = emailContentRef.current;
@@ -412,7 +430,7 @@ const NewCampaign = () => {
                               id="channel-email"
                               checked={selectedChannels.email}
                               onCheckedChange={(checked) => {
-                                userEditedRef.current = true;
+                                initRef.current.userEdited = true;
                                 setSelectedChannels(prev => ({ ...prev, email: !!checked }));
                               }}
                             />
@@ -430,7 +448,7 @@ const NewCampaign = () => {
                               id="channel-social"
                               checked={selectedChannels.social}
                               onCheckedChange={(checked) => {
-                                userEditedRef.current = true;
+                                initRef.current.userEdited = true;
                                 setSelectedChannels(prev => ({ ...prev, social: !!checked }));
                               }}
                             />
@@ -448,7 +466,7 @@ const NewCampaign = () => {
                               id="channel-voice"
                               checked={selectedChannels.voice}
                               onCheckedChange={(checked) => {
-                                userEditedRef.current = true;
+                                initRef.current.userEdited = true;
                                 setSelectedChannels(prev => ({ ...prev, voice: !!checked }));
                               }}
                             />
@@ -466,7 +484,7 @@ const NewCampaign = () => {
                               id="channel-video"
                               checked={selectedChannels.video}
                               onCheckedChange={(checked) => {
-                                userEditedRef.current = true;
+                                initRef.current.userEdited = true;
                                 setSelectedChannels(prev => ({ ...prev, video: !!checked }));
                               }}
                             />
@@ -484,7 +502,7 @@ const NewCampaign = () => {
                               id="channel-landing"
                               checked={selectedChannels.landing_page}
                               onCheckedChange={(checked) => {
-                                userEditedRef.current = true;
+                                initRef.current.userEdited = true;
                                 setSelectedChannels(prev => ({ ...prev, landing_page: !!checked }));
                               }}
                             />
