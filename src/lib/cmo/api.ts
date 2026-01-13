@@ -2,6 +2,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { getTenantContext } from "@/lib/tenant";
+import { invokeEdgeRaw } from "@/lib/invokeEdgeRaw";
 import type {
   CMOBrandProfile,
   CMOICPSegment,
@@ -353,26 +354,11 @@ export async function buildAutopilotCampaign(payload: {
     },
   };
 
-  const started = Date.now();
-  const { data, error } = await supabase.functions.invoke("cmo-kernel", {
+  // Use raw fetch to see real HTTP status + response body
+  const data = await invokeEdgeRaw<any>({
+    fn: "cmo-kernel",
     body: requestBody,
   });
-
-  if (error) {
-    // Enhanced error logging to capture status/body/context
-    console.error(`[edge] cmo-kernel failed`, {
-      message: error.message,
-      name: (error as any).name,
-      status: (error as any).status,
-      statusCode: (error as any).statusCode,
-      context: (error as any).context,
-      details: (error as any).details,
-      elapsed_ms: Date.now() - started,
-      requestBody,
-      responseData: data,
-    });
-    throw error;
-  }
   
   // Return the result from the kernel response
   return data?.result || data;
