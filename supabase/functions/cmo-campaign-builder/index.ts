@@ -248,6 +248,8 @@ Only include asset types for the channels specified, EXCEPT landing_pages which 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
+      // Prevent hanging forever
+      signal: AbortSignal.timeout(55_000),
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.7,

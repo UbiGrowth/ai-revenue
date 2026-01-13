@@ -190,7 +190,9 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
         workspaceId,
       });
 
-      const data = await buildAutopilotCampaign({
+      const timeoutMs = 120_000;
+      const data = await Promise.race([
+        buildAutopilotCampaign({
         icp,
         offer,
         channels: selectedChannels,
@@ -198,7 +200,11 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
         workspaceId,
         targetTags: enableTagTargeting && selectedTags.length > 0 ? selectedTags : undefined,
         targetSegments: enableSegmentTargeting && selectedSegments.length > 0 ? selectedSegments : undefined,
-      });
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Autopilot build timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs)
+        ),
+      ]) as any;
       setResult(data);
       
       // Invalidate campaigns query for automatic refresh
