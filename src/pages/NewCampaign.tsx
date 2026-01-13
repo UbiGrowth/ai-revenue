@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import NavBar from "@/components/NavBar";
 import PageBreadcrumbs from "@/components/PageBreadcrumbs";
@@ -78,32 +78,40 @@ const NewCampaign = () => {
   const [draftedEmailContent, setDraftedEmailContent] = useState("");
   const emailContentRef = useRef<HTMLTextAreaElement>(null);
   
-  // Channel selection
-  const [selectedChannels, setSelectedChannels] = useState({
-    email: true,
-    social: true,
-    voice: true,
-    video: true,
-    landing_page: true,
-  });
+  // Derive default channels from prefs (stable)
+  const defaultChannels = useMemo(() => ({
+    email: !!channelPrefs.email_enabled,
+    social: !!channelPrefs.social_enabled,
+    voice: !!channelPrefs.voice_enabled,
+    video: !!channelPrefs.video_enabled,
+    landing_page: !!channelPrefs.landing_pages_enabled,
+  }), [
+    channelPrefs.email_enabled,
+    channelPrefs.social_enabled,
+    channelPrefs.voice_enabled,
+    channelPrefs.video_enabled,
+    channelPrefs.landing_pages_enabled
+  ]);
+
+  // Channel selection state
+  const [selectedChannels, setSelectedChannels] = useState(defaultChannels);
 
   // Campaign schedule
   const [schedule, setSchedule] = useState<ScheduleConfig>(DEFAULT_SCHEDULE);
 
-  // Update channel defaults when user preferences load (only once)
+  // Track initialization and user edits
+  const didInitRef = useRef(false);
+  const userEditedRef = useRef(false);
+
+  // Initialize channel selection once per mount (not on every pref change)
   useEffect(() => {
-    if (!loadingPrefs) {
-      setSelectedChannels({
-        email: channelPrefs.email_enabled,
-        social: channelPrefs.social_enabled,
-        voice: channelPrefs.voice_enabled,
-        video: channelPrefs.video_enabled,
-        landing_page: channelPrefs.landing_pages_enabled,
-      });
-    }
-    // Only run when loadingPrefs changes to false (initial load)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingPrefs]);
+    if (loadingPrefs) return;
+    if (didInitRef.current) return;
+    if (userEditedRef.current) return;
+    
+    didInitRef.current = true;
+    setSelectedChannels(defaultChannels);
+  }, [loadingPrefs, defaultChannels]);
 
   const insertTagAtCursor = (tag: string) => {
     const textarea = emailContentRef.current;
@@ -403,9 +411,10 @@ const NewCampaign = () => {
                             <Checkbox
                               id="channel-email"
                               checked={selectedChannels.email}
-                              onCheckedChange={(checked) => 
-                                setSelectedChannels(prev => ({ ...prev, email: !!checked }))
-                              }
+                              onCheckedChange={(checked) => {
+                                userEditedRef.current = true;
+                                setSelectedChannels(prev => ({ ...prev, email: !!checked }));
+                              }}
                             />
                             <div className="flex items-center gap-2">
                               <Mail className="h-4 w-4 text-primary" />
@@ -420,9 +429,10 @@ const NewCampaign = () => {
                             <Checkbox
                               id="channel-social"
                               checked={selectedChannels.social}
-                              onCheckedChange={(checked) => 
-                                setSelectedChannels(prev => ({ ...prev, social: !!checked }))
-                              }
+                              onCheckedChange={(checked) => {
+                                userEditedRef.current = true;
+                                setSelectedChannels(prev => ({ ...prev, social: !!checked }));
+                              }}
                             />
                             <div className="flex items-center gap-2">
                               <Share2 className="h-4 w-4 text-primary" />
@@ -437,9 +447,10 @@ const NewCampaign = () => {
                             <Checkbox
                               id="channel-voice"
                               checked={selectedChannels.voice}
-                              onCheckedChange={(checked) => 
-                                setSelectedChannels(prev => ({ ...prev, voice: !!checked }))
-                              }
+                              onCheckedChange={(checked) => {
+                                userEditedRef.current = true;
+                                setSelectedChannels(prev => ({ ...prev, voice: !!checked }));
+                              }}
                             />
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-primary" />
@@ -454,9 +465,10 @@ const NewCampaign = () => {
                             <Checkbox
                               id="channel-video"
                               checked={selectedChannels.video}
-                              onCheckedChange={(checked) => 
-                                setSelectedChannels(prev => ({ ...prev, video: !!checked }))
-                              }
+                              onCheckedChange={(checked) => {
+                                userEditedRef.current = true;
+                                setSelectedChannels(prev => ({ ...prev, video: !!checked }));
+                              }}
                             />
                             <div className="flex items-center gap-2">
                               <Video className="h-4 w-4 text-primary" />
@@ -471,9 +483,10 @@ const NewCampaign = () => {
                             <Checkbox
                               id="channel-landing"
                               checked={selectedChannels.landing_page}
-                              onCheckedChange={(checked) => 
-                                setSelectedChannels(prev => ({ ...prev, landing_page: !!checked }))
-                              }
+                              onCheckedChange={(checked) => {
+                                userEditedRef.current = true;
+                                setSelectedChannels(prev => ({ ...prev, landing_page: !!checked }));
+                              }}
                             />
                             <div className="flex items-center gap-2">
                               <Layout className="h-4 w-4 text-primary" />
