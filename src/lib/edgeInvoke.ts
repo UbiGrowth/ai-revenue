@@ -27,12 +27,51 @@ function summarizeEdgeInvokeError(fn: string, error: any) {
   return `${base}${parts.length ? ` (${parts.join(", ")})` : ""}`;
 }
 
+async function invokeEdgeRawForDebug(fn: string, body: unknown) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(anonKey ? { apikey: anonKey } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  return { status: res.status, statusText: res.statusText, text, hasToken: Boolean(token) };
+}
+
 export async function invokeEdge<T>(fn: string, body: unknown): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>(fn, { body });
   if (error) {
     // eslint-disable-next-line no-console
     console.error("[edge] invoke failed", { fn, error });
-    throw new Error(summarizeEdgeInvokeError(fn, error));
+    const msg = summarizeEdgeInvokeError(fn, error);
+
+    // If supabase-js swallowed the body (common), replay via raw fetch to capture the real status/body.
+    const hasDetails = Boolean((error as any)?.details) || Boolean((error as any)?.context?.body);
+    if (!hasDetails) {
+      try {
+        const raw = await invokeEdgeRawForDebug(fn, body);
+        // eslint-disable-next-line no-console
+        console.error("[edge] raw fetch debug", { fn, ...raw });
+        throw new Error(
+          `[${fn}] Edge Function failed (status=${raw.status}, message=${(error as any)?.message || "non-2xx"}, ` +
+            `details=${raw.text || "(empty)"}, hasToken=${raw.hasToken})`
+        );
+      } catch (e) {
+        // fall through to original message if raw fetch also fails unexpectedly
+        if (e instanceof Error) throw e;
+      }
+    }
+
+    throw new Error(msg);
   }
   return data as T;
 }
