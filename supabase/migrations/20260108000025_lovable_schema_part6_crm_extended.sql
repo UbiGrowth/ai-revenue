@@ -156,14 +156,42 @@ CREATE TABLE IF NOT EXISTS public.rate_limit_counters (
 -- INDEXES
 -- ============================================
 
-CREATE INDEX IF NOT EXISTS idx_accounts_tenant_id ON public.accounts(tenant_id);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'accounts' AND column_name = 'tenant_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_accounts_tenant_id ON public.accounts(tenant_id)';
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_accounts_industry ON public.accounts(industry);
-CREATE INDEX IF NOT EXISTS idx_crm_contacts_tenant_id ON public.crm_contacts(tenant_id);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'crm_contacts' AND column_name = 'tenant_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_crm_contacts_tenant_id ON public.crm_contacts(tenant_id)';
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_crm_contacts_email ON public.crm_contacts(email);
-CREATE INDEX IF NOT EXISTS idx_opportunities_tenant_id ON public.opportunities(tenant_id);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'opportunities' AND column_name = 'tenant_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_opportunities_tenant_id ON public.opportunities(tenant_id)';
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_opportunities_account_id ON public.opportunities(account_id);
 CREATE INDEX IF NOT EXISTS idx_opportunities_stage ON public.opportunities(stage);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_tenant_id ON public.crm_activities(tenant_id);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'crm_activities' AND column_name = 'tenant_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_crm_activities_tenant_id ON public.crm_activities(tenant_id)';
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_crm_activities_contact_id ON public.crm_activities(contact_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_workspace_id ON public.notifications(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
@@ -190,58 +218,78 @@ ALTER TABLE public.agent_runs ENABLE ROW LEVEL SECURITY;
 
 -- Accounts
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'accounts' AND policyname = 'tenant_access_select') THEN
-    CREATE POLICY "tenant_access_select" ON public.accounts FOR SELECT
-      USING (user_belongs_to_tenant(tenant_id));
-  END IF;
-  
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'accounts' AND policyname = 'tenant_access_insert') THEN
-    CREATE POLICY "tenant_access_insert" ON public.accounts FOR INSERT
-      WITH CHECK (user_belongs_to_tenant(tenant_id));
-  END IF;
-  
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'accounts' AND policyname = 'tenant_access_update') THEN
-    CREATE POLICY "tenant_access_update" ON public.accounts FOR UPDATE
-      USING (user_belongs_to_tenant(tenant_id));
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'accounts' AND column_name = 'tenant_id'
+  ) THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'accounts' AND policyname = 'tenant_access_select') THEN
+      CREATE POLICY "tenant_access_select" ON public.accounts FOR SELECT
+        USING (user_belongs_to_tenant(tenant_id));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'accounts' AND policyname = 'tenant_access_insert') THEN
+      CREATE POLICY "tenant_access_insert" ON public.accounts FOR INSERT
+        WITH CHECK (user_belongs_to_tenant(tenant_id));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'accounts' AND policyname = 'tenant_access_update') THEN
+      CREATE POLICY "tenant_access_update" ON public.accounts FOR UPDATE
+        USING (user_belongs_to_tenant(tenant_id));
+    END IF;
   END IF;
 END $$;
 
 -- CRM Contacts
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_contacts' AND policyname = 'tenant_access_select') THEN
-    CREATE POLICY "tenant_access_select" ON public.crm_contacts FOR SELECT
-      USING (user_belongs_to_tenant(tenant_id));
-  END IF;
-  
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_contacts' AND policyname = 'tenant_access_insert') THEN
-    CREATE POLICY "tenant_access_insert" ON public.crm_contacts FOR INSERT
-      WITH CHECK (user_belongs_to_tenant(tenant_id));
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'crm_contacts' AND column_name = 'tenant_id'
+  ) THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_contacts' AND policyname = 'tenant_access_select') THEN
+      CREATE POLICY "tenant_access_select" ON public.crm_contacts FOR SELECT
+        USING (user_belongs_to_tenant(tenant_id));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_contacts' AND policyname = 'tenant_access_insert') THEN
+      CREATE POLICY "tenant_access_insert" ON public.crm_contacts FOR INSERT
+        WITH CHECK (user_belongs_to_tenant(tenant_id));
+    END IF;
   END IF;
 END $$;
 
 -- Opportunities
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opportunities' AND policyname = 'tenant_access_select') THEN
-    CREATE POLICY "tenant_access_select" ON public.opportunities FOR SELECT
-      USING (user_belongs_to_tenant(tenant_id));
-  END IF;
-  
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opportunities' AND policyname = 'tenant_access_insert') THEN
-    CREATE POLICY "tenant_access_insert" ON public.opportunities FOR INSERT
-      WITH CHECK (user_belongs_to_tenant(tenant_id));
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'opportunities' AND column_name = 'tenant_id'
+  ) THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opportunities' AND policyname = 'tenant_access_select') THEN
+      CREATE POLICY "tenant_access_select" ON public.opportunities FOR SELECT
+        USING (user_belongs_to_tenant(tenant_id));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'opportunities' AND policyname = 'tenant_access_insert') THEN
+      CREATE POLICY "tenant_access_insert" ON public.opportunities FOR INSERT
+        WITH CHECK (user_belongs_to_tenant(tenant_id));
+    END IF;
   END IF;
 END $$;
 
 -- CRM Activities
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_activities' AND policyname = 'tenant_access_select') THEN
-    CREATE POLICY "tenant_access_select" ON public.crm_activities FOR SELECT
-      USING (user_belongs_to_tenant(tenant_id));
-  END IF;
-  
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_activities' AND policyname = 'tenant_access_insert') THEN
-    CREATE POLICY "tenant_access_insert" ON public.crm_activities FOR INSERT
-      WITH CHECK (user_belongs_to_tenant(tenant_id));
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'crm_activities' AND column_name = 'tenant_id'
+  ) THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_activities' AND policyname = 'tenant_access_select') THEN
+      CREATE POLICY "tenant_access_select" ON public.crm_activities FOR SELECT
+        USING (user_belongs_to_tenant(tenant_id));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_activities' AND policyname = 'tenant_access_insert') THEN
+      CREATE POLICY "tenant_access_insert" ON public.crm_activities FOR INSERT
+        WITH CHECK (user_belongs_to_tenant(tenant_id));
+    END IF;
   END IF;
 END $$;
 

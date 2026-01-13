@@ -35,6 +35,22 @@ function isOptOutKeyword(k: string): boolean {
   return ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"].includes(k);
 }
 
+function isFormUrlEncoded(req: Request): boolean {
+  const ct = (req.headers.get("content-type") || "").toLowerCase();
+  return ct.includes("application/x-www-form-urlencoded");
+}
+
+function twimlMessage(body: string): Response {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Message>${body}</Message>\n</Response>\n`;
+  return new Response(xml, {
+    status: 200,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/xml; charset=utf-8",
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -66,10 +82,27 @@ serve(async (req) => {
       }
     }
 
-    const body = (await req.json().catch(() => ({}))) as Partial<SmsUnsubscribeInput>;
-    const tenant_id = mustString(body.tenant_id, "tenant_id");
-    const phone = normalizePhone(mustString(body.phone, "phone"));
-    const keyword = normalizeKeyword(mustString(body.keyword, "keyword"));
+    // Support Twilio webhooks (application/x-www-form-urlencoded) AND JSON (existing smoke harness).
+    // Twilio typically sends: From, To, Body. We require tenant_id via querystring for MVP:
+    // e.g. /sms_unsubscribe?tenant_id=<workspace_uuid>
+    let tenant_id = "";
+    let phone = "";
+    let keyword = "";
+
+    if (isFormUrlEncoded(req)) {
+      const url = new URL(req.url);
+      tenant_id = mustString(url.searchParams.get("tenant_id"), "tenant_id");
+
+      const raw = await req.text();
+      const params = new URLSearchParams(raw);
+      phone = normalizePhone(mustString(params.get("From"), "From"));
+      keyword = normalizeKeyword(mustString(params.get("Body"), "Body"));
+    } else {
+      const body = (await req.json().catch(() => ({}))) as Partial<SmsUnsubscribeInput>;
+      tenant_id = mustString(body.tenant_id, "tenant_id");
+      phone = normalizePhone(mustString(body.phone, "phone"));
+      keyword = normalizeKeyword(mustString(body.keyword, "keyword"));
+    }
 
     // Best-effort scoping: if workspace header exists, require match.
     const headerWorkspaceId = req.headers.get("x-workspace-id");
@@ -82,8 +115,18 @@ serve(async (req) => {
 
     if (!isOptOutKeyword(keyword)) {
       // Not an unsubscribe keyword; do nothing but respond successfully (fastest viable).
+      if (isFormUrlEncoded(req)) {
+        // Acknowledge without sending a message.
+        return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<Response></Response>\n`, {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "text/xml; charset=utf-8" },
+        });
+      }
+
       const out: SmsUnsubscribeOutput = { unsubscribed: true };
-      return new Response(JSON.stringify(out), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify(out), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabaseAdmin = createServiceClient();
@@ -97,11 +140,27 @@ serve(async (req) => {
       { onConflict: "tenant_id,channel,phone" }
     );
 
+    if (isFormUrlEncoded(req)) {
+      // Twilio webhook: respond with confirmation SMS via TwiML (no extra provider call).
+      return twimlMessage("You’re unsubscribed. No more messages. Reply START to re-subscribe.");
+    }
+
     const out: SmsUnsubscribeOutput = { unsubscribed: true };
-    return new Response(JSON.stringify(out), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify(out), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("[sms_unsubscribe] Error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+
+    // For Twilio webhook callers, do not 500-loop; acknowledge with generic TwiML.
+    // This prevents repeated webhook retries while we still log server-side errors.
+    // (MVP: Twilio retry storms are worse than a missing confirmation message.)
+    if (isFormUrlEncoded(req)) {
+      return twimlMessage("OK");
+    }
+
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -303,6 +303,50 @@ async function main() {
     console.error(`FAIL sms_logs_usage.smoke -> ${(e as Error).message}`);
   }
 
+  // sms_cap_check.smoke: asserts response shape
+  const capCheck = await run("sms_cap_check", { tenant_id: workspaceId });
+  try {
+    const parsed = JSON.parse(capCheck.bodyText || "{}");
+    if (typeof parsed.allowed !== "boolean" || typeof parsed.remaining !== "number") {
+      throw new Error(`sms_cap_check bad shape: ${capCheck.bodyText}`);
+    }
+  } catch (e) {
+    failed = true;
+    console.error(`FAIL sms_cap_check.smoke -> ${(e as Error).message}`);
+  }
+
+  // sms_event_log.smoke: writes a non-billable usage_events row (immutable event log)
+  const smokeEventProviderId = `smoke-event-${Date.now()}`;
+  const evt = await run("sms_event_log", {
+    tenant_id: workspaceId,
+    campaign_id: smokeCampaignId,
+    lead_id: smokeLeadId,
+    recipient_phone: "+15550001003",
+    event_type: "other",
+    status: "queued",
+    provider: "twilio",
+    provider_message_id: smokeEventProviderId,
+    cost_estimate: 0.007,
+    metadata: { smoke: true },
+  });
+  if (!evt.ok) failed = true;
+
+  try {
+    const { data, error } = await authed
+      .from("usage_events")
+      .select("id")
+      .eq("tenant_id", workspaceId)
+      .eq("channel", "sms")
+      .eq("provider_message_id", smokeEventProviderId)
+      .limit(1);
+    if (error || !data || data.length === 0) {
+      throw new Error(`sms_event_log did not persist usage_events row: ${error?.message || "no rows"}`);
+    }
+  } catch (e) {
+    failed = true;
+    console.error(`FAIL sms_event_log_persist.smoke -> ${(e as Error).message}`);
+  }
+
   // ============================================================
   // DAY 2 SOCIAL (LinkedIn) SMOKES (merge-blocking)
   // ============================================================
