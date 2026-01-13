@@ -79,6 +79,10 @@ export async function invokeEdgeRaw<T>({ fn, body, signal }: InvokeOpts): Promis
   const text = await res.text();
 
   if (!res.ok) {
+    const invalidJwt =
+      res.status === 401 &&
+      (text.includes("Invalid JWT") || text.includes("\"Invalid JWT\"") || text.includes("invalid jwt"));
+
     // This is the missing data you need.
     console.error(`[edge] ${fn} non-2xx`, {
       status: res.status,
@@ -95,6 +99,21 @@ export async function invokeEdgeRaw<T>({ fn, body, signal }: InvokeOpts): Promis
     });
 
     // Surface a useful error in the UI (not just generic)
+    if (invalidJwt) {
+      const issuerHost2 = jwtPayload?.iss ? new URL(jwtPayload.iss).host : null;
+      const clientHost2 = new URL(clientUrl).host;
+      throw new Error(
+        `[${fn}] 401 Invalid JWT. This usually means the session token was issued by a DIFFERENT Supabase project.\n` +
+          `- supabaseUrl(client): ${clientUrl}\n` +
+          `- functionsUrl(env): ${functionsUrlEnv}\n` +
+          `- jwt.iss: ${jwtPayload?.iss ?? "(missing)"}\n` +
+          `- clientHost: ${clientHost2}\n` +
+          `- issuerHost: ${issuerHost2 ?? "(missing)"}\n` +
+          `Fix: sign out + sign back in, or clear LocalStorage keys starting with "sb-" for the old project, then reload.\n` +
+          `Raw response: ${text || "(empty body)"}`
+      );
+    }
+
     throw new Error(`[${fn}] ${res.status} ${res.statusText}: ${text || "(empty body)"}`);
   }
 
