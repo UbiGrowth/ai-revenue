@@ -311,7 +311,7 @@ export function AutopilotCampaignWizard({ onComplete }: AutopilotCampaignWizardP
                 >
                   <Checkbox
                     checked={selectedChannels.includes(channel.id)}
-                    onCheckedChange={() => handleChannelToggle(channel.id)}
+                    onCheckedChange={() => {}}
                   />
                   <channel.icon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{channel.label}</span>
