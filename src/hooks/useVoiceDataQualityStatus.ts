@@ -100,7 +100,8 @@ export function useVoiceDataQualityStatus(workspaceId?: string | null): VoiceDat
 
   useEffect(() => {
     fetchStatus();
-  }, [fetchStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]); // Only re-fetch when workspaceId changes
 
   // Derive status from isDemoMode and voiceConnected
   const status: VoiceDataQualityStatus = useMemo(() => {
