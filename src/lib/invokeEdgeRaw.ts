@@ -15,7 +15,7 @@ function decodeJwtPayload(jwt: string) {
   const payload = jwt.split(".")[1];
   if (!payload) return null;
   const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-  return JSON.parse(json) as { iss?: string; aud?: string; exp?: number } | null;
+  return JSON.parse(json) as { iss?: string; aud?: string; exp?: number; role?: string; sub?: string } | null;
 }
 
 export async function invokeEdgeRaw<T>({ fn, body, signal }: InvokeOpts): Promise<T> {
@@ -35,6 +35,24 @@ export async function invokeEdgeRaw<T>({ fn, body, signal }: InvokeOpts): Promis
   const functionsUrlEnv = import.meta.env.VITE_SUPABASE_URL;
 
   const jwtPayload = decodeJwtPayload(token);
+
+  // Guardrail: the Supabase anon/publishable key is itself a JWT (starts with eyJ...),
+  // but it is NOT a user access token. If we accidentally send it as Bearer, Edge will return "Invalid JWT".
+  if (token === import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error(
+      `[${fn}] Invalid auth: using VITE_SUPABASE_PUBLISHABLE_KEY as Bearer token. ` +
+        `This key is a project anon JWT, not a user session. Ensure the user is logged in and do not fallback to anon key for Authorization.`
+    );
+  }
+  if (jwtPayload && !jwtPayload.sub) {
+    console.warn(`[auth] Token has no sub claim; this does not look like a user session JWT`, {
+      fn,
+      jwtIss: jwtPayload.iss ?? null,
+      jwtAud: jwtPayload.aud ?? null,
+      jwtRole: jwtPayload.role ?? null,
+      tokenPrefix: `${token.slice(0, 20)}...`,
+    });
+  }
   const clientHost = new URL(clientUrl).host;
   const issuerHost = jwtPayload?.iss ? new URL(jwtPayload.iss).host : null;
 

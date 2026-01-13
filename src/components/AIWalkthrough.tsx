@@ -72,7 +72,8 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({ messages: [], isFirstMessage: true, workspaceId }),
       });
@@ -154,7 +155,8 @@ const AIWalkthrough = ({ onClose, forceShow = false }: AIWalkthroughProps) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({ messages: newMessages, isFirstMessage: false, workspaceId }),
       });
