@@ -48,6 +48,13 @@ async function invokeEdgeRawForDebug(fn: string, body: unknown) {
 }
 
 export async function invokeEdge<T>(fn: string, body: unknown): Promise<T> {
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.log("[edge] invoke", {
+      fn,
+      url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fn}`,
+    });
+  }
   const { data, error } = await supabase.functions.invoke<T>(fn, { body });
   if (error) {
     // eslint-disable-next-line no-console
