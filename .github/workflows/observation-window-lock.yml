@@ -130,3 +130,90 @@ jobs:
             exit 1
           fi
 
+      - name: Require post-observation decision gate (prod)
+        if: ${{ steps.obs.outputs.is_active != 'true' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          # If no Supabase secrets, do not enforce (can't verify). Fail closed would block all PRs.
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "Decision gate skipped: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured."
+            exit 0
+          fi
+
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+          url = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/v_observation_decision_status?select=decision,is_set,decided_at"
+          key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          req = urllib.request.Request(url, headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Accept": "application/json",
+          })
+          try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+              body = resp.read().decode("utf-8")
+          except Exception as e:
+            print(f"Failed to query observation decision status: {e}", file=sys.stderr)
+            # Fail closed: treat as not set so code changes are blocked.
+            print("is_set=false")
+            sys.exit(0)
+          data = json.loads(body) if body else []
+          row = (data[0] if isinstance(data, list) and data else None) or {}
+          is_set = bool(row.get("is_set", False))
+          decision = str(row.get("decision") or "")
+          decided_at = str(row.get("decided_at") or "")
+          print(f"is_set={'true' if is_set else 'false'}")
+          print(f"decision={decision}")
+          print(f"decided_at={decided_at}")
+          PY | tee /tmp/decision.txt
+
+          is_set="$(rg -o '^is_set=.*' /tmp/decision.txt | cut -d= -f2 || echo false)"
+          decision="$(rg -o '^decision=.*' /tmp/decision.txt | cut -d= -f2- || echo '')"
+
+          if [ "$is_set" = "true" ]; then
+            echo "Decision gate satisfied: $decision"
+            exit 0
+          fi
+
+          # Block code-path changes until a decision is recorded.
+          bad=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+
+            # Allow docs-only changes
+            if [[ "$f" == docs/* ]]; then
+              continue
+            fi
+
+            # Allow monitoring/alerting/logging surfaces
+            if [[ "$f" == supabase/functions/slo-monitor/* ]]; then
+              continue
+            fi
+
+            # Allow migrations only if monitoring/alerting/observation related
+            if [[ "$f" == supabase/migrations/* ]]; then
+              bn="$(basename "$f")"
+              if echo "$bn" | rg -qi "drift|alert|slo|observation|monitor"; then
+                continue
+              fi
+            fi
+
+            echo "❌ Blocked change until decision is set: $f"
+            bad=1
+          done < .changed_files_all.txt
+
+          if [ "$bad" -ne 0 ]; then
+            echo ""
+            echo "Post-observation decision gate is required before code-path changes:"
+            echo "  - SCALE_EXISTING"
+            echo "  - EXPAND_PROPOSALS"
+            echo "  - HOLD_STEADY"
+            echo ""
+            echo "Set it by calling the RPC: public.set_observation_decision('<OPTION>')"
+            exit 1
+          fi
+
