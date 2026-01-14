@@ -2,7 +2,7 @@
         run: |
           set -euo pipefail
           if [ -s .changed_supabase_functions.txt ]; then
-            cat .changed_supabase_functions.txt | xargs -d '\n' rg -n --no-messages \
+            cat .changed_supabase_functions.txt | xargs -r -d '\n' rg -n --no-messages \
               "ai\.gateway\.lovable\.dev|api\.openai\.com/v1|generativelanguage\.googleapis\.com" && {
                 echo "ERROR: Vendor URLs must only exist in supabase/functions/_shared/providers/* (or be removed)."
                 exit 1
@@ -13,7 +13,7 @@
         run: |
           set -euo pipefail
           if [ -s .changed_supabase_functions.txt ]; then
-            cat .changed_supabase_functions.txt | xargs -d '\n' rg -n --no-messages \
+            cat .changed_supabase_functions.txt | xargs -r -d '\n' rg -n --no-messages \
               "from ['\"]openai['\"]|@google/generative-ai|from ['\"]@google/generative-ai['\"]|from ['\"]anthropic['\"]|Anthropic\\b" && {
                 echo "ERROR: Provider SDK imports must only exist in supabase/functions/_shared/providers/*."
                 exit 1
@@ -24,7 +24,7 @@
         run: |
           set -euo pipefail
           if [ -s .changed_src.txt ]; then
-            cat .changed_src.txt | xargs -d '\n' rg -n --no-messages \
+            cat .changed_src.txt | xargs -r -d '\n' rg -n --no-messages \
               "\\bOpenAI\\b|\\bGemini\\b|\\bClaude\\b|\\bAnthropic\\b|\\bopenai\\b|\\bgemini\\b|\\bclaude\\b|\\banthropic\\b|ai\.gateway" \
               --glob '!src/**/*.test.*' && {
                 echo "ERROR: Frontend must not reference LLM providers or gateways."
