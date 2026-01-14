@@ -12,6 +12,16 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json().catch(() => ({}));
+    const campaignId = (body as any)?.campaignId;
+
+    if (!campaignId) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Missing campaignId" }),
+        { status: 400, headers: { "content-type": "application/json" } },
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     
@@ -37,14 +47,7 @@ serve(async (req) => {
     }
 
     // Parse request
-    const { campaignId, enabled } = await req.json();
-    
-    if (!campaignId) {
-      return new Response(
-        JSON.stringify({ error: "Missing campaignId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const enabled = (body as any)?.enabled;
 
     if (typeof enabled !== "boolean") {
       return new Response(
@@ -90,6 +93,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
+        ok: true,
         success: true, 
         campaignId,
         autopilotEnabled: enabled 
