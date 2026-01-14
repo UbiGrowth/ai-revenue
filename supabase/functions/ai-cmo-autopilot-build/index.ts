@@ -40,6 +40,19 @@ serve(async (req) => {
       );
     }
 
+    // Resolve tenant context (workspace -> tenant) BEFORE consuming the request body.
+    let ctx: { tenantId: string; workspaceId: string; userId: string };
+    try {
+      ctx = await resolveTenantContext(req, supabase);
+      if (!ctx.tenantId) throw new Error("Missing tenant_id");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unable to resolve tenant context";
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Parse request
     const body = await req.json().catch(() => ({}));
     const { icp, offer, channels, desiredResult, target_tags, target_segments } = body as any;
@@ -79,19 +92,6 @@ serve(async (req) => {
         JSON.stringify({ error: `Invalid desiredResult. Must be one of: ${VALID_GOALS.join(", ")}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // Resolve tenant context (workspace -> tenant, no JWT tenant claim assumptions).
-    let ctx: { tenantId: string; workspaceId: string; userId: string };
-    try {
-      ctx = await resolveTenantContext(req, supabase, { body, userId: user.id });
-      if (!ctx.tenantId) throw new Error("Missing tenant_id");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Unable to resolve tenant context";
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     // Step 1: Create campaign row first (status draft, autopilot_enabled = true, goal set)

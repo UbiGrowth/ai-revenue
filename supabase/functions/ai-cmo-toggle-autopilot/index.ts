@@ -13,16 +13,6 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const campaignId = (body as any)?.campaignId;
-
-    if (!campaignId) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing campaignId" }),
-        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } },
-      );
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     
@@ -47,6 +37,29 @@ serve(async (req) => {
       );
     }
 
+    // Resolve tenant context (workspace -> tenant) BEFORE consuming the request body.
+    let ctx: { tenantId: string; workspaceId: string; userId: string };
+    try {
+      ctx = await resolveTenantContext(req, supabase);
+      if (!ctx.tenantId) throw new Error("Missing tenant_id");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unable to resolve tenant context";
+      return new Response(JSON.stringify({ ok: false, error: msg }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const campaignId = (body as any)?.campaignId;
+
+    if (!campaignId) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Missing campaignId" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Parse request
     const enabled = (body as any)?.enabled;
 
@@ -55,19 +68,6 @@ serve(async (req) => {
         JSON.stringify({ error: "enabled must be a boolean" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // Get tenant context (workspace -> tenant, no JWT tenant claim assumptions).
-    let ctx: { tenantId: string; workspaceId: string; userId: string };
-    try {
-      ctx = await resolveTenantContext(req, supabase, { body, userId: user.id });
-      if (!ctx.tenantId) throw new Error("Missing tenant_id");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Unable to resolve tenant context";
-      return new Response(JSON.stringify({ ok: false, error: msg, campaignId }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     // Update campaign autopilot status (RLS enforces tenant access)

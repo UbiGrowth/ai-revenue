@@ -25,7 +25,8 @@ export async function resolveTenantContext(
   supabase: SupabaseClient,
   opts?: { body?: unknown; userId?: string }
 ): Promise<TenantContext> {
-  const bodyObj = (opts?.body ?? {}) as any;
+  const bodyObj =
+    (opts?.body ?? (await req.clone().json().catch(() => ({})))) as any;
   const headerWorkspaceId = asNonEmptyString(req.headers.get("x-workspace-id"));
 
   let userId = asNonEmptyString(opts?.userId);
