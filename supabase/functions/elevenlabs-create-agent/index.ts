@@ -25,24 +25,23 @@ serve(async (req) => {
       )
     }
 
-    // Auth: use user (anon) client to validate JWT
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Auth: read header case-insensitively + require Bearer
+    const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization')
+    if (!authHeader?.toLowerCase().startsWith('bearer ')) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing or invalid Authorization header' }),
         { status: 401, headers: jsonHeaders }
       )
     }
-    const token = authHeader.replace('Bearer ', '')
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     })
 
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser(token)
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        JSON.stringify({ success: false, error: userError?.message || 'Unauthorized' }),
         { status: 401, headers: jsonHeaders }
       )
     }
@@ -74,14 +73,15 @@ serve(async (req) => {
 
     if (!workspace_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'workspace_id is required' }),
+        JSON.stringify({ success: false, error: 'MISSING WORKSPACE_ID' }),
         { status: 400, headers: jsonHeaders }
       )
     }
 
-    if (!from_phone_number) {
+    const resolvedAgentName = name || agent_name
+    if (!resolvedAgentName) {
       return new Response(
-        JSON.stringify({ success: false, error: 'from_phone_number is required' }),
+        JSON.stringify({ success: false, error: 'MISSING AGENT_NAME' }),
         { status: 400, headers: jsonHeaders }
       )
     }
@@ -114,7 +114,51 @@ serve(async (req) => {
 
     if (!ELEVENLABS_API_KEY) {
       return new Response(
-        JSON.stringify({ success: false, error: 'ElevenLabs API key is missing (configure in ai_settings_voice or ELEVENLABS_API_KEY)' }),
+        JSON.stringify({ success: false, error: 'MISSING ELEVENLABS_API_KEY' }),
+        { status: 400, headers: jsonHeaders }
+      )
+    }
+
+    // Resolve from_phone_number (required). If not provided, derive from settings if possible.
+    let resolvedFromPhoneNumber: string | null = from_phone_number || null
+    if (!resolvedFromPhoneNumber) {
+      let defaultPhoneNumberId: string | null = null
+
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('ai_settings_voice')
+          .select('default_phone_number_id')
+          .eq('workspace_id', workspace_id)
+          .maybeSingle()
+        if (error) throw error
+        defaultPhoneNumberId = (data as { default_phone_number_id?: string | null } | null)?.default_phone_number_id ?? null
+      } catch {
+        const { data } = await supabaseAdmin
+          .from('ai_settings_voice')
+          .select('default_phone_number_id')
+          .eq('tenant_id', workspace_id)
+          .maybeSingle()
+        defaultPhoneNumberId = (data as { default_phone_number_id?: string | null } | null)?.default_phone_number_id ?? null
+      }
+
+      if (defaultPhoneNumberId) {
+        const { data: phoneRow, error: phoneError } = await supabaseAdmin
+          .from('voice_phone_numbers')
+          .select('phone_number')
+          .eq('id', defaultPhoneNumberId)
+          .eq('workspace_id', workspace_id)
+          .maybeSingle()
+        if (phoneError) {
+          console.error('Failed to derive from_phone_number:', phoneError)
+        } else {
+          resolvedFromPhoneNumber = (phoneRow as { phone_number?: string | null } | null)?.phone_number ?? null
+        }
+      }
+    }
+
+    if (!resolvedFromPhoneNumber) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'MISSING FROM_PHONE_NUMBER' }),
         { status: 400, headers: jsonHeaders }
       )
     }
@@ -203,7 +247,7 @@ Keep it conversational. Don't sound like you're reading from a script.`,
     const template = USE_CASE_TEMPLATES[use_case as keyof typeof USE_CASE_TEMPLATES] || USE_CASE_TEMPLATES.sales_outreach
 
     // Use provided values or smart defaults
-    const agentName = name || agent_name || template.default_name
+    const agentName = resolvedAgentName || template.default_name
     const agentFirstMessage = first_message || template.default_first_message
     const agentPrompt = system_prompt || template.default_prompt
 
@@ -239,8 +283,24 @@ Keep it conversational. Don't sound like you're reading from a script.`,
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text()
-      console.error('ElevenLabs agent creation failed:', errorText)
-      throw new Error(`Failed to create agent: ${errorText}`)
+      const truncated = errorText.length > 2000 ? `${errorText.slice(0, 2000)}…` : errorText
+      const requestId =
+        createResponse.headers.get('x-request-id') ||
+        createResponse.headers.get('request-id') ||
+        createResponse.headers.get('cf-ray') ||
+        null
+
+      console.error('ElevenLabs agent creation failed:', createResponse.status, truncated)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'ELEVENLABS_CREATE_FAILED',
+          status: createResponse.status,
+          requestId,
+          details: truncated,
+        }),
+        { status: createResponse.status, headers: jsonHeaders }
+      )
     }
 
     const agentData = await createResponse.json()
@@ -263,7 +323,7 @@ Keep it conversational. Don't sound like you're reading from a script.`,
             voice_id: agentVoiceId,
             language: language,
             industry: industry,
-            from_phone_number: from_phone_number,
+            from_phone_number: resolvedFromPhoneNumber,
           },
           status: 'active',
           created_by: user.id,
@@ -271,12 +331,23 @@ Keep it conversational. Don't sound like you're reading from a script.`,
 
       if (insertError) {
         console.error('Failed to store agent in database:', insertError)
+        const dbErr = insertError as unknown as {
+          message: string
+          code?: string | null
+          details?: string | null
+          hint?: string | null
+        }
         return new Response(
           JSON.stringify({
             success: false,
             error: 'Agent created on ElevenLabs but failed to store in database',
             agent_id: agentData.agent_id,
-            details: insertError.message,
+            db_error: {
+              message: dbErr.message,
+              code: dbErr.code ?? null,
+              details: dbErr.details ?? null,
+              hint: dbErr.hint ?? null,
+            },
           }),
           { status: 500, headers: jsonHeaders }
         )
