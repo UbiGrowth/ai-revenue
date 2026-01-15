@@ -26,6 +26,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ -s .changed_supabase_functions.txt ]; then
+            FOUND=0
+            while IFS= read -r file; do
+              if [ -n "$file" ] && rg -n --no-messages \
+                "ai\.gateway\.lovable\.dev|api\.openai\.com/v1|generativelanguage\.googleapis\.com" "$file"; then
+                FOUND=1
+              fi
+            done < .changed_supabase_functions.txt
+            
+            if [ "$FOUND" -eq 1 ]; then
+              echo "ERROR: Vendor URLs must only exist in supabase/functions/_shared/providers/* (or be removed)."
+              exit 1
+            fi
             cat .changed_supabase_functions.txt | xargs -r -d '\n' rg -n --no-messages \
               "ai\.gateway\.lovable\.dev|api\.openai\.com/v1|generativelanguage\.googleapis\.com" && {
                 echo "ERROR: Vendor URLs must only exist in supabase/functions/_shared/providers/* (or be removed)."
@@ -37,6 +49,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ -s .changed_supabase_functions.txt ]; then
+            FOUND=0
+            while IFS= read -r file; do
+              if [ -n "$file" ] && rg -n --no-messages \
+                "from ['\"]openai['\"]|@google/generative-ai|from ['\"]@google/generative-ai['\"]|from ['\"]anthropic['\"]|Anthropic\\b" "$file"; then
+                FOUND=1
+              fi
+            done < .changed_supabase_functions.txt
+            
+            if [ "$FOUND" -eq 1 ]; then
+              echo "ERROR: Provider SDK imports must only exist in supabase/functions/_shared/providers/*."
+              exit 1
+            fi
             cat .changed_supabase_functions.txt | xargs -r -d '\n' rg -n --no-messages \
               "from ['\"]openai['\"]|@google/generative-ai|from ['\"]@google/generative-ai['\"]|from ['\"]anthropic['\"]|Anthropic\\b" && {
                 echo "ERROR: Provider SDK imports must only exist in supabase/functions/_shared/providers/*."
@@ -48,6 +72,19 @@ jobs:
         run: |
           set -euo pipefail
           if [ -s .changed_src.txt ]; then
+            FOUND=0
+            while IFS= read -r file; do
+              if [ -n "$file" ] && rg -n --no-messages \
+                "\\bOpenAI\\b|\\bGemini\\b|\\bClaude\\b|\\bAnthropic\\b|\\bopenai\\b|\\bgemini\\b|\\bclaude\\b|\\banthropic\\b|ai\.gateway" \
+                --glob '!src/**/*.test.*' "$file"; then
+                FOUND=1
+              fi
+            done < .changed_src.txt
+            
+            if [ "$FOUND" -eq 1 ]; then
+              echo "ERROR: Frontend must not reference LLM providers or gateways."
+              exit 1
+            fi
             cat .changed_src.txt | xargs -r -d '\n' rg -n --no-messages \
               "\\bOpenAI\\b|\\bGemini\\b|\\bClaude\\b|\\bAnthropic\\b|\\bopenai\\b|\\bgemini\\b|\\bclaude\\b|\\banthropic\\b|ai\.gateway" \
               --glob '!src/**/*.test.*' && {
