@@ -14,6 +14,20 @@ interface VoiceAgentRequest {
   constraints?: string[];
 }
 
+function requireTenantId(
+  user: { user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> },
+  corsHeaders: Record<string, string>
+): string | Response {
+  const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+  if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
+    return new Response(
+      JSON.stringify({ error: "tenant_id is required" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  return tenantId;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -42,18 +56,16 @@ serve(async (req) => {
       );
     }
 
+    const tenantIdResult = requireTenantId(user, corsHeaders);
+    if (tenantIdResult instanceof Response) {
+      return tenantIdResult;
+    }
+    const tenantId = tenantIdResult;
+
     // Handle GET request - List voice agents
     if (req.method === "GET") {
       const url = new URL(req.url);
       const campaignId = url.searchParams.get("campaignId");
-
-      const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
-      if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
-        return new Response(
-          JSON.stringify({ error: "tenant_id is required" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
 
       // Build query for voice agents
       let query = supabase
@@ -92,17 +104,10 @@ serve(async (req) => {
     // Handle POST request - Create voice agent
     const body: VoiceAgentRequest = await req.json();
     const { campaignId, brandVoice, icp, offer, constraints = [] } = body;
-    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
 
     if (!brandVoice || !icp || !offer) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: brandVoice, icp, offer" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: "tenant_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

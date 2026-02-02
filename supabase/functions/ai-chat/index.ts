@@ -165,7 +165,6 @@ When asked about leads or campaigns, reference the actual counts provided.`;
 
     console.log("[ai-chat] Calling LLM router (stream)");
 
-    const tenantId = workspaceId || user.id;
     const out = await runLLM({
       tenantId,
       capability: "ai.chat",

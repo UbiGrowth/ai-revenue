@@ -291,7 +291,6 @@ async function processLeadsForPipeline(
         .from('deals')
         .insert({
           tenant_id: tenantId,
-          tenant_id: tenantId,
           lead_id: lead.id,
           name: `${lead.company || lead.first_name || 'New'} - ${campaign.campaign_name}`,
           value: estimatedValue,
@@ -405,7 +404,6 @@ async function launchCampaign(
               .from('channel_outbox')
               .insert({
                 tenant_id: tenantId,
-                tenant_id: tenantId,
                 channel: 'email',
                 provider: 'resend',
                 recipient_id: lead.id,
@@ -452,7 +450,6 @@ async function launchCampaign(
             await supabaseAdmin
               .from('channel_outbox')
               .insert({
-                tenant_id: tenantId,
                 tenant_id: tenantId,
                 channel: 'social',
                 provider: integration.platform,
@@ -504,7 +501,6 @@ async function launchCampaign(
               await supabaseAdmin
                 .from('channel_outbox')
                 .insert({
-                  tenant_id: tenantId,
                   tenant_id: tenantId,
                   channel: 'voice',
                   provider: 'vapi',
@@ -560,7 +556,6 @@ async function launchCampaign(
               await supabaseAdmin
                 .from('channel_outbox')
                 .insert({
-                  tenant_id: tenantId,
                   tenant_id: tenantId,
                   channel: 'voice_vm',
                   provider: 'vapi',
@@ -618,7 +613,6 @@ async function launchCampaign(
               .from('channel_outbox')
               .insert({
                 tenant_id: tenantId,
-                tenant_id: tenantId,
                 channel: 'sms',
                 provider: 'twilio',
                 recipient_id: lead.id,
@@ -658,12 +652,10 @@ async function makeIdempotencyKey(parts: string[]): Promise<string> {
 }
 
 // Emit kernel event to kernel_events table (OS v1 contract)
-// CRITICAL: tenant_id and tenant_id must be kept separate
 // CORRELATION_ID: Request-level unique ID for tracing (includes requestId)
 // IDEMPOTENCY_KEY: Hash that prevents duplicate processing (action-level)
 async function emitKernelEvent(
   supabaseAdmin: any,
-  tenantId: string,
   tenantId: string,
   campaignId: string,
   eventType: string,
@@ -823,12 +815,7 @@ serve(async (req) => {
       });
     }
 
-    // CRITICAL: tenant_id and tenant_id are distinct concepts
-    // tenant_id = logical tenant for RLS and isolation
-    // tenant_id = operational tenant for data scoping
-    // They may be the same in single-tenant tenants, but must be tracked separately
     const tenantId = tenant_id;
-    const tenantId = tenant_id || tenant_id;
     const result: OrchestrationResult = {
       success: false,
       campaign_id,
@@ -882,7 +869,6 @@ serve(async (req) => {
       const kernelResult = await emitKernelEvent(
         supabaseAdmin, 
         tenantId, 
-        tenantId, 
         campaign_id, 
         'campaign_launched', 
         action,
@@ -935,7 +921,6 @@ serve(async (req) => {
           // Call optimizer
           const { data: optimizationResult } = await supabase.functions.invoke('cmo-optimizer', {
             body: {
-              tenant_id: tenantId,
               tenant_id: tenantId,
               campaign_id,
               goal: campaign.objective || 'leads',
