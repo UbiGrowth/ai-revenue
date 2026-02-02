@@ -1,8 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { runLLM } from "../_shared/llmRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-tenant-id",
+  "Access-Control-Expose-Headers": "x-ai-revenue-build",
+  "x-ai-revenue-build": "content-generate-llm-router-v1",
 };
 
 interface ContentRequest {
@@ -11,6 +15,7 @@ interface ContentRequest {
   assetGoal?: string;
   tone?: string;
   businessProfile?: any;
+  tenantId?: string;
 }
 
 serve(async (req) => {
@@ -19,11 +24,49 @@ serve(async (req) => {
   }
 
   try {
-    const { vertical, contentType, assetGoal, tone = 'professional', businessProfile }: ContentRequest = await req.json();
-    
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Missing or invalid Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Missing or invalid Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized", details: userError?.message || "Invalid JWT" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { vertical, contentType, assetGoal, tone = 'professional', businessProfile }: ContentRequest =
+      await req.json();
+
+    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+    if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
+      return new Response(
+        JSON.stringify({ error: "tenant_id is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     console.log(`Generating ${contentType} content for ${vertical}`);
@@ -184,46 +227,39 @@ IMPORTANT RULES:
       titlePrompt = `${businessName} ${vertical} Landing Page`;
     }
 
-    console.log(`Calling AI gateway for ${contentType} content...`);
-
-    // Call Lovable AI
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        console.error("Rate limit exceeded");
-        return new Response(
-          JSON.stringify({ error: "Rate limits exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (aiResponse.status === 402) {
-        console.error("Payment required");
-        return new Response(
-          JSON.stringify({ error: "Payment required. Please add funds to your Lovable AI tenant." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errorText);
-      throw new Error(`AI gateway error: ${aiResponse.status}`);
+    // Validate required payload fields
+    const missing: string[] = [];
+    if (!vertical || typeof vertical !== "string") missing.push("vertical");
+    if (!contentType || typeof contentType !== "string") missing.push("contentType");
+    if (missing.length > 0) {
+      return new Response(JSON.stringify({ error: "Missing required fields", missing }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const aiData = await aiResponse.json();
-    const generatedContent = aiData.choices[0].message.content;
+    console.log(`[content-generate] Calling LLM router for ${contentType}`);
+
+    const out = await runLLM({
+      tenantId,
+      capability: "content.generate",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
+      maxTokens: 1200,
+      timeoutMs: 25_000,
+    });
+
+    if (out.kind !== "text") {
+      return new Response(JSON.stringify({ error: "AI generation failed", details: "Unexpected streaming response" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const generatedContent = out.text;
 
     console.log(`AI generated content successfully for ${contentType}`);
 
@@ -273,7 +309,8 @@ IMPORTANT RULES:
     console.error("Error in content-generate:", error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error occurred"
+        error: "Unhandled error",
+        details: error instanceof Error ? error.message : "Unknown error occurred"
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
