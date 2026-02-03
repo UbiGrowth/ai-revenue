@@ -207,7 +207,6 @@ serve(async (req) => {
       for (const email of assets.emails) {
         assetInserts.push({
           tenant_id: tenantId,
-          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: email.subject,
           content_type: "email",
@@ -223,7 +222,6 @@ serve(async (req) => {
       for (const sms of assets.sms) {
         assetInserts.push({
           tenant_id: tenantId,
-          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: `SMS Step ${sms.step}`,
           content_type: "sms",
@@ -238,7 +236,6 @@ serve(async (req) => {
     if (assets.voice_scripts) {
       for (const script of assets.voice_scripts) {
         assetInserts.push({
-          tenant_id: tenantId,
           tenant_id: tenantId,
           campaign_id: campaign.id,
           title: `Voice Script - ${script.scenario}`,
@@ -256,7 +253,6 @@ serve(async (req) => {
       for (const post of assets.posts) {
         assetInserts.push({
           tenant_id: tenantId,
-          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: post.hook || `${post.channel} Post`,
           content_type: "social_post",
@@ -272,7 +268,6 @@ serve(async (req) => {
     if (assets.landing_pages) {
       for (const page of assets.landing_pages) {
         assetInserts.push({
-          tenant_id: tenantId,
           tenant_id: tenantId,
           campaign_id: campaign.id,
           title: page.title || page.headline,
@@ -295,7 +290,6 @@ serve(async (req) => {
     
     if (automationSteps.length > 0) {
       const stepInserts = automationSteps.map((step: any, index: number) => ({
-        tenant_id: tenantId,
         tenant_id: tenantId,
         automation_id: campaign.id, // Link to campaign as automation container
         step_order: step.step || index + 1,
