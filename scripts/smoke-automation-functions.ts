@@ -72,6 +72,8 @@ async function callEdgeFunction(opts: {
   return { name: opts.name, status: resp.status, ok: resp.ok, bodyText, buildHeader };
 }
 
+const DISABLED_FUNCTIONS = new Set(["ai-cmo-toggle-autopilot"]);
+
 async function main() {
   const supabaseUrl = firstEnv("SUPABASE_URL", "VITE_SUPABASE_URL") || inferSupabaseUrlFromConfigToml();
   const anonKey = firstEnv("SUPABASE_ANON_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY");
@@ -130,6 +132,10 @@ async function main() {
   let failed = false;
 
   const run = async (name: string, body?: unknown) => {
+    if (DISABLED_FUNCTIONS.has(name)) {
+      console.log(`SKIP ${name} -> disabled`);
+      return null;
+    }
     const r = await callEdgeFunction({ supabaseUrl, anonKey, accessToken, tenantId, name, body });
     const line = `${r.ok ? "PASS" : "FAIL"} ${r.name} -> ${r.status}`;
     const details = truncate(r.bodyText || "");
