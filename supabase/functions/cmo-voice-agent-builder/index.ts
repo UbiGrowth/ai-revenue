@@ -53,7 +53,7 @@ serve(async (req) => {
     
     if (!workspaceId || !brand_voice || !icp || !offer) {
       return new Response(JSON.stringify({ 
-        error: 'Missing required fields: workspace_id, brand_voice, icp, offer' 
+        error: 'Missing required fields: workspace_id (or tenant_id), brand_voice, icp, offer' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
