@@ -26,7 +26,7 @@ export async function listAssistants(): Promise<VoiceAssistant[]> {
     .eq('status', 'active')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data || []).map((agent) => ({
+  return (data || []).map((agent: Pick<VoiceAgentRow, 'agent_id' | 'name' | 'created_at'>) => ({
     id: agent.agent_id,
     name: agent.name || 'Unnamed Agent',
     createdAt: agent.created_at,
@@ -227,7 +227,15 @@ export async function createCampaign(
     status: data.status as VoiceCampaign['status'],
     goal: data.goal,
     assistantId: (content?.assistantId as string) || null,
-    config: (content?.config as VoiceCampaign['config']),
+    config: (content?.config as VoiceCampaign['config']) || {
+      maxConcurrentCalls: 1,
+      maxCallsPerDay: 100,
+      businessHoursOnly: true,
+      timezone: 'America/New_York',
+      retryFailedCalls: true,
+      maxRetries: 2,
+      callInterval: 30,
+    },
     stats: content?.stats as VoiceCampaign['stats'] | undefined,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
@@ -282,7 +290,15 @@ export async function updateCampaign(
     status: data.status as VoiceCampaign['status'],
     goal: data.goal,
     assistantId: (content?.assistantId as string) || null,
-    config: (content?.config as VoiceCampaign['config']),
+    config: (content?.config as VoiceCampaign['config']) || {
+      maxConcurrentCalls: 1,
+      maxCallsPerDay: 100,
+      businessHoursOnly: true,
+      timezone: 'America/New_York',
+      retryFailedCalls: true,
+      maxRetries: 2,
+      callInterval: 30,
+    },
     stats: content?.stats as VoiceCampaign['stats'] | undefined,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
