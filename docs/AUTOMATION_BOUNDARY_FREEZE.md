@@ -30,7 +30,6 @@ Then set branch protection to require the check **Automation Smoke Harness (PR G
 - `x-tenant-id: <tenant_uuid>`
 
 ### Harness-called functions
-
 - `campaign-orchestrator`
 - `content-generate`
 - `generate-hero-image`

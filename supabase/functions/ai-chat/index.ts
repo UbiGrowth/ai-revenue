@@ -4,7 +4,7 @@ import { runLLM, type LLMMessage } from "../_shared/llmRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-workspace-id",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-tenant-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -76,9 +76,7 @@ serve(async (req) => {
       );
     }
 
-    if (tenantId) {
-      console.log(`[ai-chat] Using tenant context: ${tenantId}`);
-    }
+    console.log(`[ai-chat] Using tenant context: ${tenantId}`);
 
     if (tenantId) {
 

@@ -104,7 +104,7 @@ async function main() {
   const userId = signInData.user?.id;
   if (!userId) throw new Error("Auth failed: missing user id");
 
-  let tenantId = firstEnv("SMOKE_TENANT_ID", "SMOKE_WORKSPACE_ID");
+  let tenantId = firstEnv("SMOKE_TENANT_ID");
   if (!tenantId) {
     const metaTenantId =
       signInData.user?.user_metadata?.tenant_id ||

@@ -794,6 +794,15 @@ export default function SettingsIntegrations() {
     try {
       // Determine if voice is connected based on having valid API keys
       const hasVoiceKeys = !!elevenlabsApiKey;
+      if (hasVoiceKeys && !elevenlabsModel) {
+        toast({
+          title: "Missing model",
+          description: "Please select an ElevenLabs model before saving.",
+          variant: "destructive",
+        });
+        setSaving(null);
+        return;
+      }
       
       const payload = {
         tenant_id: tenantId,
