@@ -236,16 +236,26 @@ export async function updateCampaign(
   if (updates.name) updateData.name = updates.name;
   if (updates.status) updateData.status = updates.status;
   if (updates.goal) updateData.goal = updates.goal;
+  const contentUpdates: Record<string, unknown> = {};
   if (updates.assistantId) {
-    updateData.content = {
-      ...(updateData.content || {}),
-      assistantId: updates.assistantId,
-    };
+    contentUpdates.assistantId = updates.assistantId;
   }
-  if (updates.config || updates.stats) {
+  if (updates.config !== undefined) {
+    contentUpdates.config = updates.config;
+  }
+  if (updates.stats !== undefined) {
+    contentUpdates.stats = updates.stats;
+  }
+  if (Object.keys(contentUpdates).length > 0) {
+    const { data: currentAsset, error: currentError } = await supabase
+      .from('assets')
+      .select('content')
+      .eq('id', id)
+      .single();
+    if (currentError) throw currentError;
     updateData.content = {
-      config: updates.config,
-      stats: updates.stats,
+      ...(currentAsset?.content as Record<string, unknown> | null),
+      ...contentUpdates,
     };
   }
 
