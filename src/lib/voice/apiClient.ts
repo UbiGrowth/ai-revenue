@@ -17,6 +17,7 @@ import type {
 
 type VoiceAgentRow = Database['public']['Tables']['voice_agents']['Row'];
 type VoiceCallRecordRow = Database['public']['Tables']['voice_call_records']['Row'];
+type ListAssistantsRow = Pick<VoiceAgentRow, 'agent_id' | 'name' | 'created_at'>;
 
 // Assistant APIs
 export async function listAssistants(): Promise<VoiceAssistant[]> {
@@ -26,7 +27,7 @@ export async function listAssistants(): Promise<VoiceAssistant[]> {
     .eq('status', 'active')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data || []).map((agent: Pick<VoiceAgentRow, 'agent_id' | 'name' | 'created_at'>) => ({
+  return (data || []).map((agent: ListAssistantsRow) => ({
     id: agent.agent_id,
     name: agent.name || 'Unnamed Agent',
     createdAt: agent.created_at,
