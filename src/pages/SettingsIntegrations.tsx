@@ -817,7 +817,7 @@ export default function SettingsIntegrations() {
     setSaving("voice");
 
     try {
-      // Check if voice provider is fully configured (requires both API key and voice ID)
+      // Determine if voice is fully configured with both Eleven Labs API key and voice ID
       const isVoiceConfigured = !!(elevenlabsApiKey && defaultElevenlabsVoiceId);
       
       const payload = {
