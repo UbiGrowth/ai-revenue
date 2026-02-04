@@ -87,12 +87,12 @@ serve(async (req) => {
       );
     }
 
-    // campaign.id is guaranteed to exist from the .select().single() query
+    // campaign.id is expected to exist from the .select().single() query, but we validate it defensively
     const normalizedCampaignId = campaign.id;
 
     if (!normalizedCampaignId || typeof normalizedCampaignId !== "string") {
       throw new Error(
-        `Invalid campaignId from database; keys=${Object.keys(campaign || {}).join(",")}`
+        `Invalid campaignId from database; keys=${Object.keys(campaign).join(",")}`
       );
     }
 
