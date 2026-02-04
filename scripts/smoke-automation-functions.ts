@@ -106,7 +106,7 @@ async function main() {
 
   let workspaceId = process.env.SMOKE_WORKSPACE_ID || null;
   let tenantId: string | null = null;
-  
+
   if (!workspaceId) {
     const { data: ownedWs } = await supabase
       .from("workspaces")
