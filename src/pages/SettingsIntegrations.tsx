@@ -69,21 +69,10 @@ interface DomainSettings {
 
 interface VoiceSettings {
   tenant_id: string;
-  vapi_public_key: string | null;
-  vapi_private_key: string | null;
   elevenlabs_api_key: string | null;
-  default_vapi_assistant_id: string | null;
   default_elevenlabs_voice_id: string | null;
   elevenlabs_model: string | null;
   updated_at: string | null;
-}
-
-interface VapiAssistant {
-  id: string;
-  name: string;
-  firstMessage?: string;
-  model?: string;
-  voice?: string;
 }
 
 interface StripeSettings {
@@ -169,10 +158,7 @@ const FIELD_LABELS: Record<string, string> = {
   outbound_webhook_url: "Outbound Webhook URL",
   domain: "Domain",
   cname_verified: "CNAME Verified",
-  vapi_public_key: "VAPI Public Key",
-  vapi_private_key: "VAPI Private Key",
   elevenlabs_api_key: "ElevenLabs API Key",
-  default_vapi_assistant_id: "Default Assistant",
   default_elevenlabs_voice_id: "Default Voice",
   elevenlabs_model: "ElevenLabs Model",
   stripe_publishable_key: "Publishable Key",
@@ -241,17 +227,9 @@ export default function SettingsIntegrations() {
 
   // Voice state
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
-  const [vapiPublicKey, setVapiPublicKey] = useState("");
-  const [vapiPrivateKey, setVapiPrivateKey] = useState("");
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState("");
-  const [defaultVapiAssistantId, setDefaultVapiAssistantId] = useState("");
   const [defaultElevenlabsVoiceId, setDefaultElevenlabsVoiceId] = useState("EXAVITQu4vr4xnSDxMaL");
   const [elevenlabsModel, setElevenlabsModel] = useState("eleven_multilingual_v2");
-  const [vapiAssistants, setVapiAssistants] = useState<VapiAssistant[]>([]);
-  const [loadingAssistants, setLoadingAssistants] = useState(false);
-  const [creatingAssistant, setCreatingAssistant] = useState(false);
-  const [newAssistantName, setNewAssistantName] = useState("");
-  const [newAssistantPrompt, setNewAssistantPrompt] = useState("You are a helpful AI assistant.");
 
   // Stripe state
   const [stripeSettings, setStripeSettings] = useState<StripeSettings | null>(null);
@@ -383,10 +361,7 @@ export default function SettingsIntegrations() {
     const voiceRow = voiceRes.data?.[0] ?? null;
     if (voiceRow) {
       setVoiceSettings(voiceRow as VoiceSettings);
-      setVapiPublicKey(voiceRow.vapi_public_key || "");
-      setVapiPrivateKey(voiceRow.vapi_private_key || "");
       setElevenlabsApiKey(voiceRow.elevenlabs_api_key || "");
-      setDefaultVapiAssistantId(voiceRow.default_vapi_assistant_id || "");
       setDefaultElevenlabsVoiceId(voiceRow.default_elevenlabs_voice_id || "EXAVITQu4vr4xnSDxMaL");
       setElevenlabsModel(voiceRow.elevenlabs_model || "eleven_multilingual_v2");
     }
@@ -818,14 +793,20 @@ export default function SettingsIntegrations() {
 
     try {
       // Determine if voice is connected based on having valid API keys
-      const hasVoiceKeys = !!(vapiPrivateKey || elevenlabsApiKey);
+      const hasVoiceKeys = !!elevenlabsApiKey;
+      if (hasVoiceKeys && !elevenlabsModel) {
+        toast({
+          title: "Missing model",
+          description: "Please select an ElevenLabs model before saving.",
+          variant: "destructive",
+        });
+        setSaving(null);
+        return;
+      }
       
       const payload = {
         tenant_id: tenantId,
-        vapi_public_key: vapiPublicKey || null,
-        vapi_private_key: vapiPrivateKey || null,
         elevenlabs_api_key: elevenlabsApiKey || null,
-        default_vapi_assistant_id: defaultVapiAssistantId || null,
         default_elevenlabs_voice_id: defaultElevenlabsVoiceId || null,
         elevenlabs_model: elevenlabsModel || null,
         is_connected: hasVoiceKeys, // Set connected status based on key presence
@@ -986,87 +967,6 @@ export default function SettingsIntegrations() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setSaving(null);
-    }
-  };
-
-  const loadVapiAssistants = async () => {
-    if (!vapiPrivateKey) {
-      toast({ title: "Missing Key", description: "Please save your VAPI Private Key first", variant: "destructive" });
-      return;
-    }
-    
-    setLoadingAssistants(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('vapi-list-assistants');
-      if (error) throw error;
-      if (data?.assistants) {
-        setVapiAssistants(data.assistants);
-        toast({ title: "Loaded", description: `Found ${data.assistants.length} VAPI assistants` });
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setLoadingAssistants(false);
-    }
-  };
-
-  const createVapiAssistant = async () => {
-    if (!newAssistantName.trim()) {
-      toast({ title: "Error", description: "Please enter an assistant name", variant: "destructive" });
-      return;
-    }
-    
-    setCreatingAssistant(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('vapi-manage-assistant', {
-        body: {
-          action: 'create',
-          assistantData: {
-            name: newAssistantName,
-            firstMessage: "Hello! How can I help you today?",
-            model: {
-              model: "gpt-4o",
-              messages: [{ role: "system", content: newAssistantPrompt }]
-            },
-            voice: {
-              provider: "11labs",
-              voiceId: defaultElevenlabsVoiceId,
-              model: elevenlabsModel
-            }
-          }
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast({ title: "Success", description: `Assistant "${newAssistantName}" created successfully` });
-      setNewAssistantName("");
-      setNewAssistantPrompt("You are a helpful AI assistant.");
-      
-      // Reload assistants list
-      await loadVapiAssistants();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setCreatingAssistant(false);
-    }
-  };
-
-  const deleteVapiAssistant = async (assistantId: string) => {
-    try {
-      const { error } = await supabase.functions.invoke('vapi-manage-assistant', {
-        body: { action: 'delete', assistantId }
-      });
-      
-      if (error) throw error;
-      
-      setVapiAssistants(prev => prev.filter(a => a.id !== assistantId));
-      if (defaultVapiAssistantId === assistantId) {
-        setDefaultVapiAssistantId("");
-      }
-      toast({ title: "Deleted", description: "Assistant deleted successfully" });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
@@ -1769,46 +1669,6 @@ export default function SettingsIntegrations() {
                 {/* Voice Tab */}
                 <TabsContent value="voice">
                   <div className="space-y-6">
-                    {/* VAPI Configuration */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Phone className="h-5 w-5 text-primary" />
-                          VAPI Configuration
-                        </CardTitle>
-                        <CardDescription>
-                          Configure your VAPI API keys for AI voice calling.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="vapi-public-key">VAPI Public Key</Label>
-                          <Input
-                            id="vapi-public-key"
-                            placeholder="pk_..."
-                            value={vapiPublicKey}
-                            onChange={(e) => setVapiPublicKey(e.target.value)}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Used for client-side voice interactions
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="vapi-private-key">VAPI Private Key</Label>
-                          <Input
-                            id="vapi-private-key"
-                            type="password"
-                            placeholder="sk_..."
-                            value={vapiPrivateKey}
-                            onChange={(e) => setVapiPrivateKey(e.target.value)}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Used for creating and managing assistants
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
                     {/* ElevenLabs Configuration */}
                     <Card>
                       <CardHeader>
@@ -1863,101 +1723,6 @@ export default function SettingsIntegrations() {
                             </Select>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* VAPI Assistant Management */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
-                            <Settings className="h-5 w-5 text-primary" />
-                            VAPI Assistants
-                          </span>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={loadVapiAssistants}
-                            disabled={loadingAssistants || !vapiPrivateKey}
-                          >
-                            {loadingAssistants ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4" />
-                            )}
-                            <span className="ml-2">Refresh</span>
-                          </Button>
-                        </CardTitle>
-                        <CardDescription>
-                          Create and manage AI voice assistants via VAPI API.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Create New Assistant */}
-                        <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                          <p className="text-sm font-medium">Create New Assistant</p>
-                          <div className="grid grid-cols-1 gap-3">
-                            <Input
-                              placeholder="Assistant Name"
-                              value={newAssistantName}
-                              onChange={(e) => setNewAssistantName(e.target.value)}
-                            />
-                            <Input
-                              placeholder="System Prompt"
-                              value={newAssistantPrompt}
-                              onChange={(e) => setNewAssistantPrompt(e.target.value)}
-                            />
-                            <Button 
-                              onClick={createVapiAssistant} 
-                              disabled={creatingAssistant || !vapiPrivateKey || !newAssistantName}
-                              className="w-full"
-                            >
-                              {creatingAssistant ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : (
-                                <Plus className="h-4 w-4 mr-2" />
-                              )}
-                              Create Assistant
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Existing Assistants */}
-                        {vapiAssistants.length > 0 && (
-                          <div className="space-y-2">
-                            <Label>Select Default Assistant</Label>
-                            {vapiAssistants.map(assistant => (
-                              <div 
-                                key={assistant.id} 
-                                className={`flex items-center justify-between p-3 rounded-lg border ${
-                                  defaultVapiAssistantId === assistant.id ? 'border-primary bg-primary/5' : ''
-                                }`}
-                              >
-                                <div 
-                                  className="flex-1 cursor-pointer"
-                                  onClick={() => setDefaultVapiAssistantId(assistant.id)}
-                                >
-                                  <p className="font-medium text-sm">{assistant.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {assistant.model || 'gpt-4o'} • {assistant.voice || 'default'}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {defaultVapiAssistantId === assistant.id && (
-                                    <Badge variant="secondary" className="text-xs">Default</Badge>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => deleteVapiAssistant(assistant.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
 

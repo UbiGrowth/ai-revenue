@@ -22,7 +22,6 @@ interface WorkspaceRow {
 interface AiSettingsVoiceRow {
   tenant_id: string; // This actually stores workspaceId
   is_connected: boolean;
-  vapi_private_key: string | null;
   elevenlabs_api_key: string | null;
 }
 
@@ -53,7 +52,6 @@ describe("AI Settings Tenant ID Invariant", () => {
     {
       tenant_id: "245f7faf-0fab-47ea-91b2-16ef6830fb8a", // Stores workspaceId
       is_connected: true,
-      vapi_private_key: "vapi_xxx",
       elevenlabs_api_key: null,
     },
   ];
@@ -94,7 +92,6 @@ describe("Voice Connection Detection", () => {
     const settings: AiSettingsVoiceRow = {
       tenant_id: "ws-123",
       is_connected: true,
-      vapi_private_key: null,
       elevenlabs_api_key: null,
     };
     
@@ -106,14 +103,12 @@ describe("Voice Connection Detection", () => {
     const settings: AiSettingsVoiceRow = {
       tenant_id: "ws-123",
       is_connected: false,
-      vapi_private_key: "vapi_xxx",
-      elevenlabs_api_key: null,
+      elevenlabs_api_key: "el_xxx",
     };
     
     const isExplicitlyConnected = settings.is_connected === true;
-    const hasVapi = !!settings.vapi_private_key;
     const hasElevenLabs = !!settings.elevenlabs_api_key;
-    const voiceConnected = isExplicitlyConnected || hasVapi || hasElevenLabs;
+    const voiceConnected = isExplicitlyConnected || hasElevenLabs;
     
     expect(voiceConnected).toBe(true);
   });
@@ -122,14 +117,12 @@ describe("Voice Connection Detection", () => {
     const settings: AiSettingsVoiceRow = {
       tenant_id: "ws-123",
       is_connected: false,
-      vapi_private_key: null,
       elevenlabs_api_key: null,
     };
     
     const isExplicitlyConnected = settings.is_connected === true;
-    const hasVapi = !!settings.vapi_private_key;
     const hasElevenLabs = !!settings.elevenlabs_api_key;
-    const voiceConnected = isExplicitlyConnected || hasVapi || hasElevenLabs;
+    const voiceConnected = isExplicitlyConnected || hasElevenLabs;
     
     expect(voiceConnected).toBe(false);
   });

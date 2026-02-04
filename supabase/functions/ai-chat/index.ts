@@ -4,7 +4,7 @@ import { runLLM, type LLMMessage } from "../_shared/llmRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-workspace-id",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-tenant-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -21,7 +21,7 @@ interface AppContext {
   campaignCount: number;
   modulesEnabled: string[];
   icpSegments?: string[];
-  workspaceId?: string;
+  tenantId?: string;
 }
 
 serve(async (req) => {
@@ -52,8 +52,6 @@ serve(async (req) => {
     let currentRoute = context?.currentRoute || "/dashboard";
     let modulesEnabled = context?.modulesEnabled || [];
     let icpSegments: string[] = context?.icpSegments || [];
-    let workspaceId = context?.workspaceId;
-
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -67,73 +65,26 @@ serve(async (req) => {
       );
     }
 
-    if (workspaceId) {
-      const { data: workspace, error: workspaceError } = await supabaseClient
-        .from("workspaces")
-        .select("id, owner_id")
-        .eq("id", workspaceId)
-        .maybeSingle();
-
-      if (workspaceError) {
-        console.error("[ai-chat] Workspace lookup error:", workspaceError);
-      }
-
-      let hasAccess = workspace && workspace.owner_id === user.id;
-
-      if (!hasAccess) {
-        const { data: membership, error: membershipError } = await supabaseClient
-          .from("workspace_members")
-          .select("id")
-          .eq("workspace_id", workspaceId)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (membership) {
-          hasAccess = true;
+    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+    if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
+      return new Response(
+        JSON.stringify({ error: "tenant_id is required" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
         }
-
-        if (membershipError) {
-          console.error("[ai-chat] Workspace membership lookup error:", membershipError);
-        }
-      }
-
-      if (!hasAccess) {
-        return new Response(
-          JSON.stringify({ error: "Forbidden: workspace access denied" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      );
     }
 
-    // Get workspace ID if not provided (but skip since we have no user now)
-    if (false) {  // Disabled - no auth
-      const { data: workspace, error: wsError } = await supabaseClient
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-      
-      if (wsError) {
-        console.error("[ai-chat] Workspace lookup error:", wsError.message);
-      }
-      
-      workspaceId = workspace?.id;
-      console.log(`[ai-chat] Workspace lookup result: ${workspaceId || 'none found'}`);
-    }
+    console.log(`[ai-chat] Using tenant context: ${tenantId}`);
 
-    if (workspaceId) {
-      console.log(`[ai-chat] Using workspace context: ${workspaceId}`);
-    } else {
-      console.log(`[ai-chat] No workspace - using generic context`);
-    }
+    if (tenantId) {
 
-    if (workspaceId) {
-
-      // Fetch business profile by workspace
+      // Fetch business profile by tenant
       const { data: profile } = await supabaseClient
         .from("business_profiles")
         .select("business_name, industry")
-        .eq("workspace_id", workspaceId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       
       if (profile) {
@@ -146,7 +97,7 @@ serve(async (req) => {
         const { data: segments } = await supabaseClient
           .from("cmo_icp_segments")
           .select("segment_name")
-          .eq("workspace_id", workspaceId)
+          .eq("tenant_id", tenantId)
           .limit(5);
 
         if (segments) {
@@ -156,16 +107,16 @@ serve(async (req) => {
         }
       }
 
-      // Get counts scoped to workspace
+      // Get counts scoped to tenant
       const { count: leads } = await supabaseClient
         .from("crm_leads")
         .select("*", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId);
+        .eq("tenant_id", tenantId);
       
       const { count: campaigns } = await supabaseClient
         .from("cmo_campaigns")
         .select("*", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId);
+        .eq("tenant_id", tenantId);
 
       leadCount = leads || 0;
       campaignCount = campaigns || 0;
@@ -212,7 +163,6 @@ When asked about leads or campaigns, reference the actual counts provided.`;
 
     console.log("[ai-chat] Calling LLM router (stream)");
 
-    const tenantId = workspaceId || user.id;
     const out = await runLLM({
       tenantId,
       capability: "ai.chat",

@@ -24,6 +24,8 @@ serve(async (req) => {
       return unauthorizedResponse(corsHeaders, authError || "Not authenticated");
     }
 
+    const tenantIdFromUser = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+
     console.log(`[ab-test-create] User ${user.id} creating A/B test for asset ${assetId}`);
 
     // Fetch the original asset - RLS enforced
@@ -38,6 +40,20 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Asset not found or access denied" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const tenantId =
+      typeof tenantIdFromUser === "string" && tenantIdFromUser.trim().length > 0
+        ? tenantIdFromUser
+        : typeof asset.tenant_id === "string" && asset.tenant_id.trim().length > 0
+        ? asset.tenant_id
+        : null;
+
+    if (!tenantId) {
+      return new Response(
+        JSON.stringify({ error: "tenant_id is required" }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -141,7 +157,7 @@ Return JSON with this structure:
           channel: asset.channel,
           goal: asset.goal,
           description: variation.hypothesis,
-          workspace_id: asset.workspace_id,
+          tenant_id: tenantId,
           created_by: user.id,
           content: {
             ...content,
@@ -171,7 +187,7 @@ Return JSON with this structure:
         asset_id: newAsset.id,
         channel: asset.channel || "mixed",
         status: "pending",
-        workspace_id: asset.workspace_id,
+        tenant_id: tenantId,
         target_audience: content?.target_audience,
       });
 
