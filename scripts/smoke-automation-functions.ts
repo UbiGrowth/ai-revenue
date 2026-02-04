@@ -179,6 +179,12 @@ async function main() {
     } catch {
       // ignore
     }
+
+    // Validate that autopilot build returned a campaign ID
+    if (!autopilotCampaignId) {
+      console.log("WARN: ai-cmo-autopilot-build did not return a campaignId");
+      failed = true;
+    }
   }
 
   // 2) Auto-create campaign (quick create)
@@ -215,7 +221,7 @@ async function main() {
     constraints: ["Do not mention pricing unless asked", "Comply with TCPA guidelines"],
   });
 
-  // 5) Autopilot toggle (requires campaign id)
+  // 5) Autopilot toggle (gated by ENABLE_AUTOPILOT_SMOKE and requires campaign id)
   if (!enableAutopilot) {
     console.log("SKIP ai-cmo-toggle-autopilot (disabled)");
   } else if (autopilotCampaignId) {
@@ -226,7 +232,6 @@ async function main() {
     });
   } else {
     console.log("SKIP ai-cmo-toggle-autopilot -> missing campaignId from autopilot response");
-    failed = true;
   }
 
   if (failed) {
