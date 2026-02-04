@@ -105,46 +105,59 @@ async function main() {
   if (!userId) throw new Error("Auth failed: missing user id");
 
   let workspaceId = process.env.SMOKE_WORKSPACE_ID || null;
+  let tenantId: string | null = null;
+
   if (!workspaceId) {
     const { data: ownedWs } = await supabase
       .from("workspaces")
-      .select("id")
+      .select("id, tenant_id, owner_id")
       .eq("owner_id", userId)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    workspaceId = ownedWs?.id || null;
+    if (ownedWs) {
+      workspaceId = ownedWs.id;
+      tenantId = ownedWs.tenant_id || ownedWs.owner_id;
+    }
   }
 
   if (!workspaceId) {
     const { data: memberWs } = await supabase
       .from("workspace_members")
-      .select("workspace_id")
+      .select("workspace_id, workspaces!inner(tenant_id, owner_id)")
       .eq("user_id", userId)
       .order("created_at", { ascending: true })
       .limit(1)
-      .maybeSingle<{ workspace_id: string }>();
-    workspaceId = memberWs?.workspace_id || null;
+      .maybeSingle<{ workspace_id: string; workspaces: { tenant_id: string | null; owner_id: string } }>();
+    
+    if (memberWs) {
+      workspaceId = memberWs.workspace_id;
+      tenantId = memberWs.workspaces.tenant_id || memberWs.workspaces.owner_id;
+    }
   }
 
   if (!workspaceId) {
     throw new Error("Unable to resolve workspace. Set SMOKE_WORKSPACE_ID explicitly.");
   }
 
-  const { data: workspaceMeta, error: workspaceMetaError } = await supabase
-    .from("workspaces")
-    .select("tenant_id, owner_id")
-    .eq("id", workspaceId)
-    .maybeSingle();
+  // If workspace was explicitly set via env var, we still need to fetch tenant info
+  if (!tenantId) {
+    const { data: workspaceMeta, error: workspaceMetaError } = await supabase
+      .from("workspaces")
+      .select("tenant_id, owner_id")
+      .eq("id", workspaceId)
+      .maybeSingle();
 
-  if (workspaceMetaError) {
-    throw new Error(`Unable to resolve workspace tenant: ${workspaceMetaError.message}`);
+    if (workspaceMetaError) {
+      throw new Error(`Unable to resolve workspace tenant: ${workspaceMetaError.message}`);
+    }
+
+    tenantId = workspaceMeta?.tenant_id || workspaceMeta?.owner_id || null;
   }
 
-  const tenantId = workspaceMeta?.tenant_id || workspaceMeta?.owner_id || userId;
   if (!tenantId) {
-    throw new Error("Unable to resolve tenant id for smoke run.");
+    tenantId = userId;
   }
 
   let failed = false;
