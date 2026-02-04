@@ -209,7 +209,7 @@ async function main() {
     constraints: ["Do not mention pricing unless asked", "Comply with TCPA guidelines"],
   });
 
-  // 5) Autopilot toggle (requires campaign id)
+  // 5) Autopilot toggle (gated by ENABLE_AUTOPILOT_SMOKE and requires campaign id)
   const enableAutopilot = process.env.ENABLE_AUTOPILOT_SMOKE === "1";
   if (!enableAutopilot) {
     console.log("SKIP ai-cmo-toggle-autopilot (disabled)");
