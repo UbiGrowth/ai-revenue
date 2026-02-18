@@ -78,7 +78,7 @@ serve(async (req) => {
     }
 
     // Fetch tenant context
-    let tenantContext: TenantContext = {
+    const tenantContext: TenantContext = {
       businessName: "your business",
       industry: "your industry",
       icpSegments: [],
