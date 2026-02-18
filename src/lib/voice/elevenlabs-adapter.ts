@@ -323,7 +323,7 @@ export class ElevenLabsAdapter implements VoiceProviderAdapter {
     // 4. Update voice_phone_numbers record
     await this.supabase
       .from('voice_phone_numbers')
-      .update({ provider_number_id: number.elevenlabs_phone_number_id })
+      .update({ voice_agent_id: revosAgentId })
       .eq('id', revosNumberId);
 
     return {

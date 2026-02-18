@@ -122,7 +122,6 @@ serve(async (req) => {
     const { data: updatedNumber, error: updateError } = await supabaseClient
       .from('voice_phone_numbers')
       .update({
-        provider_number_id: voiceNumber.elevenlabs_phone_number_id,
         voice_agent_id: voice_agent_id,
         provider_status: 'active',
         updated_at: new Date().toISOString(),

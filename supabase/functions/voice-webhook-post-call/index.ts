@@ -104,8 +104,8 @@ serve(async (req) => {
           lead_id: callRecord.lead_id,
           duration: duration,
           status: status,
-          to_number: callRecord.to_number,
-          from_number: callRecord.from_number,
+          customer_number: callRecord.customer_number,
+          phone_number_id: callRecord.phone_number_id,
         },
         occurred_at: endedAt,
       });
