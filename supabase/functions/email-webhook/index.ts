@@ -77,7 +77,7 @@ serve(async (req) => {
     }
 
     // Update metrics based on event type
-    let updates: Record<string, unknown> = {
+    const updates: Record<string, unknown> = {
       last_synced_at: new Date().toISOString(),
     };
 

@@ -211,7 +211,7 @@ serve(async (req) => {
         }
 
         // 5. Dispatch based on channel
-        let eventMetadata: any = { step_type: step.step_type };
+        const eventMetadata: any = { step_type: step.step_type };
 
         if (channel === "email" && prospect.email) {
           if (resendApiKey) {

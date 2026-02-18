@@ -106,7 +106,7 @@ serve(async (req) => {
     }
 
     // Build context-aware prompt from user inputs
-    let contextParts = [];
+    const contextParts = [];
     
     if (assetGoal) {
       contextParts.push(`Marketing goal: ${assetGoal}`);

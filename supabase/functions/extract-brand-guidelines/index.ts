@@ -103,7 +103,7 @@ serve(async (req) => {
     const branding = scrapeResult.data?.branding || {};
 
     // Start with Firecrawl branding data if available
-    let parsedBrandData: any = {
+    const parsedBrandData: any = {
       brandName: metadata.title || branding.name || domain,
       primaryColor: branding.colors?.primary || "#000000",
       secondaryColor: branding.colors?.secondary || "#666666",

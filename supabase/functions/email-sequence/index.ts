@@ -58,7 +58,7 @@ serve(async (req) => {
 
     // Fetch business profile for this workspace's owner
     let businessName = workspace?.name || 'Marketing';
-    let fromEmail = 'campaigns@ubigrowth.com'; // Default fallback
+    const fromEmail = 'campaigns@ubigrowth.com'; // Default fallback
     
     if (workspace?.owner_id) {
       const { data: profile } = await supabase
