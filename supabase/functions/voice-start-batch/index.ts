@@ -98,7 +98,7 @@ serve(async (req) => {
     // 4. Query leads from target segment
     let query = supabaseClient
       .from('leads')
-      .select('id, name, email, phone, data')
+      .select('id, name, email, phone')
       .eq('tenant_id', campaign.tenant_id);
 
     // Apply segment filter if defined

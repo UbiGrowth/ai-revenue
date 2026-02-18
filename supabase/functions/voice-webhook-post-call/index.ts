@@ -127,7 +127,9 @@ serve(async (req) => {
         provider: 'elevenlabs',
         duration_seconds: duration,
         cost_usd: cost,
-        occurred_at: new Date().toISOString(),
+        customer_number_e164: callRecord.customer_number,
+        usage_date: new Date(endedAt).toISOString().split('T')[0],
+        occurred_at: endedAt,
       });
 
     if (usageError) {
