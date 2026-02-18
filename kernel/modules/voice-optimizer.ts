@@ -204,7 +204,7 @@ async function persistDecision(
   // Get campaign details for tenant_id
   const { data: campaign } = await supabaseClient
     .from('voice_campaigns')
-    .select('tenant_id, workspace_id')
+    .select('tenant_id')
     .eq('id', campaignId)
     .single();
 

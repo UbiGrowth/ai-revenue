@@ -35,6 +35,31 @@ export class ElevenLabsAdapter implements VoiceProviderAdapter {
     this.twilioAuthToken = twilioAuthToken;
   }
 
+  /**
+   * Helper to get workspace_id for a tenant
+   * Needed for schema compatibility with existing voice tables
+   */
+  private async getWorkspaceIdForTenant(tenantId: string): Promise<string> {
+    const { data: tenant, error } = await this.supabase
+      .from('tenants')
+      .select('id, workspaces!inner(id)')
+      .eq('id', tenantId)
+      .single();
+
+    if (error || !tenant) {
+      throw new Error(`Tenant not found: ${tenantId}`);
+    }
+
+    const workspaces = (tenant as any).workspaces;
+    const workspaceId = Array.isArray(workspaces) ? workspaces[0]?.id : workspaces?.id;
+    
+    if (!workspaceId) {
+      throw new Error(`No workspace found for tenant: ${tenantId}`);
+    }
+
+    return workspaceId;
+  }
+
   async provisionAgentFromTemplate(
     tenantId: string,
     templateId: string,
@@ -51,22 +76,8 @@ export class ElevenLabsAdapter implements VoiceProviderAdapter {
       throw new Error(`Template not found: ${templateId}`);
     }
 
-    // 2. Get tenant workspace
-    const { data: tenant, error: tenantError } = await this.supabase
-      .from('tenants')
-      .select('id, name, workspace_id:workspaces!inner(id)')
-      .eq('id', tenantId)
-      .single();
-
-    if (tenantError || !tenant) {
-      throw new Error(`Tenant not found: ${tenantId}`);
-    }
-
-    // Extract workspace_id
-    const workspaceId = (tenant as any).workspace_id?.[0]?.id || (tenant as any).workspace_id;
-    if (!workspaceId) {
-      throw new Error(`No workspace found for tenant: ${tenantId}`);
-    }
+    // 2. Get workspace_id for schema compatibility
+    const workspaceId = await this.getWorkspaceIdForTenant(tenantId);
 
     // 3. Merge template with overrides
     const agentConfig = {
@@ -182,18 +193,8 @@ export class ElevenLabsAdapter implements VoiceProviderAdapter {
       poolPhone = data;
     }
 
-    // 2. Get tenant workspace
-    const { data: tenant, error: tenantError } = await this.supabase
-      .from('tenants')
-      .select('id, workspace_id:workspaces!inner(id)')
-      .eq('id', tenantId)
-      .single();
-
-    if (tenantError || !tenant) {
-      throw new Error(`Tenant not found: ${tenantId}`);
-    }
-
-    const workspaceId = (tenant as any).workspace_id?.[0]?.id || (tenant as any).workspace_id;
+    // 2. Get workspace_id for schema compatibility
+    const workspaceId = await this.getWorkspaceIdForTenant(tenantId);
 
     // 3. Import number to ElevenLabs (if Twilio credentials available)
     let elevenlabsPhoneNumberId: string | undefined;

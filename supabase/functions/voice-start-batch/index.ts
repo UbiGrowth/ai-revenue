@@ -206,6 +206,8 @@ serve(async (req) => {
         }
 
         // Small delay to avoid rate limiting
+        // TODO: Consider implementing concurrent batch processing with rate limiting
+        // for better performance on large campaigns (e.g., process 5-10 calls concurrently)
         await new Promise(resolve => setTimeout(resolve, 100));
 
       } catch (error) {
