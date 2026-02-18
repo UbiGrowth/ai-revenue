@@ -88,11 +88,11 @@ serve(async (req) => {
     const { data: voiceNumber, error: numberError } = await supabaseClient
       .from('voice_phone_numbers')
       .select('*')
-      .eq('id', campaign.voice_number_id)
+      .eq('id', campaign.phone_number_id)
       .single();
 
     if (numberError || !voiceNumber) {
-      throw new Error(`Voice phone number not found: ${campaign.voice_number_id}`);
+      throw new Error(`Voice phone number not found: ${campaign.phone_number_id}`);
     }
 
     // 4. Query leads from target segment
@@ -183,13 +183,11 @@ serve(async (req) => {
             tenant_id: campaign.tenant_id,
             workspace_id: campaign.workspace_id,
             voice_agent_id: campaign.voice_agent_id,
-            voice_number_id: campaign.voice_number_id,
+            phone_number_id: campaign.phone_number_id,
             campaign_id: campaign_id,
             lead_id: lead.id,
-            from_number: voiceNumber.phone_number,
-            to_number: lead.phone,
-            direction: 'outbound',
-            provider: 'elevenlabs',
+            customer_number: lead.phone,
+            call_type: 'outbound',
             provider_call_id: conversationId,
             status: 'initiated',
             started_at: new Date().toISOString(),

@@ -323,7 +323,7 @@ export class ElevenLabsAdapter implements VoiceProviderAdapter {
     // 4. Update voice_phone_numbers record
     await this.supabase
       .from('voice_phone_numbers')
-      .update({ provider_number_id: agent.elevenlabs_agent_id })
+      .update({ provider_number_id: number.elevenlabs_phone_number_id })
       .eq('id', revosNumberId);
 
     return {
@@ -368,8 +368,8 @@ export class ElevenLabsAdapter implements VoiceProviderAdapter {
       },
       body: JSON.stringify({
         agent_id: agent.elevenlabs_agent_id,
-        to_phone_number: toE164,
-        from_phone_number: number.phone_number,
+        phone_number: toE164,
+        from_number: number.phone_number,
         metadata: {
           revos_agent_id: revosAgentId,
           revos_number_id: revosNumberId,

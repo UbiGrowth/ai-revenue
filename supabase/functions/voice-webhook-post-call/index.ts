@@ -120,18 +120,14 @@ serve(async (req) => {
       .insert({
         tenant_id: callRecord.tenant_id,
         workspace_id: callRecord.workspace_id,
-        voice_agent_id: callRecord.voice_agent_id,
-        voice_call_id: callRecord.id,
+        agent_id: callRecord.voice_agent_id,
+        call_id: callRecord.id,
         campaign_id: callRecord.campaign_id,
-        usage_type: 'call',
+        usage_type: 'outbound_call',
         provider: 'elevenlabs',
         duration_seconds: duration,
         cost_usd: cost,
-        metadata: {
-          conversation_id: conversationId,
-          status: status,
-        },
-        recorded_at: new Date().toISOString(),
+        occurred_at: new Date().toISOString(),
       });
 
     if (usageError) {
