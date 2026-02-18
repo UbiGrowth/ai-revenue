@@ -9,6 +9,11 @@ interface ExecutionLog {
 
 const logs: ExecutionLog[] = [];
 
+// Helper function to convert any value to string for logging
+function toText(v: unknown): string {
+  return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
 function logMessage(msg: string): void {
   logs.push({
     timestamp: new Date(),
@@ -20,11 +25,12 @@ function logMessage(msg: string): void {
 async function checkForChanges(): Promise<boolean> {
   try {
     logMessage('Checking for code changes...');
-    const diff: DiffResult = await git.diff(['--name-only']);
+    const diff: DiffResult = await git.diffSummary();
     
-    // Problem 1: TS2367 - This expression is comparing DiffResult (object) to string
-    // DiffResult is an object from simple-git, not a string
-    if (diff !== "") {  // Line ~73 - TS2367 error
+    // Fixed: Check for changes using the files array length or summary changes
+    const hasChanges = Boolean(diff?.files?.length);
+    
+    if (hasChanges) {
       logMessage('Changes detected');
       return true;
     }
@@ -42,9 +48,8 @@ async function logDiffResults(): Promise<void> {
     const diffResult: DiffResult = await git.diffSummary();
     
     logMessage('Diff results:');
-    // Problem 2: TS2345 - Argument type DiffResult (object) is not assignable 
-    // to parameter type string | Buffer | Iterable<string | Buffer>
-    process.stdout.write(diffResult);  // Line ~80 - TS2345 error
+    // Fixed: Convert DiffResult object to string before writing to stdout
+    process.stdout.write(toText(diffResult));
     
   } catch (error) {
     logMessage(`Error logging diff: ${error}`);
