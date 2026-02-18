@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* AI CMO Theme - #02040A / #1DA4FF */
+    --background: 220 67% 2%;
+    --foreground: 0 0% 100%;
+
+    --card: 220 22% 7%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 220 22% 7%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Primary blue accent #1DA4FF */
+    --primary: 202 100% 56%;
+    --primary-foreground: 220 67% 2%;
+
+    --secondary: 218 29% 15%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 218 29% 15%;
+    --muted-foreground: 214 8% 80%;
+
+    --accent: 202 100% 56%;
+    --accent-foreground: 220 67% 2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 218 29% 15%;
+    --input: 218 29% 15%;
+    --ring: 202 100% 56%;
+
+    --radius: 0.5rem;
+
+    /* UbiGrowth AI Brand Colors */
+    --ubigrowth: 202 100% 56%;
+    --ubigrowth-light: 197 100% 70%;
+    --ubigrowth-dark: 202 100% 45%;
+
+    /* Gradient colors */
+    --gold-start: 202 100% 56%;
+    --gold-end: 197 100% 70%;
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 220 67% 2%;
+    --foreground: 0 0% 100%;
+
+    --card: 220 22% 7%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 220 22% 7%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 202 100% 56%;
+    --primary-foreground: 220 67% 2%;
+
+    --secondary: 218 29% 15%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 218 29% 15%;
+    --muted-foreground: 214 8% 80%;
+
+    --accent: 202 100% 56%;
+    --accent-foreground: 220 67% 2%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 218 29% 15%;
+    --input: 218 29% 15%;
+    --ring: 202 100% 56%;
+
+    --ubigrowth: 202 100% 56%;
+    --ubigrowth-light: 197 100% 70%;
+    --ubigrowth-dark: 202 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .gold-gradient {
+    background: linear-gradient(135deg, hsl(var(--gold-start)) 0%, hsl(var(--gold-end)) 100%);
+  }
+  
+  .gold-gradient-text {
+    background: linear-gradient(135deg, hsl(var(--gold-start)) 0%, hsl(var(--gold-end)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .gold-border {
+    border-image: linear-gradient(135deg, hsl(var(--gold-start)) 0%, hsl(var(--gold-end)) 100%) 1;
+  }
+  
+  .gold-glow {
+    box-shadow: 0 0 40px hsl(var(--primary) / 0.2);
+  }
+}
