@@ -57,7 +57,7 @@ npm -w apps/executor run build
 ✅ **Web Next.js Build**
 ```bash
 npm -w apps/web run build
-# Output: Next.js production build successful, .next/ generated
+# Output: Next.js 15.5.12 production build successful, .next/ generated
 ```
 
 ✅ **Docker Compose Build**
@@ -70,6 +70,15 @@ docker compose build
 
 ✅ **Code Review**: No issues found
 ✅ **CodeQL Security Scan**: No vulnerabilities detected
+✅ **Dependency Scan**: No vulnerabilities found
+
+### Security Fix Applied
+
+**Next.js DoS Vulnerability (CVE)**
+- **Issue**: Next.js 14.2.35 had a vulnerability where HTTP request deserialization could lead to DoS when using insecure React Server Components
+- **Fix**: Upgraded Next.js from `^14.0.0` to `^15.0.8` (installed 15.5.12)
+- **Impact**: Eliminates DoS vulnerability, no breaking changes to the application
+- **Verification**: Dependency scan confirms no vulnerabilities in Next.js 15.5.12
 
 ## Files Changed
 
@@ -78,7 +87,7 @@ docker compose build
 - `apps/executor/src/runner.ts` - Fixed TypeScript errors
 
 ### Supporting Files (Setup)
-- `apps/web/package.json` - Next.js dependencies
+- `apps/web/package.json` - Next.js 15.5.12 and dependencies (security patched)
 - `apps/web/tsconfig.json` - TypeScript configuration
 - `apps/web/next.config.js` - Next.js configuration
 - `apps/web/pages/index.tsx` - Basic home page
