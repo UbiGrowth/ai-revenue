@@ -33,6 +33,7 @@ import Email from "./pages/Email";
 import Social from "./pages/Social";
 import NewCampaign from "./pages/NewCampaign";
 import VoiceAgents from "./pages/VoiceAgents";
+import VoiceCatalog from "./pages/VoiceCatalog";
 import UserManagement from "./pages/UserManagement";
 import Automation from "./pages/Automation";
 import OSDashboard from "./pages/OSDashboard";
@@ -145,6 +146,7 @@ const AppContent = () => {
         <Route path="/social" element={<Social />} />
         <Route path="/new-campaign" element={<NewCampaign />} />
         <Route path="/voice-agents" element={<VoiceAgents />} />
+        <Route path="/voice-catalog" element={<VoiceCatalog />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/crm" element={<CRM />} />
