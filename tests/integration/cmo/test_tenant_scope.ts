@@ -113,9 +113,9 @@ describe('CMO Tenant Scope & RLS', () => {
         claimed_by: tenantA.user_id
       };
 
-      // RLS check: tenant_id must match auth.uid() or be in user_tenants
+      // RLS check: tenant_id must exactly match auth.uid()
       const isValidInsert = (record: any, authUserId: string) => {
-        return record.tenant_id === authUserId || record.workspace_id.includes(authUserId.split('-')[1]);
+        return record.tenant_id === authUserId;
       };
 
       // This should fail because tenant_id doesn't match auth user

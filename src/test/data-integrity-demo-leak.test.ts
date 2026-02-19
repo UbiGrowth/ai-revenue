@@ -21,7 +21,8 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const canRunTests = !!SUPABASE_SERVICE_KEY;
 
 describe.skipIf(!canRunTests)('Data Integrity - Demo Data Leak Prevention', () => {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  // Lazy init: only call createClient when tests actually run (canRunTests=true means key is set)
+  const supabase = canRunTests ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY) : null as any;
   
   let testTenantId: string;
   let testWorkspaceId: string;

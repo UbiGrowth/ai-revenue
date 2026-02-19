@@ -10,7 +10,15 @@
  * This test verifies that these views exist and return the expected gated data.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+
+// Mock the supabase browser client so tests run in Node without localStorage
+vi.mock('@/integrations/supabase/client', () => {
+  const noop = () => Promise.resolve({ data: null, error: null });
+  const chain: any = { select: () => chain, eq: () => chain, limit: () => chain, maybeSingle: noop, single: noop };
+  return { supabase: { from: () => chain } };
+});
+
 import { supabase } from '@/integrations/supabase/client';
 
 describe('KPI View Compliance', () => {
