@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/hooks/useDemoMode";
+import { useActiveWorkspaceId } from "@/contexts/WorkspaceContext";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -103,21 +104,67 @@ const verticals = [
   "Travel & Leisure",
 ];
 
+interface LiveEmail {
+  id: string;
+  name: string;
+  subject: string;
+  status: string;
+  created_at: string;
+  sent: number;
+  openRate: number;
+  clickRate: number;
+}
+
 const Email = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   // DEMO MODE: Use centralized workspace demo_mode instead of local toggle
   const { demoMode: showSampleData } = useDemoMode();
+  const workspaceId = useActiveWorkspaceId();
   const [creating, setCreating] = useState(false);
   const [vertical, setVertical] = useState("");
   const [goal, setGoal] = useState("");
   const [recipients, setRecipients] = useState("");
+  const [liveEmails, setLiveEmails] = useState<LiveEmail[]>([]);
+
+  useEffect(() => {
+    if (showSampleData || !workspaceId) return;
+    supabase
+      .from("assets")
+      .select("id, name, status, created_at, content")
+      .eq("workspace_id", workspaceId)
+      .eq("type", "email")
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        setLiveEmails(
+          (data || []).map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            subject: a.content?.subject || "",
+            status: a.status,
+            created_at: a.created_at?.slice(0, 10) ?? "",
+            sent: 0,
+            openRate: 0,
+            clickRate: 0,
+          }))
+        );
+      });
+  }, [showSampleData, workspaceId]);
 
   const handleCreateEmail = async () => {
     if (!vertical) {
       toast({
         title: "Vertical Required",
         description: "Please select a vertical to create your email.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!workspaceId) {
+      toast({
+        title: "Workspace Required",
+        description: "Please select a workspace before creating an email.",
         variant: "destructive",
       });
       return;
@@ -152,6 +199,7 @@ const Email = () => {
           channel: vertical,
           goal: goal || contentData.title,
           status: "review",
+          workspace_id: workspaceId,
           created_by: userData.user?.id,
           preview_url: imageData?.imageUrl || null,
           content: {
@@ -187,9 +235,16 @@ const Email = () => {
     return colors[status] || colors.draft;
   };
 
-  const totalSent = SAMPLE_EMAILS.reduce((acc, e) => acc + e.sent, 0);
-  const avgOpenRate = (SAMPLE_EMAILS.filter(e => e.openRate > 0).reduce((acc, e) => acc + e.openRate, 0) / SAMPLE_EMAILS.filter(e => e.openRate > 0).length).toFixed(1);
-  const avgClickRate = (SAMPLE_EMAILS.filter(e => e.clickRate > 0).reduce((acc, e) => acc + e.clickRate, 0) / SAMPLE_EMAILS.filter(e => e.clickRate > 0).length).toFixed(1);
+  const displayEmails = showSampleData ? SAMPLE_EMAILS : liveEmails;
+  const totalSent = displayEmails.reduce((acc, e) => acc + e.sent, 0);
+  const openRateEmails = displayEmails.filter(e => e.openRate > 0);
+  const clickRateEmails = displayEmails.filter(e => e.clickRate > 0);
+  const avgOpenRate = openRateEmails.length > 0
+    ? (openRateEmails.reduce((acc, e) => acc + e.openRate, 0) / openRateEmails.length).toFixed(1)
+    : "0.0";
+  const avgClickRate = clickRateEmails.length > 0
+    ? (clickRateEmails.reduce((acc, e) => acc + e.clickRate, 0) / clickRateEmails.length).toFixed(1)
+    : "0.0";
 
   return (
     <ProtectedRoute>
@@ -231,7 +286,7 @@ const Email = () => {
                     <Mail className="h-4 w-4" />
                     <span className="text-sm">Total Campaigns</span>
                   </div>
-                  <div className="text-2xl font-bold">{SAMPLE_EMAILS.length}</div>
+                  <div className="text-2xl font-bold">{displayEmails.length}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -335,11 +390,17 @@ const Email = () => {
                   </Button>
                 </div>
                 <div className="space-y-3">
-                  {SAMPLE_EMAILS.map((email) => (
+                  {!showSampleData && displayEmails.length === 0 && (
+                    <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-lg">
+                      <Mail className="mx-auto h-10 w-10 mb-3 opacity-30" />
+                      <p className="text-sm">No email campaigns yet. Create your first one using the form.</p>
+                    </div>
+                  )}
+                  {displayEmails.map((email) => (
                     <Card 
                       key={email.id} 
                       className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/30"
-                      onClick={() => navigate("/assets")}
+                      onClick={() => showSampleData ? navigate("/assets") : navigate(`/assets/${email.id}`)}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">

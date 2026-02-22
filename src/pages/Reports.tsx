@@ -169,6 +169,7 @@ const Reports = () => {
       const { data: campaignsData } = await supabase
         .from("campaigns")
         .select(`id, channel, status, deployed_at, assets!inner(name)`)
+        .eq("workspace_id", workspaceId)
         .in("status", ["active", "running", "deployed"]);
 
       const { data: gatedMetrics } = await supabase
