@@ -124,9 +124,35 @@ serve(async (req) => {
       // Don't fail the whole operation, asset is already created
     }
 
-    // Generate the published URL (placeholder - would integrate with hosting layer)
-    const baseUrl = Deno.env.get("LANDING_PAGE_BASE_URL") || "https://pages.ubigrowth.ai";
-    const publishedUrl = publish ? `${baseUrl}/${draft.urlSlug}` : null;
+    // Upsert into landing_pages table so landing-form-submit can resolve submissions
+    try {
+      await supabase.from("landing_pages").upsert(
+        {
+          tenant_id,
+          workspace_id: workspaceId,
+          campaign_id: campaign_id || null,
+          internal_name: draft.internalName,
+          url_slug: draft.urlSlug,
+          asset_id: asset.id,
+          status,
+        },
+        { onConflict: "tenant_id,url_slug", ignoreDuplicates: false }
+      );
+    } catch (lpErr) {
+      // Non-blocking - landing_pages may not exist yet in older deployments
+      console.warn("[landing-pages-save] Could not upsert landing_pages:", lpErr);
+    }
+
+    // Generate the published URL
+    // LANDING_PAGE_BASE_URL: set this to your custom domain once DNS is configured.
+    // Falls back to the built-in landing-page-serve edge function so pages work immediately.
+    const customBase = Deno.env.get("LANDING_PAGE_BASE_URL");
+    const serveBase = `${supabaseUrl}/functions/v1/landing-page-serve`;
+    const publishedUrl = publish
+      ? customBase
+        ? `${customBase}/${draft.urlSlug}`
+        : `${serveBase}?id=${asset.id}`
+      : null;
 
     // If publishing, create a calendar event
     if (publish) {

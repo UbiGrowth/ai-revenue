@@ -114,15 +114,46 @@ Deno.serve(async (req) => {
     const tenantId = tenant.tenant_id;
     console.log("[landing-form-submit] Resolved tenant:", tenant.name, tenantId);
 
-    // 2. Resolve landing page
-    const { data: landingPage, error: lpError } = await supabase
+    // 2. Resolve landing page - try landing_pages table first, fall back to cmo_content_assets
+    let landingPage: { id: string; campaign_id: string | null; internal_name: string } | null = null;
+
+    const { data: lpRow, error: lpError } = await supabase
       .from("landing_pages")
       .select("id, campaign_id, internal_name")
       .eq("tenant_id", tenantId)
       .eq("url_slug", payload.slug)
-      .single();
+      .maybeSingle();
 
-    if (lpError || !landingPage) {
+    if (!lpError && lpRow) {
+      landingPage = lpRow;
+    } else {
+      // Fallback: find the asset via cmo_content_variants metadata
+      console.log("[landing-form-submit] landing_pages not found, falling back to cmo_content_assets for slug:", payload.slug);
+      const { data: assets } = await supabase
+        .from("cmo_content_assets")
+        .select("id, campaign_id, title")
+        .eq("tenant_id", tenantId)
+        .eq("content_type", "landing_page")
+        .in("status", ["published", "draft"]);
+
+      if (assets && assets.length > 0) {
+        for (const a of assets) {
+          const { data: variant } = await supabase
+            .from("cmo_content_variants")
+            .select("metadata")
+            .eq("asset_id", a.id)
+            .eq("variant_name", "primary")
+            .maybeSingle();
+
+          if (variant?.metadata?.urlSlug === payload.slug) {
+            landingPage = { id: a.id, campaign_id: a.campaign_id, internal_name: a.title };
+            break;
+          }
+        }
+      }
+    }
+
+    if (!landingPage) {
       console.error("[landing-form-submit] Landing page not found:", payload.slug, lpError);
       return new Response(
         JSON.stringify({ error: "Landing page not found" }),

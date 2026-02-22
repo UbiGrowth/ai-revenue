@@ -23,6 +23,7 @@ import {
   Mail,
   Phone,
   Share2,
+  Voicemail,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -95,6 +96,7 @@ const statusConfig: Record<string, { color: string; icon: React.ElementType; lab
 const channelIcons: Record<string, React.ElementType> = {
   email: Mail,
   voice: Phone,
+  voice_vm: Voicemail,
   social: Share2,
 };
 
@@ -475,7 +477,7 @@ export function CampaignRunDetailsDrawer({
                         const skippedReplay = outbox.filter(i => i.skipped && i.skip_reason === "idempotent_replay");
                         // Check if unique outbox entries (no duplicates by recipient)
                         const emailRecipients = outbox.filter(i => i.channel === "email" && i.recipient_email).map(i => i.recipient_email);
-                        const voiceRecipients = outbox.filter(i => i.channel === "voice" && i.recipient_phone).map(i => i.recipient_phone);
+                        const voiceRecipients = outbox.filter(i => (i.channel === "voice" || i.channel === "voice_vm") && i.recipient_phone).map(i => i.recipient_phone);
                         const emailDupes = emailRecipients.length !== new Set(emailRecipients).size;
                         const voiceDupes = voiceRecipients.length !== new Set(voiceRecipients).size;
                         const hasDupes = emailDupes || voiceDupes;
@@ -493,7 +495,7 @@ export function CampaignRunDetailsDrawer({
                     {(() => {
                       const skippedReplay = outbox.filter(i => i.skipped && i.skip_reason === "idempotent_replay");
                       const emailItems = outbox.filter(i => i.channel === "email" && !i.skipped);
-                      const voiceItems = outbox.filter(i => i.channel === "voice" && !i.skipped);
+                      const voiceItems = outbox.filter(i => (i.channel === "voice" || i.channel === "voice_vm") && !i.skipped);
                       const emailRecipients = emailItems.filter(i => i.recipient_email).map(i => i.recipient_email);
                       const voiceRecipients = voiceItems.filter(i => i.recipient_phone).map(i => i.recipient_phone);
                       const emailDupes = emailRecipients.length - new Set(emailRecipients).size;
@@ -559,9 +561,9 @@ export function CampaignRunDetailsDrawer({
                       E2E Provider Verification
                       {(() => {
                         const emailItems = outbox.filter(i => i.channel === "email");
-                        const voiceItems = outbox.filter(i => i.channel === "voice");
+                        const voiceItems = outbox.filter(i => i.channel === "voice" || i.channel === "voice_vm");
                         const emailWithId = emailItems.filter(i => i.provider_message_id && i.status === "sent");
-                        const voiceWithId = voiceItems.filter(i => i.provider_message_id && i.status === "called");
+                        const voiceWithId = voiceItems.filter(i => i.provider_message_id && (i.status === "called" || i.status === "sent"));
                         const e1Pass = emailItems.length > 0 && emailWithId.length > 0;
                         const v1Pass = voiceItems.length > 0 && voiceWithId.length > 0;
                         const hasEmail = emailItems.length > 0;
@@ -606,12 +608,12 @@ export function CampaignRunDetailsDrawer({
                       ) : null;
                     })()}
                     
-                    {/* V1: Voice verification */}
+                    {/* V1: Voice (live call) verification */}
                     {(() => {
                       const voiceItems = outbox.filter(i => i.channel === "voice");
                       const voiceWithId = voiceItems.filter(i => i.provider_message_id && i.status === "called");
                       const v1Pass = voiceItems.length > 0 && voiceWithId.length > 0;
-                      
+
                       return voiceItems.length > 0 ? (
                         <div className={`p-2 rounded border ${v1Pass ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
                           <div className="flex items-center gap-2 text-sm font-medium">
@@ -620,7 +622,7 @@ export function CampaignRunDetailsDrawer({
                             ) : (
                               <XCircle className="h-4 w-4 text-yellow-500" />
                             )}
-                            <span>V1: Voice E2E</span>
+                            <span>V1: Voice Call E2E</span>
                             <Badge variant={v1Pass ? "default" : "secondary"} className="text-xs ml-auto">
                               {v1Pass ? "PASS" : "PENDING"}
                             </Badge>
@@ -636,11 +638,43 @@ export function CampaignRunDetailsDrawer({
                         </div>
                       ) : null;
                     })()}
-                    
-                    {/* No email or voice items */}
-                    {outbox.filter(i => i.channel === "email" || i.channel === "voice").length === 0 && (
+
+                    {/* VM1: Voicemail drop verification */}
+                    {(() => {
+                      const vmItems = outbox.filter(i => i.channel === "voice_vm");
+                      const vmWithId = vmItems.filter(i => i.provider_message_id && (i.status === "sent" || i.status === "called"));
+                      const vm1Pass = vmItems.length > 0 && vmWithId.length > 0;
+
+                      return vmItems.length > 0 ? (
+                        <div className={`p-2 rounded border ${vm1Pass ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            {vm1Pass ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-yellow-500" />
+                            )}
+                            <Voicemail className="h-4 w-4 text-muted-foreground" />
+                            <span>VM1: Voicemail Drop E2E</span>
+                            <Badge variant={vm1Pass ? "default" : "secondary"} className="text-xs ml-auto">
+                              {vm1Pass ? "PASS" : "PENDING"}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {vmWithId.length}/{vmItems.length} voicemail drops with provider response stored
+                          </div>
+                          {vmWithId.length > 0 && (
+                            <div className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                              Sample Drop ID: {vmWithId[0].provider_message_id}
+                            </div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
+
+                    {/* No email, voice, or voicemail items */}
+                    {outbox.filter(i => i.channel === "email" || i.channel === "voice" || i.channel === "voice_vm").length === 0 && (
                       <div className="text-xs text-muted-foreground text-center py-2">
-                        No email or voice items in outbox yet
+                        No email, voice, or voicemail items in outbox yet
                       </div>
                     )}
                   </CardContent>
