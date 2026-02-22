@@ -22,6 +22,11 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// Safely embed a value inside a <script> block: JSON-encode and neutralise </script>
+function safeJs(value: unknown): string {
+  return JSON.stringify(value).replace(/<\/script/gi, "<\\/script");
+}
+
 function renderHtml(params: {
   headline: string;
   subheadline: string;
@@ -182,9 +187,9 @@ ${sectionsHtml}
 </footer>
 
 <script>
-  const FORM_SUBMIT_URL = ${JSON.stringify(formSubmitUrl)};
-  const TENANT_SLUG = ${JSON.stringify(tenantSlug)};
-  const PAGE_SLUG = ${JSON.stringify(urlSlug)};
+  const FORM_SUBMIT_URL = ${safeJs(formSubmitUrl)};
+  const TENANT_SLUG = ${safeJs(tenantSlug)};
+  const PAGE_SLUG = ${safeJs(urlSlug)};
 
   const form = document.getElementById('lp-form');
   const msg = document.getElementById('lp-msg');
@@ -229,7 +234,7 @@ ${sectionsHtml}
       msg.textContent = err.message || 'Something went wrong. Please try again.';
     } finally {
       btn.disabled = false;
-      btn.textContent = ${JSON.stringify(ctaLabel || "Submit")};
+      btn.textContent = ${safeJs(ctaLabel || "Submit")};
     }
   });
 </script>

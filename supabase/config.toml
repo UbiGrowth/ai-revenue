@@ -192,6 +192,9 @@ verify_jwt = true
 [functions.landing-form-submit]
 verify_jwt = false
 
+[functions.landing-page-serve]
+verify_jwt = false
+
 [functions.lead-capture]
 verify_jwt = false
 
