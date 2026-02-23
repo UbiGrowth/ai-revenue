@@ -52,6 +52,24 @@ serve(async (req) => {
       });
     }
 
+    // Verify user has access to this workspace
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("workspace_members")
+      .select("id")
+      .eq("workspace_id", tenantId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return new Response(
+        JSON.stringify({ error: "Access denied to this workspace" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Get workspace connection
     const { data: connection, error: connError } = await supabaseAdmin
       .from("google_workspace_connections")

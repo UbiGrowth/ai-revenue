@@ -62,6 +62,24 @@ serve(async (req) => {
       });
     }
 
+    // Verify user has access to this workspace
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("workspace_members")
+      .select("id")
+      .eq("workspace_id", tenantId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return new Response(
+        JSON.stringify({ error: "Access denied to this workspace" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const results: Record<string, unknown> = {};
 
     if (analysisType === "gmail" || analysisType === "all") {
