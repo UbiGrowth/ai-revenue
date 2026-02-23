@@ -244,7 +244,8 @@ serve(async (req) => {
             completed_at: new Date().toISOString(),
             duration_ms: Date.now() - startTime,
           })
-          .eq("id", syncJob.id);
+          .eq("id", syncJob.id)
+          .eq("workspace_id", workspaceId);
       }
     } catch (syncError) {
       if (syncJob) {
@@ -259,7 +260,8 @@ serve(async (req) => {
             completed_at: new Date().toISOString(),
             duration_ms: Date.now() - startTime,
           })
-          .eq("id", syncJob.id);
+          .eq("id", syncJob.id)
+          .eq("workspace_id", workspaceId);
       }
 
       return new Response(JSON.stringify({

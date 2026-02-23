@@ -185,7 +185,8 @@ function sanitizeForPrompt(text: string, maxLength: number): string {
 async function markAnalysisFailed(
   supabase: ReturnType<typeof createClient>,
   table: string,
-  id: string
+  id: string,
+  workspaceId: string
 ): Promise<void> {
   await supabase
     .from(table)
@@ -194,7 +195,8 @@ async function markAnalysisFailed(
       ai_insights: { error: "analysis_failed", attempts: MAX_ANALYSIS_FAILURES },
       ai_category: "error",
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("workspace_id", workspaceId);
 }
 
 async function analyzeGmail(
@@ -249,7 +251,8 @@ Body excerpt: ${sanitizeForPrompt(email.body_text || "", 2000)}`;
           ai_sentiment: typeof insights.sentiment === "string" ? insights.sentiment : "neutral",
           ai_priority_score: priorityScore,
         })
-        .eq("id", email.id);
+        .eq("id", email.id)
+        .eq("workspace_id", workspaceId);
 
       if (updateError) {
         console.error("Failed to save email analysis:", updateError.message);
@@ -261,7 +264,7 @@ Body excerpt: ${sanitizeForPrompt(email.body_text || "", 2000)}`;
       console.error("Failed to analyze email:", err);
       failed++;
       // Mark as failed after threshold to prevent infinite retry
-      await markAnalysisFailed(supabase, "gmail_messages", email.id);
+      await markAnalysisFailed(supabase, "gmail_messages", email.id, workspaceId);
     }
   }
 
@@ -318,7 +321,8 @@ Description: ${sanitizeForPrompt(event.description || "", 2000)}`;
           ai_insights: insights,
           ai_category: typeof insights.category === "string" ? insights.category : "other",
         })
-        .eq("id", event.id);
+        .eq("id", event.id)
+        .eq("workspace_id", workspaceId);
 
       if (updateError) {
         console.error("Failed to save event analysis:", updateError.message);
@@ -329,7 +333,7 @@ Description: ${sanitizeForPrompt(event.description || "", 2000)}`;
     } catch (err) {
       console.error("Failed to analyze event:", err);
       failed++;
-      await markAnalysisFailed(supabase, "google_calendar_events", event.id);
+      await markAnalysisFailed(supabase, "google_calendar_events", event.id, workspaceId);
     }
   }
 
@@ -385,7 +389,8 @@ Content: ${sanitizeForPrompt(textContent, 3000)}`;
           ai_key_topics: Array.isArray(insights.key_topics) ? insights.key_topics : [],
           ai_summary: typeof insights.summary === "string" ? insights.summary : "",
         })
-        .eq("id", doc.id);
+        .eq("id", doc.id)
+        .eq("workspace_id", workspaceId);
 
       if (updateError) {
         console.error("Failed to save document analysis:", updateError.message);
@@ -396,7 +401,7 @@ Content: ${sanitizeForPrompt(textContent, 3000)}`;
     } catch (err) {
       console.error("Failed to analyze document:", err);
       failed++;
-      await markAnalysisFailed(supabase, "google_drive_documents", doc.id);
+      await markAnalysisFailed(supabase, "google_drive_documents", doc.id, workspaceId);
     }
   }
 
