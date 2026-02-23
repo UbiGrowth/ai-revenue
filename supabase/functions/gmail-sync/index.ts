@@ -351,6 +351,19 @@ async function refreshAccessToken(
     throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
   }
 
+  // Validate required fields in the response
+  if (!data.access_token || typeof data.access_token !== "string") {
+    throw new Error(
+      `Invalid token response: missing or invalid access_token. Response: ${JSON.stringify(data)}`
+    );
+  }
+
+  if (typeof data.expires_in !== "number" || data.expires_in <= 0) {
+    throw new Error(
+      `Invalid token response: missing or invalid expires_in. Response: ${JSON.stringify(data)}`
+    );
+  }
+
   const tokenExpiresAt = new Date(
     Date.now() + data.expires_in * 1000
   ).toISOString();
