@@ -39,7 +39,7 @@ serve(async (req) => {
       });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const tenantId = body.tenantId || body.tenant_id;
     const calendarId = body.calendarId || "primary";
     const timeMin =

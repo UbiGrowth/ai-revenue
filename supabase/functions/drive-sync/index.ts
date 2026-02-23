@@ -39,7 +39,7 @@ serve(async (req) => {
       });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const tenantId = body.tenantId || body.tenant_id;
     const folderId = body.folderId || null;
     const maxResults = body.maxResults || 100;

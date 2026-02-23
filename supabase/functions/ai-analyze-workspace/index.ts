@@ -50,7 +50,7 @@ serve(async (req) => {
       });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const tenantId = body.tenantId || body.tenant_id;
     const analysisType = body.type || "all"; // "gmail", "calendar", "drive", "all"
     const batchSize = body.batchSize || 10;
