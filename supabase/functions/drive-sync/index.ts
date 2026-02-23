@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getValidAccessToken, verifyTenantMembership, getRequiredEnv } from "../_shared/google-token.ts";
+import { getValidAccessToken, verifyWorkspaceMembership, getRequiredEnv } from "../_shared/google-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,18 +48,18 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id;
-    if (!tenantId || typeof tenantId !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
+    const workspaceId = body.workspace_id;
+    if (!workspaceId || typeof workspaceId !== "string") {
+      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify user belongs to this tenant
-    const isMember = await verifyTenantMembership(supabase, user.id, tenantId);
+    // Verify user belongs to this workspace
+    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
     if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this tenant" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -78,7 +78,7 @@ serve(async (req) => {
     }
 
     // Get access token
-    const accessToken = await getValidAccessToken(tenantId, serviceRoleKey, supabaseUrl);
+    const accessToken = await getValidAccessToken(workspaceId, serviceRoleKey, supabaseUrl);
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "No valid Google connection" }), {
         status: 401,
@@ -93,7 +93,7 @@ serve(async (req) => {
     const { data: syncJob, error: jobError } = await adminSupabase
       .from("google_workspace_sync_jobs")
       .insert({
-        tenant_id: tenantId,
+        workspace_id: workspaceId,
         job_type: "drive_sync",
         status: "running",
         sync_params: { max_results: maxResults, extract_text: extractText, folder_id: folderId },
@@ -200,7 +200,7 @@ serve(async (req) => {
           const { error: upsertError } = await adminSupabase
             .from("google_drive_documents")
             .upsert({
-              tenant_id: tenantId,
+              workspace_id: workspaceId,
               file_id: file.id,
               name: file.name,
               mime_type: file.mimeType,
@@ -217,9 +217,8 @@ serve(async (req) => {
               owner_email: owner?.emailAddress || "",
               owner_name: owner?.displayName || "",
               document_type: docType,
-              updated_at: new Date().toISOString(),
             }, {
-              onConflict: "tenant_id,file_id",
+              onConflict: "workspace_id,file_id",
             });
 
           if (upsertError) {

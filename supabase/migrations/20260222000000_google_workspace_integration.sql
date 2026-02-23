@@ -4,7 +4,8 @@
 -- OAuth connections table
 CREATE TABLE IF NOT EXISTS google_workspace_connections (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id UUID,
   access_token TEXT NOT NULL,
   refresh_token TEXT NOT NULL,
   token_expires_at TIMESTAMPTZ NOT NULL,
@@ -14,13 +15,13 @@ CREATE TABLE IF NOT EXISTS google_workspace_connections (
   connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(tenant_id)
+  UNIQUE(workspace_id)
 );
 
 -- Gmail messages table
 CREATE TABLE IF NOT EXISTS gmail_messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   message_id TEXT NOT NULL,
   thread_id TEXT NOT NULL,
   subject TEXT,
@@ -46,15 +47,15 @@ CREATE TABLE IF NOT EXISTS gmail_messages (
   ai_priority_score INTEGER CHECK (ai_priority_score IS NULL OR (ai_priority_score >= 1 AND ai_priority_score <= 10)),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(tenant_id, message_id)
+  UNIQUE(workspace_id, message_id)
 );
 
 -- Calendar events table
--- UNIQUE on (tenant_id, event_id, calendar_id) because the same event
+-- UNIQUE on (workspace_id, event_id, calendar_id) because the same event
 -- can appear in multiple calendars (e.g. shared/delegated calendars).
 CREATE TABLE IF NOT EXISTS google_calendar_events (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   event_id TEXT NOT NULL,
   calendar_id TEXT NOT NULL,
   calendar_name TEXT,
@@ -81,19 +82,18 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
   ai_category TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(tenant_id, event_id, calendar_id)
+  UNIQUE(workspace_id, event_id, calendar_id)
 );
 
 -- Drive documents table
 CREATE TABLE IF NOT EXISTS google_drive_documents (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   file_id TEXT NOT NULL,
   name TEXT NOT NULL,
   mime_type TEXT,
   file_extension TEXT,
   web_view_link TEXT,
-  download_url TEXT,
   folder_id TEXT,
   folder_path TEXT,
   is_shared BOOLEAN NOT NULL DEFAULT false,
@@ -102,10 +102,8 @@ CREATE TABLE IF NOT EXISTS google_drive_documents (
   size_bytes BIGINT,
   created_time TIMESTAMPTZ,
   modified_time TIMESTAMPTZ,
-  last_modified_by_email TEXT,
   owner_email TEXT,
   owner_name TEXT,
-  shared_with JSONB NOT NULL DEFAULT '[]'::jsonb,
   document_type TEXT,
   analyzed_at TIMESTAMPTZ,
   ai_insights JSONB,
@@ -114,13 +112,13 @@ CREATE TABLE IF NOT EXISTS google_drive_documents (
   ai_summary TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(tenant_id, file_id)
+  UNIQUE(workspace_id, file_id)
 );
 
 -- Sync jobs table
 CREATE TABLE IF NOT EXISTS google_workspace_sync_jobs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   job_type TEXT NOT NULL CHECK (job_type IN ('gmail_sync', 'calendar_sync', 'drive_sync')),
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'completed', 'failed')),
   sync_params JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -137,20 +135,23 @@ CREATE TABLE IF NOT EXISTS google_workspace_sync_jobs (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_gmail_messages_tenant_received ON gmail_messages(tenant_id, received_at DESC);
-CREATE INDEX IF NOT EXISTS idx_gmail_messages_unread ON gmail_messages(tenant_id, is_read) WHERE is_read = false;
-CREATE INDEX IF NOT EXISTS idx_gmail_messages_unanalyzed ON gmail_messages(tenant_id, analyzed_at) WHERE analyzed_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_gmail_messages_priority ON gmail_messages(tenant_id, ai_priority_score DESC) WHERE ai_priority_score IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_gmail_messages_ws_received ON gmail_messages(workspace_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gmail_messages_thread ON gmail_messages(workspace_id, thread_id);
+CREATE INDEX IF NOT EXISTS idx_gmail_messages_unread ON gmail_messages(workspace_id, is_read) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_gmail_messages_unanalyzed ON gmail_messages(workspace_id, analyzed_at) WHERE analyzed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_gmail_messages_priority ON gmail_messages(workspace_id, ai_priority_score DESC) WHERE ai_priority_score IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_calendar_events_tenant_time ON google_calendar_events(tenant_id, start_time DESC);
-CREATE INDEX IF NOT EXISTS idx_calendar_events_unanalyzed ON google_calendar_events(tenant_id, analyzed_at) WHERE analyzed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_calendar_events_ws_time ON google_calendar_events(workspace_id, start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_calendar ON google_calendar_events(workspace_id, calendar_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_unanalyzed ON google_calendar_events(workspace_id, analyzed_at) WHERE analyzed_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_drive_documents_tenant_modified ON google_drive_documents(tenant_id, modified_time DESC);
-CREATE INDEX IF NOT EXISTS idx_drive_documents_unanalyzed ON google_drive_documents(tenant_id, analyzed_at) WHERE analyzed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_drive_documents_ws_modified ON google_drive_documents(workspace_id, modified_time DESC);
+CREATE INDEX IF NOT EXISTS idx_drive_documents_folder ON google_drive_documents(workspace_id, folder_id);
+CREATE INDEX IF NOT EXISTS idx_drive_documents_unanalyzed ON google_drive_documents(workspace_id, analyzed_at) WHERE analyzed_at IS NULL;
 -- Full-text index: coalesce NULL to empty string to avoid index issues
 CREATE INDEX IF NOT EXISTS idx_drive_documents_fulltext ON google_drive_documents USING gin(to_tsvector('english', COALESCE(full_text_extracted, '')));
 
-CREATE INDEX IF NOT EXISTS idx_sync_jobs_tenant_created ON google_workspace_sync_jobs(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sync_jobs_ws_created ON google_workspace_sync_jobs(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sync_jobs_status ON google_workspace_sync_jobs(status) WHERE status IN ('queued', 'running');
 
 -- RLS Policies
@@ -162,52 +163,104 @@ ALTER TABLE google_workspace_sync_jobs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can manage their workspace connections"
   ON google_workspace_connections FOR ALL
-  USING (tenant_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 
 CREATE POLICY "Users can view their workspace Gmail messages"
   ON gmail_messages FOR ALL
-  USING (tenant_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 
 CREATE POLICY "Users can view their workspace calendar events"
   ON google_calendar_events FOR ALL
-  USING (tenant_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 
 CREATE POLICY "Users can view their workspace drive documents"
   ON google_drive_documents FOR ALL
-  USING (tenant_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 
 CREATE POLICY "Users can view their workspace sync jobs"
   ON google_workspace_sync_jobs FOR ALL
-  USING (tenant_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
+  USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 
--- Triggers: mark new inserts for AI analysis
-CREATE OR REPLACE FUNCTION mark_for_ai_analysis()
+-- Triggers: auto-update updated_at (uses existing function from codebase)
+CREATE TRIGGER gw_connections_updated_at
+  BEFORE UPDATE ON google_workspace_connections
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER gw_gmail_updated_at
+  BEFORE UPDATE ON gmail_messages
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER gw_calendar_updated_at
+  BEFORE UPDATE ON google_calendar_events
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER gw_drive_updated_at
+  BEFORE UPDATE ON google_drive_documents
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER gw_sync_jobs_updated_at
+  BEFORE UPDATE ON google_workspace_sync_jobs
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Triggers: mark items for AI analysis on INSERT and when content changes on UPDATE.
+-- Table-specific functions detect content changes to avoid unnecessary re-analysis.
+
+CREATE OR REPLACE FUNCTION gw_gmail_mark_for_analysis()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.analyzed_at := NULL;
+  IF TG_OP = 'INSERT' THEN
+    NEW.analyzed_at := NULL;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF OLD.subject IS DISTINCT FROM NEW.subject
+       OR OLD.body_text IS DISTINCT FROM NEW.body_text
+       OR OLD.snippet IS DISTINCT FROM NEW.snippet THEN
+      NEW.analyzed_at := NULL;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION gw_calendar_mark_for_analysis()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.analyzed_at := NULL;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF OLD.summary IS DISTINCT FROM NEW.summary
+       OR OLD.description IS DISTINCT FROM NEW.description
+       OR OLD.attendees IS DISTINCT FROM NEW.attendees THEN
+      NEW.analyzed_at := NULL;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION gw_drive_mark_for_analysis()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.analyzed_at := NULL;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF OLD.content_preview IS DISTINCT FROM NEW.content_preview
+       OR OLD.full_text_extracted IS DISTINCT FROM NEW.full_text_extracted
+       OR OLD.name IS DISTINCT FROM NEW.name THEN
+      NEW.analyzed_at := NULL;
+    END IF;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER gmail_mark_for_analysis
-  BEFORE INSERT ON gmail_messages
-  FOR EACH ROW EXECUTE FUNCTION mark_for_ai_analysis();
+  BEFORE INSERT OR UPDATE ON gmail_messages
+  FOR EACH ROW EXECUTE FUNCTION gw_gmail_mark_for_analysis();
 
 CREATE TRIGGER calendar_mark_for_analysis
-  BEFORE INSERT ON google_calendar_events
-  FOR EACH ROW EXECUTE FUNCTION mark_for_ai_analysis();
+  BEFORE INSERT OR UPDATE ON google_calendar_events
+  FOR EACH ROW EXECUTE FUNCTION gw_calendar_mark_for_analysis();
 
 CREATE TRIGGER drive_mark_for_analysis
-  BEFORE INSERT ON google_drive_documents
-  FOR EACH ROW EXECUTE FUNCTION mark_for_ai_analysis();
-
--- Helper function to get token for a tenant (used by pg_cron jobs)
-CREATE OR REPLACE FUNCTION refresh_google_token(p_tenant_id UUID)
-RETURNS TABLE (access_token TEXT, expires_at TIMESTAMPTZ) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT gwc.access_token, gwc.token_expires_at
-  FROM google_workspace_connections gwc
-  WHERE gwc.tenant_id = p_tenant_id AND gwc.is_active = true;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  BEFORE INSERT OR UPDATE ON google_drive_documents
+  FOR EACH ROW EXECUTE FUNCTION gw_drive_mark_for_analysis();

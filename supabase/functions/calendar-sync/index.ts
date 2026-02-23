@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getValidAccessToken, verifyTenantMembership, getRequiredEnv } from "../_shared/google-token.ts";
+import { getValidAccessToken, verifyWorkspaceMembership, getRequiredEnv } from "../_shared/google-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,18 +38,18 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id;
-    if (!tenantId || typeof tenantId !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
+    const workspaceId = body.workspace_id;
+    if (!workspaceId || typeof workspaceId !== "string") {
+      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify user belongs to this tenant
-    const isMember = await verifyTenantMembership(supabase, user.id, tenantId);
+    // Verify user belongs to this workspace
+    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
     if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this tenant" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -61,7 +61,7 @@ serve(async (req) => {
     const maxResults = Math.min(body.max_results ?? 100, 500);
 
     // Get access token
-    const accessToken = await getValidAccessToken(tenantId, serviceRoleKey, supabaseUrl);
+    const accessToken = await getValidAccessToken(workspaceId, serviceRoleKey, supabaseUrl);
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "No valid Google connection" }), {
         status: 401,
@@ -76,7 +76,7 @@ serve(async (req) => {
     const { data: syncJob, error: jobError } = await adminSupabase
       .from("google_workspace_sync_jobs")
       .insert({
-        tenant_id: tenantId,
+        workspace_id: workspaceId,
         job_type: "calendar_sync",
         status: "running",
         sync_params: { time_min: timeMin, time_max: timeMax, max_results: maxResults },
@@ -173,11 +173,11 @@ serve(async (req) => {
               if (videoEntry) meetingLink = videoEntry.uri;
             }
 
-            const startTime = event.start?.dateTime || event.start?.date;
-            const endTime = event.end?.dateTime || event.end?.date;
+            const eventStartTime = event.start?.dateTime || event.start?.date;
+            const eventEndTime = event.end?.dateTime || event.end?.date;
             const isAllDay = !event.start?.dateTime;
 
-            if (!startTime || !endTime) {
+            if (!eventStartTime || !eventEndTime) {
               console.error("Event missing start/end time:", event.id);
               itemsFailed++;
               continue;
@@ -186,15 +186,15 @@ serve(async (req) => {
             const { error: upsertError } = await adminSupabase
               .from("google_calendar_events")
               .upsert({
-                tenant_id: tenantId,
+                workspace_id: workspaceId,
                 event_id: event.id,
                 calendar_id: calendar.id,
                 calendar_name: calendar.summary || "",
                 summary: event.summary || "(No title)",
                 description: (event.description || "").substring(0, 10000),
                 location: event.location || "",
-                start_time: startTime,
-                end_time: endTime,
+                start_time: eventStartTime,
+                end_time: eventEndTime,
                 timezone: event.start?.timeZone || "UTC",
                 is_all_day: isAllDay,
                 organizer_email: event.organizer?.email || "",
@@ -208,9 +208,8 @@ serve(async (req) => {
                 visibility: event.visibility || "default",
                 ai_attendee_count: attendees.length,
                 ai_external_attendees: externalAttendees.length,
-                updated_at: new Date().toISOString(),
               }, {
-                onConflict: "tenant_id,event_id,calendar_id",
+                onConflict: "workspace_id,event_id,calendar_id",
               });
 
             if (upsertError) {

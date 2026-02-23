@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getValidAccessToken, verifyTenantMembership, getRequiredEnv, safeDateToISO, decodeBase64Utf8 } from "../_shared/google-token.ts";
+import { getValidAccessToken, verifyWorkspaceMembership, getRequiredEnv, safeDateToISO, decodeBase64Utf8 } from "../_shared/google-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,18 +38,18 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id;
-    if (!tenantId || typeof tenantId !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
+    const workspaceId = body.workspace_id;
+    if (!workspaceId || typeof workspaceId !== "string") {
+      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify user belongs to this tenant
-    const isMember = await verifyTenantMembership(supabase, user.id, tenantId);
+    // Verify user belongs to this workspace
+    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
     if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this tenant" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -59,7 +59,7 @@ serve(async (req) => {
     const labelFilter = body.label || "INBOX";
 
     // Get access token (refresh if needed)
-    const accessToken = await getValidAccessToken(tenantId, serviceRoleKey, supabaseUrl);
+    const accessToken = await getValidAccessToken(workspaceId, serviceRoleKey, supabaseUrl);
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "No valid Google connection" }), {
         status: 401,
@@ -74,7 +74,7 @@ serve(async (req) => {
     const { data: syncJob, error: jobError } = await adminSupabase
       .from("google_workspace_sync_jobs")
       .insert({
-        tenant_id: tenantId,
+        workspace_id: workspaceId,
         job_type: "gmail_sync",
         status: "running",
         sync_params: { max_results: maxResults, label: labelFilter },
@@ -141,13 +141,12 @@ serve(async (req) => {
             const { error: upsertError } = await adminSupabase
               .from("gmail_messages")
               .upsert({
-                tenant_id: tenantId,
+                workspace_id: workspaceId,
                 message_id: detail.id,
                 thread_id: detail.threadId,
                 ...parsed,
-                updated_at: new Date().toISOString(),
               }, {
-                onConflict: "tenant_id,message_id",
+                onConflict: "workspace_id,message_id",
               });
 
             if (upsertError) {

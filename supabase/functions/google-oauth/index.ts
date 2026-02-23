@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyWorkspaceMembership, getRequiredEnv } from "../_shared/google-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,14 +33,6 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
-function getRequiredEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
 // HMAC-sign state to prevent CSRF/tampering
 async function signState(payload: Record<string, unknown>): Promise<string> {
   const secret = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -70,18 +63,6 @@ async function verifyState(state: string): Promise<Record<string, unknown>> {
   const valid = await crypto.subtle.verify("HMAC", key, sigBytes, new TextEncoder().encode(data));
   if (!valid) throw new Error("Invalid state signature");
   return JSON.parse(data);
-}
-
-// Verify user belongs to the tenant
-async function verifyTenantMembership(supabase: ReturnType<typeof createClient>, userId: string, tenantId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("workspace_members")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("workspace_id", tenantId)
-    .limit(1)
-    .single();
-  return !!data;
 }
 
 serve(async (req) => {
@@ -122,18 +103,18 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id;
-    if (!tenantId || typeof tenantId !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
+    const workspaceId = body.workspace_id;
+    if (!workspaceId || typeof workspaceId !== "string") {
+      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify user belongs to this tenant
-    const isMember = await verifyTenantMembership(supabase, user.id, tenantId);
+    // Verify user belongs to this workspace
+    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
     if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this tenant" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -141,13 +122,13 @@ serve(async (req) => {
 
     switch (body.action || "connect") {
       case "connect":
-        return await handleConnect(user.id, tenantId, body, supabaseUrl);
+        return await handleConnect(user.id, workspaceId, body, supabaseUrl);
       case "disconnect":
-        return await handleDisconnect(tenantId, supabase);
+        return await handleDisconnect(workspaceId, supabase);
       case "status":
-        return await handleStatus(tenantId, supabase);
+        return await handleStatus(workspaceId, supabase);
       case "refresh":
-        return await handleRefresh(tenantId);
+        return await handleRefresh(workspaceId);
       default:
         return new Response(JSON.stringify({ error: "Unknown action" }), {
           status: 400,
@@ -164,7 +145,7 @@ serve(async (req) => {
   }
 });
 
-async function handleConnect(userId: string, tenantId: string, body: Record<string, unknown>, supabaseUrl: string) {
+async function handleConnect(userId: string, workspaceId: string, body: Record<string, unknown>, supabaseUrl: string) {
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   if (!clientId) {
     return new Response(JSON.stringify({ error: "Google OAuth not configured" }), {
@@ -182,7 +163,7 @@ async function handleConnect(userId: string, tenantId: string, body: Record<stri
   const redirectUri = `${supabaseUrl}/functions/v1/google-oauth?action=callback`;
   const state = await signState({
     user_id: userId,
-    tenant_id: tenantId,
+    workspace_id: workspaceId,
     redirect_url: finalRedirectUrl,
   });
 
@@ -206,18 +187,18 @@ async function handleCallback(url: URL) {
   const error = url.searchParams.get("error");
 
   let userId: string;
-  let tenantId: string;
+  let workspaceId: string;
   let redirectUrl = "https://ubigrowth.ai/settings/integrations";
 
   try {
     if (!stateParam) throw new Error("Missing state");
     const stateData = await verifyState(stateParam);
     if (!stateData.user_id || typeof stateData.user_id !== "string" ||
-        !stateData.tenant_id || typeof stateData.tenant_id !== "string") {
+        !stateData.workspace_id || typeof stateData.workspace_id !== "string") {
       throw new Error("Invalid state data");
     }
     userId = stateData.user_id as string;
-    tenantId = stateData.tenant_id as string;
+    workspaceId = stateData.workspace_id as string;
     const candidateRedirect = stateData.redirect_url as string;
     if (candidateRedirect && isRedirectSafe(candidateRedirect)) {
       redirectUrl = candidateRedirect;
@@ -297,7 +278,8 @@ async function handleCallback(url: URL) {
   const { error: upsertError } = await supabase
     .from("google_workspace_connections")
     .upsert({
-      tenant_id: tenantId,
+      workspace_id: workspaceId,
+      user_id: userId,
       access_token,
       refresh_token,
       token_expires_at: tokenExpiresAt,
@@ -305,9 +287,8 @@ async function handleCallback(url: URL) {
       scopes: grantedScopes,
       is_active: true,
       connected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     }, {
-      onConflict: "tenant_id",
+      onConflict: "workspace_id",
     });
 
   if (upsertError) {
@@ -315,15 +296,15 @@ async function handleCallback(url: URL) {
     return Response.redirect(`${redirectUrl}?workspace_error=storage_failed`);
   }
 
-  console.log("Google Workspace connected for tenant:", tenantId);
+  console.log("Google Workspace connected for workspace:", workspaceId);
   return Response.redirect(`${redirectUrl}?workspace_connected=true`);
 }
 
-async function handleDisconnect(tenantId: string, supabase: ReturnType<typeof createClient>) {
-  const { error, count } = await supabase
+async function handleDisconnect(workspaceId: string, supabase: ReturnType<typeof createClient>) {
+  const { error } = await supabase
     .from("google_workspace_connections")
-    .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq("tenant_id", tenantId);
+    .update({ is_active: false })
+    .eq("workspace_id", workspaceId);
 
   if (error) {
     console.error("Failed to disconnect:", error.message);
@@ -338,11 +319,11 @@ async function handleDisconnect(tenantId: string, supabase: ReturnType<typeof cr
   });
 }
 
-async function handleStatus(tenantId: string, supabase: ReturnType<typeof createClient>) {
+async function handleStatus(workspaceId: string, supabase: ReturnType<typeof createClient>) {
   const { data, error } = await supabase
     .from("google_workspace_connections")
     .select("google_email, scopes, is_active, connected_at, token_expires_at")
-    .eq("tenant_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (error || !data) {
@@ -362,7 +343,7 @@ async function handleStatus(tenantId: string, supabase: ReturnType<typeof create
   });
 }
 
-async function handleRefresh(tenantId: string) {
+async function handleRefresh(workspaceId: string) {
   const supabaseUrl = getRequiredEnv("SUPABASE_URL");
   const serviceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const clientId = getRequiredEnv("GOOGLE_CLIENT_ID");
@@ -373,7 +354,7 @@ async function handleRefresh(tenantId: string) {
   const { data: connection, error: fetchError } = await supabase
     .from("google_workspace_connections")
     .select("refresh_token")
-    .eq("tenant_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .eq("is_active", true)
     .single();
 
@@ -412,9 +393,8 @@ async function handleRefresh(tenantId: string) {
     .update({
       access_token: tokenData.access_token,
       token_expires_at: tokenExpiresAt,
-      updated_at: new Date().toISOString(),
     })
-    .eq("tenant_id", tenantId);
+    .eq("workspace_id", workspaceId);
 
   if (updateError) {
     console.error("Failed to persist refreshed token:", updateError.message);

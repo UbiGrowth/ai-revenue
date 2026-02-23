@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTenantMembership, getRequiredEnv } from "../_shared/google-token.ts";
+import { verifyWorkspaceMembership, getRequiredEnv } from "../_shared/google-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,11 +52,11 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id;
+    const workspaceId = body.workspace_id;
     const dataType = body.data_type as string;
 
-    if (!tenantId || typeof tenantId !== "string") {
-      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
+    if (!workspaceId || typeof workspaceId !== "string") {
+      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -70,10 +70,10 @@ serve(async (req) => {
       });
     }
 
-    // Verify user belongs to this tenant
-    const isMember = await verifyTenantMembership(supabase, user.id, tenantId);
+    // Verify user belongs to this workspace
+    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
     if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this tenant" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -87,13 +87,13 @@ serve(async (req) => {
     for (const type of typesToAnalyze) {
       switch (type) {
         case "gmail":
-          results.gmail = await analyzeGmail(adminSupabase, tenantId, anthropicApiKey);
+          results.gmail = await analyzeGmail(adminSupabase, workspaceId, anthropicApiKey);
           break;
         case "calendar":
-          results.calendar = await analyzeCalendar(adminSupabase, tenantId, anthropicApiKey);
+          results.calendar = await analyzeCalendar(adminSupabase, workspaceId, anthropicApiKey);
           break;
         case "drive":
-          results.drive = await analyzeDrive(adminSupabase, tenantId, anthropicApiKey);
+          results.drive = await analyzeDrive(adminSupabase, workspaceId, anthropicApiKey);
           break;
       }
     }
@@ -199,7 +199,7 @@ async function markAnalysisFailed(
 
 async function analyzeGmail(
   supabase: ReturnType<typeof createClient>,
-  tenantId: string,
+  workspaceId: string,
   apiKey: string
 ): Promise<{ analyzed: number; failed: number }> {
   let analyzed = 0;
@@ -209,7 +209,7 @@ async function analyzeGmail(
   const { data: emails, error } = await supabase
     .from("gmail_messages")
     .select("id, subject, from_email, from_name, snippet, body_text, labels")
-    .eq("tenant_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .is("analyzed_at", null)
     .limit(BATCH_SIZE);
 
@@ -270,7 +270,7 @@ Body excerpt: ${sanitizeForPrompt(email.body_text || "", 2000)}`;
 
 async function analyzeCalendar(
   supabase: ReturnType<typeof createClient>,
-  tenantId: string,
+  workspaceId: string,
   apiKey: string
 ): Promise<{ analyzed: number; failed: number }> {
   let analyzed = 0;
@@ -279,7 +279,7 @@ async function analyzeCalendar(
   const { data: events, error } = await supabase
     .from("google_calendar_events")
     .select("id, summary, description, location, start_time, end_time, attendees, organizer_email, ai_attendee_count, ai_external_attendees, meeting_link")
-    .eq("tenant_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .is("analyzed_at", null)
     .limit(BATCH_SIZE);
 
@@ -338,7 +338,7 @@ Description: ${sanitizeForPrompt(event.description || "", 2000)}`;
 
 async function analyzeDrive(
   supabase: ReturnType<typeof createClient>,
-  tenantId: string,
+  workspaceId: string,
   apiKey: string
 ): Promise<{ analyzed: number; failed: number }> {
   let analyzed = 0;
@@ -347,7 +347,7 @@ async function analyzeDrive(
   const { data: documents, error } = await supabase
     .from("google_drive_documents")
     .select("id, name, mime_type, document_type, content_preview, full_text_extracted, is_shared, owner_email, modified_time")
-    .eq("tenant_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .is("analyzed_at", null)
     .limit(BATCH_SIZE);
 

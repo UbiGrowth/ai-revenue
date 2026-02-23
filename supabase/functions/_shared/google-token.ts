@@ -1,11 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 /**
- * Get a valid Google access token for a tenant, refreshing if needed.
+ * Get a valid Google access token for a workspace, refreshing if needed.
  * Shared across gmail-sync, calendar-sync, drive-sync.
  */
 export async function getValidAccessToken(
-  tenantId: string,
+  workspaceId: string,
   serviceRoleKey: string,
   supabaseUrl: string
 ): Promise<string | null> {
@@ -14,12 +14,12 @@ export async function getValidAccessToken(
   const { data: connection, error } = await supabase
     .from("google_workspace_connections")
     .select("access_token, refresh_token, token_expires_at")
-    .eq("tenant_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .eq("is_active", true)
     .single();
 
   if (error || !connection) {
-    console.error("No active Google connection for tenant:", tenantId);
+    console.error("No active Google connection for workspace:", workspaceId);
     return null;
   }
 
@@ -73,9 +73,8 @@ export async function getValidAccessToken(
     .update({
       access_token: tokenData.access_token,
       token_expires_at: newExpiresAt,
-      updated_at: new Date().toISOString(),
     })
-    .eq("tenant_id", tenantId);
+    .eq("workspace_id", workspaceId);
 
   if (updateError) {
     console.error("Failed to persist refreshed token:", updateError.message);
@@ -86,18 +85,18 @@ export async function getValidAccessToken(
 }
 
 /**
- * Verify user belongs to the tenant.
+ * Verify user belongs to the workspace.
  */
-export async function verifyTenantMembership(
+export async function verifyWorkspaceMembership(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  tenantId: string
+  workspaceId: string
 ): Promise<boolean> {
   const { data } = await supabase
     .from("workspace_members")
     .select("id")
     .eq("user_id", userId)
-    .eq("workspace_id", tenantId)
+    .eq("workspace_id", workspaceId)
     .limit(1)
     .single();
   return !!data;
