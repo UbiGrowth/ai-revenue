@@ -10,10 +10,10 @@ CREATE TABLE IF NOT EXISTS google_workspace_connections (
   token_expires_at TIMESTAMPTZ NOT NULL,
   google_email TEXT NOT NULL,
   scopes TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-  is_active BOOLEAN DEFAULT true,
-  connected_at TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(tenant_id)
 );
 
@@ -33,23 +33,25 @@ CREATE TABLE IF NOT EXISTS gmail_messages (
   body_html TEXT,
   snippet TEXT,
   labels TEXT[] DEFAULT ARRAY[]::TEXT[],
-  is_read BOOLEAN DEFAULT false,
-  is_starred BOOLEAN DEFAULT false,
-  has_attachments BOOLEAN DEFAULT false,
-  attachments JSONB DEFAULT '[]'::jsonb,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  is_starred BOOLEAN NOT NULL DEFAULT false,
+  has_attachments BOOLEAN NOT NULL DEFAULT false,
+  attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
   received_at TIMESTAMPTZ,
   sent_at TIMESTAMPTZ,
   analyzed_at TIMESTAMPTZ,
   ai_insights JSONB,
   ai_category TEXT,
   ai_sentiment TEXT,
-  ai_priority_score INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  ai_priority_score INTEGER CHECK (ai_priority_score IS NULL OR (ai_priority_score >= 1 AND ai_priority_score <= 10)),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(tenant_id, message_id)
 );
 
 -- Calendar events table
+-- UNIQUE on (tenant_id, event_id, calendar_id) because the same event
+-- can appear in multiple calendars (e.g. shared/delegated calendars).
 CREATE TABLE IF NOT EXISTS google_calendar_events (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tenant_id UUID NOT NULL,
@@ -62,24 +64,24 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
   start_time TIMESTAMPTZ NOT NULL,
   end_time TIMESTAMPTZ NOT NULL,
   timezone TEXT DEFAULT 'UTC',
-  is_all_day BOOLEAN DEFAULT false,
+  is_all_day BOOLEAN NOT NULL DEFAULT false,
   organizer_email TEXT,
   organizer_name TEXT,
-  attendees JSONB DEFAULT '[]'::jsonb,
+  attendees JSONB NOT NULL DEFAULT '[]'::jsonb,
   event_type TEXT,
   meeting_link TEXT,
-  is_recurring BOOLEAN DEFAULT false,
+  is_recurring BOOLEAN NOT NULL DEFAULT false,
   recurrence_rules TEXT[] DEFAULT ARRAY[]::TEXT[],
   status TEXT,
   visibility TEXT,
-  ai_attendee_count INTEGER DEFAULT 0,
-  ai_external_attendees INTEGER DEFAULT 0,
+  ai_attendee_count INTEGER NOT NULL DEFAULT 0,
+  ai_external_attendees INTEGER NOT NULL DEFAULT 0,
   analyzed_at TIMESTAMPTZ,
   ai_insights JSONB,
   ai_category TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tenant_id, event_id)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(tenant_id, event_id, calendar_id)
 );
 
 -- Drive documents table
@@ -94,7 +96,7 @@ CREATE TABLE IF NOT EXISTS google_drive_documents (
   download_url TEXT,
   folder_id TEXT,
   folder_path TEXT,
-  is_shared BOOLEAN DEFAULT false,
+  is_shared BOOLEAN NOT NULL DEFAULT false,
   content_preview TEXT,
   full_text_extracted TEXT,
   size_bytes BIGINT,
@@ -103,15 +105,15 @@ CREATE TABLE IF NOT EXISTS google_drive_documents (
   last_modified_by_email TEXT,
   owner_email TEXT,
   owner_name TEXT,
-  shared_with JSONB DEFAULT '[]'::jsonb,
+  shared_with JSONB NOT NULL DEFAULT '[]'::jsonb,
   document_type TEXT,
   analyzed_at TIMESTAMPTZ,
   ai_insights JSONB,
   ai_category TEXT,
   ai_key_topics TEXT[] DEFAULT ARRAY[]::TEXT[],
   ai_summary TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(tenant_id, file_id)
 );
 
@@ -119,19 +121,19 @@ CREATE TABLE IF NOT EXISTS google_drive_documents (
 CREATE TABLE IF NOT EXISTS google_workspace_sync_jobs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tenant_id UUID NOT NULL,
-  job_type TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'queued',
-  sync_params JSONB DEFAULT '{}'::jsonb,
-  items_processed INTEGER DEFAULT 0,
-  items_added INTEGER DEFAULT 0,
-  items_updated INTEGER DEFAULT 0,
-  items_failed INTEGER DEFAULT 0,
+  job_type TEXT NOT NULL CHECK (job_type IN ('gmail_sync', 'calendar_sync', 'drive_sync')),
+  status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+  sync_params JSONB NOT NULL DEFAULT '{}'::jsonb,
+  items_processed INTEGER NOT NULL DEFAULT 0,
+  items_added INTEGER NOT NULL DEFAULT 0,
+  items_updated INTEGER NOT NULL DEFAULT 0,
+  items_failed INTEGER NOT NULL DEFAULT 0,
   error_message TEXT,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   duration_ms INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Indexes
@@ -145,7 +147,8 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_unanalyzed ON google_calendar_eve
 
 CREATE INDEX IF NOT EXISTS idx_drive_documents_tenant_modified ON google_drive_documents(tenant_id, modified_time DESC);
 CREATE INDEX IF NOT EXISTS idx_drive_documents_unanalyzed ON google_drive_documents(tenant_id, analyzed_at) WHERE analyzed_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_drive_documents_fulltext ON google_drive_documents USING gin(to_tsvector('english', full_text_extracted));
+-- Full-text index: coalesce NULL to empty string to avoid index issues
+CREATE INDEX IF NOT EXISTS idx_drive_documents_fulltext ON google_drive_documents USING gin(to_tsvector('english', COALESCE(full_text_extracted, '')));
 
 CREATE INDEX IF NOT EXISTS idx_sync_jobs_tenant_created ON google_workspace_sync_jobs(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sync_jobs_status ON google_workspace_sync_jobs(status) WHERE status IN ('queued', 'running');
@@ -177,7 +180,7 @@ CREATE POLICY "Users can view their workspace sync jobs"
   ON google_workspace_sync_jobs FOR ALL
   USING (tenant_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 
--- Triggers
+-- Triggers: mark new inserts for AI analysis
 CREATE OR REPLACE FUNCTION mark_for_ai_analysis()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -198,7 +201,7 @@ CREATE TRIGGER drive_mark_for_analysis
   BEFORE INSERT ON google_drive_documents
   FOR EACH ROW EXECUTE FUNCTION mark_for_ai_analysis();
 
--- Helper function
+-- Helper function to get token for a tenant (used by pg_cron jobs)
 CREATE OR REPLACE FUNCTION refresh_google_token(p_tenant_id UUID)
 RETURNS TABLE (access_token TEXT, expires_at TIMESTAMPTZ) AS $$
 BEGIN

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getValidAccessToken, verifyTenantMembership, getRequiredEnv, safeDateToISO, decodeBase64Utf8 } from "../_shared/google-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,9 +21,9 @@ serve(async (req) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+    const supabaseAnonKey = getRequiredEnv("SUPABASE_ANON_KEY");
+    const serviceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -37,15 +38,24 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id as string;
-    if (!tenantId) {
+    const tenantId = body.tenant_id;
+    if (!tenantId || typeof tenantId !== "string") {
       return new Response(JSON.stringify({ error: "tenant_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const maxResults = Math.min(body.max_results || 50, 200);
+    // Verify user belongs to this tenant
+    const isMember = await verifyTenantMembership(supabase, user.id, tenantId);
+    if (!isMember) {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this tenant" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const maxResults = Math.min(body.max_results ?? 50, 200);
     const labelFilter = body.label || "INBOX";
 
     // Get access token (refresh if needed)
@@ -57,9 +67,11 @@ serve(async (req) => {
       });
     }
 
+    const startTime = Date.now();
+
     // Create sync job
     const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
-    const { data: syncJob } = await adminSupabase
+    const { data: syncJob, error: jobError } = await adminSupabase
       .from("google_workspace_sync_jobs")
       .insert({
         tenant_id: tenantId,
@@ -71,9 +83,12 @@ serve(async (req) => {
       .select("id")
       .single();
 
+    if (jobError) {
+      console.error("Failed to create sync job:", jobError.message);
+    }
+
     let itemsProcessed = 0;
     let itemsAdded = 0;
-    let itemsUpdated = 0;
     let itemsFailed = 0;
 
     try {
@@ -84,29 +99,42 @@ serve(async (req) => {
 
       const listResponse = await fetch(listUrl.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!listResponse.ok) {
-        const err = await listResponse.json();
-        throw new Error(`Gmail API error: ${err.error?.message || listResponse.statusText}`);
+        const errText = await listResponse.text().catch(() => listResponse.statusText);
+        throw new Error(`Gmail API error (${listResponse.status}): ${errText}`);
       }
 
       const listData = await listResponse.json();
       const messages = listData.messages || [];
 
-      // Fetch each message in detail (batch of 10 at a time)
+      // Fetch each message in detail (batch of 10 at a time) using allSettled
       for (let i = 0; i < messages.length; i += 10) {
         const batch = messages.slice(i, i + 10);
-        const detailPromises = batch.map((msg: { id: string }) =>
-          fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }).then(r => r.json())
+        const detailResults = await Promise.allSettled(
+          batch.map((msg: { id: string }) =>
+            fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              signal: AbortSignal.timeout(10000),
+            }).then(async (r) => {
+              if (!r.ok) throw new Error(`Gmail API ${r.status} for message ${msg.id}`);
+              return r.json();
+            })
+          )
         );
 
-        const details = await Promise.all(detailPromises);
-
-        for (const detail of details) {
+        for (const result of detailResults) {
           itemsProcessed++;
+
+          if (result.status === "rejected") {
+            console.error("Failed to fetch message:", result.reason);
+            itemsFailed++;
+            continue;
+          }
+
+          const detail = result.value;
           try {
             const parsed = parseGmailMessage(detail);
 
@@ -123,7 +151,7 @@ serve(async (req) => {
               });
 
             if (upsertError) {
-              console.error("Failed to upsert message:", upsertError);
+              console.error("Failed to upsert message:", upsertError.message);
               itemsFailed++;
             } else {
               itemsAdded++;
@@ -143,10 +171,9 @@ serve(async (req) => {
             status: "completed",
             items_processed: itemsProcessed,
             items_added: itemsAdded,
-            items_updated: itemsUpdated,
             items_failed: itemsFailed,
             completed_at: new Date().toISOString(),
-            duration_ms: Date.now() - new Date(syncJob.id ? Date.now() : 0).getTime(),
+            duration_ms: Date.now() - startTime,
           })
           .eq("id", syncJob.id);
       }
@@ -161,10 +188,23 @@ serve(async (req) => {
             items_added: itemsAdded,
             items_failed: itemsFailed,
             completed_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
           })
           .eq("id", syncJob.id);
       }
-      throw syncError;
+
+      // Return partial results instead of re-throwing
+      return new Response(JSON.stringify({
+        success: false,
+        error: syncError instanceof Error ? syncError.message : "Sync failed",
+        job_id: syncJob?.id,
+        items_processed: itemsProcessed,
+        items_added: itemsAdded,
+        items_failed: itemsFailed,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({
@@ -187,8 +227,20 @@ serve(async (req) => {
 });
 
 function parseGmailMessage(detail: Record<string, unknown>) {
-  const headers = (detail.payload as Record<string, unknown>)?.headers as Array<{ name: string; value: string }> || [];
-  const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+  const payload = detail.payload as Record<string, unknown> | undefined;
+  if (!payload) {
+    return {
+      subject: "", from_email: "", from_name: "",
+      to_emails: [], cc_emails: [], bcc_emails: [],
+      body_text: "", body_html: "", snippet: (detail.snippet as string) || "",
+      labels: [], is_read: true, is_starred: false,
+      has_attachments: false, attachments: [],
+      received_at: null, sent_at: null,
+    };
+  }
+
+  const headers = Array.isArray(payload.headers) ? payload.headers as Array<{ name: string; value: string }> : [];
+  const getHeader = (name: string) => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
 
   const subject = getHeader("Subject");
   const from = getHeader("From");
@@ -207,22 +259,26 @@ function parseGmailMessage(detail: Record<string, unknown>) {
     str ? str.split(",").map(e => e.trim().replace(/^.*<(.*)>$/, "$1")).filter(Boolean) : [];
 
   // Extract body text
-  const payload = detail.payload as Record<string, unknown>;
   let bodyText = "";
   let bodyHtml = "";
 
   function extractParts(part: Record<string, unknown>) {
+    if (!part) return;
     const mimeType = part.mimeType as string;
     const bodyData = (part.body as Record<string, unknown>)?.data as string;
 
     if (mimeType === "text/plain" && bodyData) {
-      bodyText = atob(bodyData.replace(/-/g, "+").replace(/_/g, "/"));
+      try {
+        bodyText = decodeBase64Utf8(bodyData);
+      } catch { bodyText = ""; }
     } else if (mimeType === "text/html" && bodyData) {
-      bodyHtml = atob(bodyData.replace(/-/g, "+").replace(/_/g, "/"));
+      try {
+        bodyHtml = decodeBase64Utf8(bodyData);
+      } catch { bodyHtml = ""; }
     }
 
     const parts = part.parts as Array<Record<string, unknown>> | undefined;
-    if (parts) {
+    if (Array.isArray(parts)) {
       for (const subPart of parts) {
         extractParts(subPart);
       }
@@ -233,16 +289,17 @@ function parseGmailMessage(detail: Record<string, unknown>) {
   // Check for attachments
   const attachments: Array<{ filename: string; mimeType: string; size: number }> = [];
   function findAttachments(part: Record<string, unknown>) {
+    if (!part) return;
     const filename = part.filename as string;
     if (filename) {
       attachments.push({
         filename,
-        mimeType: part.mimeType as string,
+        mimeType: (part.mimeType as string) || "",
         size: (part.body as Record<string, unknown>)?.size as number || 0,
       });
     }
     const parts = part.parts as Array<Record<string, unknown>> | undefined;
-    if (parts) {
+    if (Array.isArray(parts)) {
       for (const subPart of parts) {
         findAttachments(subPart);
       }
@@ -250,7 +307,7 @@ function parseGmailMessage(detail: Record<string, unknown>) {
   }
   findAttachments(payload);
 
-  const labels = detail.labelIds as string[] || [];
+  const labels = Array.isArray(detail.labelIds) ? detail.labelIds as string[] : [];
 
   return {
     subject,
@@ -267,60 +324,7 @@ function parseGmailMessage(detail: Record<string, unknown>) {
     is_starred: labels.includes("STARRED"),
     has_attachments: attachments.length > 0,
     attachments: attachments,
-    received_at: date ? new Date(date).toISOString() : null,
-    sent_at: labels.includes("SENT") ? (date ? new Date(date).toISOString() : null) : null,
+    received_at: safeDateToISO(date),
+    sent_at: labels.includes("SENT") ? safeDateToISO(date) : null,
   };
-}
-
-async function getValidAccessToken(tenantId: string, serviceRoleKey: string, supabaseUrl: string): Promise<string | null> {
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-  const { data: connection, error } = await supabase
-    .from("google_workspace_connections")
-    .select("access_token, refresh_token, token_expires_at")
-    .eq("tenant_id", tenantId)
-    .eq("is_active", true)
-    .single();
-
-  if (error || !connection) return null;
-
-  // Check if token is still valid (with 5 minute buffer)
-  const expiresAt = new Date(connection.token_expires_at);
-  if (expiresAt > new Date(Date.now() + 5 * 60 * 1000)) {
-    return connection.access_token;
-  }
-
-  // Refresh the token
-  const clientId = Deno.env.get("GOOGLE_CLIENT_ID")!;
-  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
-
-  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: connection.refresh_token,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  const tokenData = await tokenResponse.json();
-  if (!tokenResponse.ok) {
-    console.error("Token refresh failed:", tokenData);
-    return null;
-  }
-
-  const newExpiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-
-  await supabase
-    .from("google_workspace_connections")
-    .update({
-      access_token: tokenData.access_token,
-      token_expires_at: newExpiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("tenant_id", tenantId);
-
-  return tokenData.access_token;
 }
