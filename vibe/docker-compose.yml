@@ -1,0 +1,57 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/data/vibe.db
+      - API_PORT=3001
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  executor:
+    build:
+      context: .
+      dockerfile: apps/executor/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/vibe.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - EXECUTOR_POLL_INTERVAL=${EXECUTOR_POLL_INTERVAL:-5000}
+      - MAX_ITERATIONS=${MAX_ITERATIONS:-6}
+      - MAX_CONTEXT_SIZE=${MAX_CONTEXT_SIZE:-50000}
+      - MAX_DIFF_SIZE=${MAX_DIFF_SIZE:-5000}
+      - PREFLIGHT_TIMEOUT=${PREFLIGHT_TIMEOUT:-300000}
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-VIBE Bot}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-vibe@example.com}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    depends_on:
+      - api
+    restart: unless-stopped

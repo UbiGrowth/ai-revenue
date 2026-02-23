@@ -11,7 +11,13 @@
     "lint": "eslint .",
     "lint:kernel": "eslint \"supabase/functions/_shared/revenue_os_kernel/**/*.ts\" \"scripts/**/*.ts\" \"tests/integration/revenue_os_kernel*.test.ts\" \"tests/integration/revenue_os_kernel_*\" --max-warnings=0",
     "smoke:automation": "tsx scripts/smoke-automation-functions.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vibe:dev": "cd vibe && npm run dev",
+    "vibe:dev:web": "cd vibe && npm run dev:web",
+    "vibe:dev:api": "cd vibe && npm run dev:api",
+    "vibe:dev:executor": "cd vibe && npm run dev:executor",
+    "vibe:build": "cd vibe && npm run build",
+    "vibe:install": "cd vibe && npm install"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
