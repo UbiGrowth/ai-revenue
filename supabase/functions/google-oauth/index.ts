@@ -273,8 +273,14 @@ async function handleCallback(url: URL) {
   const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
   const grantedScopes = scope ? scope.split(" ") : [];
 
-  // Store connection in database
+  // Re-verify workspace membership at callback time (TOCTOU protection:
+  // user may have been removed from workspace between connect and callback)
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const isMember = await verifyWorkspaceMembership(supabase, userId, workspaceId);
+  if (!isMember) {
+    console.error("User no longer a member of workspace at callback time:", userId, workspaceId);
+    return Response.redirect(`${redirectUrl}?workspace_error=forbidden`);
+  }
   const { error: upsertError } = await supabase
     .from("google_workspace_connections")
     .upsert({
