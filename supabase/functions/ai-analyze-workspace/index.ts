@@ -7,6 +7,20 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Escape untrusted data to prevent prompt injection attacks
+// Wraps user-provided content in a way that makes it clear it's data, not instructions
+function escapePromptInjection(text: string): string {
+  if (!text) return text;
+  // Use clear markers to denote user-provided data boundaries
+  // This helps prevent prompt injection by making it explicit that this is data
+  return text
+    .replace(/\\/g, "\\\\") // Escape backslashes first
+    .replace(/"/g, '\\"') // Escape quotes
+    .replace(/\n/g, "\\n") // Escape newlines
+    .replace(/\r/g, "\\r") // Escape carriage returns
+    .replace(/\t/g, "\\t"); // Escape tabs
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -188,10 +202,10 @@ Return ONLY valid JSON, no markdown.`;
         2000
       );
       const userPrompt = `Analyze this email:
-From: ${msg.from_name || ""} <${msg.from_email || ""}>
-Subject: ${msg.subject || "(no subject)"}
-Labels: ${(msg.labels || []).join(", ")}
-Body: ${bodyPreview}`;
+From: ${escapePromptInjection(msg.from_name || "")} <${escapePromptInjection(msg.from_email || "")}>
+Subject: ${escapePromptInjection(msg.subject || "(no subject)")}
+Labels: ${(msg.labels || []).map(escapePromptInjection).join(", ")}
+Body: ${escapePromptInjection(bodyPreview)}`;
 
       const result = await callClaude(apiKey, systemPrompt, userPrompt);
       const parsed = JSON.parse(result);
@@ -252,18 +266,18 @@ Return ONLY valid JSON, no markdown.`;
         .slice(0, 10)
         .map(
           (a: Record<string, string>) =>
-            `${a.displayName || a.email} (${a.responseStatus})`
+            `${escapePromptInjection(a.displayName || a.email)} (${a.responseStatus})`
         )
         .join(", ");
 
       const userPrompt = `Analyze this calendar event:
-Title: ${event.summary}
+Title: ${escapePromptInjection(event.summary)}
 When: ${event.start_time} to ${event.end_time}
-Organizer: ${event.organizer_name || ""} <${event.organizer_email || ""}>
-Location: ${event.location || "N/A"}
-Meeting Link: ${event.meeting_link || "N/A"}
+Organizer: ${escapePromptInjection(event.organizer_name || "")} <${escapePromptInjection(event.organizer_email || "")}>
+Location: ${escapePromptInjection(event.location || "N/A")}
+Meeting Link: ${escapePromptInjection(event.meeting_link || "N/A")}
 Attendees (${event.ai_attendee_count} total, ${event.ai_external_attendees} external): ${attendeesSummary}
-Description: ${(event.description || "").substring(0, 1000)}`;
+Description: ${escapePromptInjection((event.description || "").substring(0, 1000))}`;
 
       const result = await callClaude(apiKey, systemPrompt, userPrompt);
       const parsed = JSON.parse(result);
@@ -330,17 +344,17 @@ Return ONLY valid JSON, no markdown.`;
         .slice(0, 5)
         .map(
           (s: Record<string, string>) =>
-            `${s.displayName || s.email} (${s.role})`
+            `${escapePromptInjection(s.displayName || s.email)} (${s.role})`
         )
         .join(", ");
 
       const userPrompt = `Analyze this document:
-Name: ${doc.name}
+Name: ${escapePromptInjection(doc.name)}
 Type: ${doc.document_type} (${doc.mime_type})
-Owner: ${doc.owner_name || ""} <${doc.owner_email || ""}>
+Owner: ${escapePromptInjection(doc.owner_name || "")} <${escapePromptInjection(doc.owner_email || "")}>
 Shared: ${doc.is_shared ? "Yes" : "No"}${sharedWithSummary ? ` with ${sharedWithSummary}` : ""}
 Last Modified: ${doc.modified_time || "Unknown"}
-Content Preview: ${textPreview || "(no text extracted)"}`;
+Content Preview: ${escapePromptInjection(textPreview || "(no text extracted)")}`;
 
       const result = await callClaude(apiKey, systemPrompt, userPrompt);
       const parsed = JSON.parse(result);
