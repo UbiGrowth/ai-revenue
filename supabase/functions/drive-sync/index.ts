@@ -120,10 +120,14 @@ serve(async (req) => {
       // Build Drive API query
       let driveQuery = "trashed = false";
       if (folderId) {
-        driveQuery += ` and '${folderId}' in parents`;
+        // Escape single quotes in folderId for Drive API query syntax
+        const escapedFolderId = (folderId as string).replace(/'/g, "\\'");
+        driveQuery += ` and '${escapedFolderId}' in parents`;
       }
       if (query) {
-        driveQuery += ` and (name contains '${query}' or fullText contains '${query}')`;
+        // Escape single quotes in query for Drive API query syntax
+        const escapedQuery = query.replace(/'/g, "\\'");
+        driveQuery += ` and (name contains '${escapedQuery}' or fullText contains '${escapedQuery}')`;
       }
 
       const filesUrl = new URL(
