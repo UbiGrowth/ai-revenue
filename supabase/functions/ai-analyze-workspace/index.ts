@@ -1,17 +1,25 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyWorkspaceMembership, getRequiredEnv } from "../_shared/google-token.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-const CLAUDE_MODEL = "claude-sonnet-4-20250514";
-const BATCH_SIZE = 10;
-const CLAUDE_TIMEOUT_MS = 30000;
-const MAX_ANALYSIS_FAILURES = 3;
-const VALID_DATA_TYPES = ["gmail", "calendar", "drive", "all"];
+// Escape untrusted data to prevent prompt injection attacks
+// Wraps user-provided content in a way that makes it clear it's data, not instructions
+function escapePromptInjection(text: string): string {
+  if (!text) return text;
+  // Use clear markers to denote user-provided data boundaries
+  // This helps prevent prompt injection by making it explicit that this is data
+  return text
+    .replace(/\\/g, "\\\\") // Escape backslashes first
+    .replace(/"/g, '\\"') // Escape quotes
+    .replace(/\n/g, "\\n") // Escape newlines
+    .replace(/\r/g, "\\r") // Escape carriage returns
+    .replace(/\t/g, "\\t"); // Escape tabs
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,6 +27,21 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+
+    if (!anthropicApiKey) {
+      return new Response(
+        JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Verify user auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -27,24 +50,14 @@ serve(async (req) => {
       });
     }
 
-    const supabaseUrl = getRequiredEnv("SUPABASE_URL");
-    const supabaseAnonKey = getRequiredEnv("SUPABASE_ANON_KEY");
-    const serviceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const token = authHeader.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
 
-    if (!anthropicApiKey) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -52,56 +65,65 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const workspaceId = body.workspace_id;
-    const dataType = body.data_type as string;
+    const tenantId = body.tenantId || body.tenant_id;
+    const analysisType = body.type || "all"; // "gmail", "calendar", "drive", "all"
+    const batchSize = body.batchSize || 10;
 
-    if (!workspaceId || typeof workspaceId !== "string") {
-      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Validate data_type
-    if (dataType && !VALID_DATA_TYPES.includes(dataType)) {
-      return new Response(JSON.stringify({ error: `Invalid data_type. Must be one of: ${VALID_DATA_TYPES.join(", ")}` }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Verify user has access to this workspace
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("workspace_members")
+      .select("id")
+      .eq("workspace_id", tenantId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return new Response(
+        JSON.stringify({ error: "Access denied to this workspace" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
-    // Verify user belongs to this workspace
-    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
-    if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const results: Record<string, unknown> = {};
+
+    if (analysisType === "gmail" || analysisType === "all") {
+      results.gmail = await analyzeGmail(
+        supabaseAdmin,
+        tenantId,
+        batchSize,
+        anthropicApiKey
+      );
     }
 
-    const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
-    const results: Record<string, { analyzed: number; failed: number }> = {};
-
-    const typesToAnalyze = dataType === "all" ? ["gmail", "calendar", "drive"] : [dataType || "gmail"];
-
-    for (const type of typesToAnalyze) {
-      switch (type) {
-        case "gmail":
-          results.gmail = await analyzeGmail(adminSupabase, workspaceId, anthropicApiKey);
-          break;
-        case "calendar":
-          results.calendar = await analyzeCalendar(adminSupabase, workspaceId, anthropicApiKey);
-          break;
-        case "drive":
-          results.drive = await analyzeDrive(adminSupabase, workspaceId, anthropicApiKey);
-          break;
-      }
+    if (analysisType === "calendar" || analysisType === "all") {
+      results.calendar = await analyzeCalendar(
+        supabaseAdmin,
+        tenantId,
+        batchSize,
+        anthropicApiKey
+      );
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      results,
-    }), {
+    if (analysisType === "drive" || analysisType === "all") {
+      results.drive = await analyzeDrive(
+        supabaseAdmin,
+        tenantId,
+        batchSize,
+        anthropicApiKey
+      );
+    }
+
+    return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
@@ -114,7 +136,11 @@ serve(async (req) => {
   }
 });
 
-async function callClaude(apiKey: string, systemPrompt: string, userContent: string): Promise<Record<string, unknown>> {
+async function callClaude(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<string> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -123,148 +149,83 @@ async function callClaude(apiKey: string, systemPrompt: string, userContent: str
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 2048,
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
       system: systemPrompt,
-      messages: [{ role: "user", content: userContent }],
+      messages: [{ role: "user", content: userPrompt }],
     }),
-    signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
   });
 
   if (!response.ok) {
-    const errText = await response.text().catch(() => response.statusText);
-    throw new Error(`Claude API error (${response.status}): ${errText}`);
+    const errBody = await response.text();
+    throw new Error(`Claude API error: ${response.status} ${errBody}`);
   }
 
   const data = await response.json();
-  const text = data.content?.[0]?.text;
-
-  if (!text) {
-    throw new Error("Claude returned empty response");
-  }
-
-  // Extract first balanced JSON object from response
-  const json = extractFirstJson(text);
-  if (!json) {
-    console.error("No valid JSON found in Claude response:", text.substring(0, 200));
-    throw new Error("Claude returned non-JSON response");
-  }
-
-  return json;
-}
-
-function extractFirstJson(text: string): Record<string, unknown> | null {
-  // Find the first { and try to parse balanced braces
-  const start = text.indexOf("{");
-  if (start === -1) return null;
-
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}") depth--;
-
-    if (depth === 0) {
-      try {
-        return JSON.parse(text.substring(start, i + 1));
-      } catch {
-        return null;
-      }
-    }
-  }
-
-  return null;
-}
-
-// Sanitize user content to reduce prompt injection risk
-function sanitizeForPrompt(text: string, maxLength: number): string {
-  return text
-    .substring(0, maxLength)
-    .replace(/```/g, "'''");
-}
-
-async function markAnalysisFailed(
-  supabase: ReturnType<typeof createClient>,
-  table: string,
-  id: string,
-  workspaceId: string
-): Promise<void> {
-  await supabase
-    .from(table)
-    .update({
-      analyzed_at: new Date().toISOString(),
-      ai_insights: { error: "analysis_failed", attempts: MAX_ANALYSIS_FAILURES },
-      ai_category: "error",
-    })
-    .eq("id", id)
-    .eq("workspace_id", workspaceId);
+  const content = data.content?.[0];
+  return content?.text || "";
 }
 
 async function analyzeGmail(
   supabase: ReturnType<typeof createClient>,
-  workspaceId: string,
+  tenantId: string,
+  batchSize: number,
   apiKey: string
 ): Promise<{ analyzed: number; failed: number }> {
+  // Fetch unanalyzed messages
+  const { data: messages, error } = await supabase
+    .from("gmail_messages")
+    .select("id, subject, from_email, from_name, snippet, body_text, labels")
+    .eq("tenant_id", tenantId)
+    .is("analyzed_at", null)
+    .order("received_at", { ascending: false })
+    .limit(batchSize);
+
+  if (error || !messages || messages.length === 0) {
+    return { analyzed: 0, failed: 0 };
+  }
+
   let analyzed = 0;
   let failed = 0;
 
-  // Exclude items that already failed analysis (ai_category = 'error')
-  const { data: emails, error } = await supabase
-    .from("gmail_messages")
-    .select("id, subject, from_email, from_name, snippet, body_text, labels")
-    .eq("workspace_id", workspaceId)
-    .is("analyzed_at", null)
-    .limit(BATCH_SIZE);
+  const systemPrompt = `You are an AI analyst for a business revenue platform. Analyze emails and return JSON with:
+- category: one of "lead", "customer", "partner", "support", "billing", "marketing", "internal", "spam", "other"
+- sentiment: one of "positive", "negative", "neutral", "urgent"
+- priority_score: 1-100 (100 = highest priority for revenue generation)
+- insights: object with keys: revenue_signal (bool), action_required (bool), key_topics (string[]), summary (string, 1-2 sentences)
+Return ONLY valid JSON, no markdown.`;
 
-  if (error || !emails?.length) return { analyzed: 0, failed: 0 };
-
-  const systemPrompt = `You are an AI email analyst for a business revenue platform. Analyze the email and return ONLY a valid JSON object (no markdown, no explanation) with this exact schema:
-{
-  "category": "sales_inquiry" | "customer_support" | "partnership" | "newsletter" | "transactional" | "internal" | "spam" | "other",
-  "sentiment": "positive" | "neutral" | "negative" | "mixed",
-  "priority_score": <integer 1-10>,
-  "key_topics": ["topic1", "topic2"],
-  "action_required": <boolean>,
-  "summary": "<one sentence>",
-  "revenue_relevance": "high" | "medium" | "low" | "none"
-}`;
-
-  for (const email of emails) {
+  for (const msg of messages) {
     try {
-      const content = `Subject: ${sanitizeForPrompt(email.subject || "(no subject)", 200)}
-From: ${sanitizeForPrompt(email.from_name || "", 100)} <${sanitizeForPrompt(email.from_email || "", 100)}>
-Labels: ${(Array.isArray(email.labels) ? email.labels : []).join(", ")}
-Preview: ${sanitizeForPrompt(email.snippet || "", 300)}
-Body excerpt: ${sanitizeForPrompt(email.body_text || "", 2000)}`;
+      const bodyPreview = (msg.body_text || msg.snippet || "").substring(
+        0,
+        2000
+      );
+      const userPrompt = `Analyze this email:
+From: ${escapePromptInjection(msg.from_name || "")} <${escapePromptInjection(msg.from_email || "")}>
+Subject: ${escapePromptInjection(msg.subject || "(no subject)")}
+Labels: ${(msg.labels || []).map(escapePromptInjection).join(", ")}
+Body: ${escapePromptInjection(bodyPreview)}`;
 
-      const insights = await callClaude(apiKey, systemPrompt, content);
+      const result = await callClaude(apiKey, systemPrompt, userPrompt);
+      const parsed = JSON.parse(result);
 
-      const priorityScore = typeof insights.priority_score === "number"
-        ? Math.max(1, Math.min(10, Math.round(insights.priority_score)))
-        : 5;
-
-      const { error: updateError } = await supabase
+      await supabase
         .from("gmail_messages")
         .update({
           analyzed_at: new Date().toISOString(),
-          ai_insights: insights,
-          ai_category: typeof insights.category === "string" ? insights.category : "other",
-          ai_sentiment: typeof insights.sentiment === "string" ? insights.sentiment : "neutral",
-          ai_priority_score: priorityScore,
+          ai_insights: parsed.insights || parsed,
+          ai_category: parsed.category || "other",
+          ai_sentiment: parsed.sentiment || "neutral",
+          ai_priority_score: parsed.priority_score || 50,
+          updated_at: new Date().toISOString(),
         })
-        .eq("id", email.id)
-        .eq("workspace_id", workspaceId);
+        .eq("id", msg.id);
 
-      if (updateError) {
-        console.error("Failed to save email analysis:", updateError.message);
-        failed++;
-      } else {
-        analyzed++;
-      }
+      analyzed++;
     } catch (err) {
-      console.error("Failed to analyze email:", err);
+      console.error("Failed to analyze email:", msg.id, err);
       failed++;
-      // Mark as failed after threshold to prevent infinite retry
-      await markAnalysisFailed(supabase, "gmail_messages", email.id, workspaceId);
     }
   }
 
@@ -273,67 +234,68 @@ Body excerpt: ${sanitizeForPrompt(email.body_text || "", 2000)}`;
 
 async function analyzeCalendar(
   supabase: ReturnType<typeof createClient>,
-  workspaceId: string,
+  tenantId: string,
+  batchSize: number,
   apiKey: string
 ): Promise<{ analyzed: number; failed: number }> {
+  const { data: events, error } = await supabase
+    .from("google_calendar_events")
+    .select(
+      "id, summary, description, location, start_time, end_time, organizer_email, organizer_name, attendees, ai_attendee_count, ai_external_attendees, meeting_link"
+    )
+    .eq("tenant_id", tenantId)
+    .is("analyzed_at", null)
+    .order("start_time", { ascending: false })
+    .limit(batchSize);
+
+  if (error || !events || events.length === 0) {
+    return { analyzed: 0, failed: 0 };
+  }
+
   let analyzed = 0;
   let failed = 0;
 
-  const { data: events, error } = await supabase
-    .from("google_calendar_events")
-    .select("id, summary, description, location, start_time, end_time, attendees, organizer_email, ai_attendee_count, ai_external_attendees, meeting_link")
-    .eq("workspace_id", workspaceId)
-    .is("analyzed_at", null)
-    .limit(BATCH_SIZE);
-
-  if (error || !events?.length) return { analyzed: 0, failed: 0 };
-
-  const systemPrompt = `You are an AI calendar analyst for a business revenue platform. Analyze the meeting/event and return ONLY a valid JSON object (no markdown, no explanation) with this exact schema:
-{
-  "category": "sales_meeting" | "customer_call" | "internal_sync" | "demo" | "onboarding" | "review" | "social" | "blocked_time" | "other",
-  "revenue_relevance": "high" | "medium" | "low" | "none",
-  "meeting_quality_score": <integer 1-10>,
-  "key_topics": ["topic1", "topic2"],
-  "preparation_needed": <boolean>,
-  "summary": "<one sentence>"
-}`;
+  const systemPrompt = `You are an AI analyst for a business revenue platform. Analyze calendar events and return JSON with:
+- category: one of "sales_meeting", "client_call", "internal_meeting", "demo", "onboarding", "review", "planning", "social", "other"
+- insights: object with keys: revenue_potential (string: "high", "medium", "low", "none"), is_client_facing (bool), preparation_notes (string, 1-2 sentences), key_topics (string[]), summary (string, 1-2 sentences)
+Return ONLY valid JSON, no markdown.`;
 
   for (const event of events) {
     try {
-      const attendeeList = (Array.isArray(event.attendees) ? event.attendees : [])
-        .map((a: { email?: string; name?: string }) => `${a.name || a.email || "unknown"}`)
+      const attendeesSummary = (event.attendees || [])
+        .slice(0, 10)
+        .map(
+          (a: Record<string, string>) =>
+            `${escapePromptInjection(a.displayName || a.email)} (${a.responseStatus})`
+        )
         .join(", ");
 
-      const content = `Meeting: ${sanitizeForPrompt(event.summary || "", 200)}
-Time: ${event.start_time} to ${event.end_time}
-Location: ${sanitizeForPrompt(event.location || "N/A", 200)}
-Meeting Link: ${event.meeting_link || "None"}
-Organizer: ${sanitizeForPrompt(event.organizer_email || "", 100)}
-Attendees (${event.ai_attendee_count || 0} total, ${event.ai_external_attendees || 0} external): ${sanitizeForPrompt(attendeeList, 500)}
-Description: ${sanitizeForPrompt(event.description || "", 2000)}`;
+      const userPrompt = `Analyze this calendar event:
+Title: ${escapePromptInjection(event.summary)}
+When: ${event.start_time} to ${event.end_time}
+Organizer: ${escapePromptInjection(event.organizer_name || "")} <${escapePromptInjection(event.organizer_email || "")}>
+Location: ${escapePromptInjection(event.location || "N/A")}
+Meeting Link: ${escapePromptInjection(event.meeting_link || "N/A")}
+Attendees (${event.ai_attendee_count} total, ${event.ai_external_attendees} external): ${attendeesSummary}
+Description: ${escapePromptInjection((event.description || "").substring(0, 1000))}`;
 
-      const insights = await callClaude(apiKey, systemPrompt, content);
+      const result = await callClaude(apiKey, systemPrompt, userPrompt);
+      const parsed = JSON.parse(result);
 
-      const { error: updateError } = await supabase
+      await supabase
         .from("google_calendar_events")
         .update({
           analyzed_at: new Date().toISOString(),
-          ai_insights: insights,
-          ai_category: typeof insights.category === "string" ? insights.category : "other",
+          ai_insights: parsed.insights || parsed,
+          ai_category: parsed.category || "other",
+          updated_at: new Date().toISOString(),
         })
-        .eq("id", event.id)
-        .eq("workspace_id", workspaceId);
+        .eq("id", event.id);
 
-      if (updateError) {
-        console.error("Failed to save event analysis:", updateError.message);
-        failed++;
-      } else {
-        analyzed++;
-      }
+      analyzed++;
     } catch (err) {
-      console.error("Failed to analyze event:", err);
+      console.error("Failed to analyze event:", event.id, err);
       failed++;
-      await markAnalysisFailed(supabase, "google_calendar_events", event.id, workspaceId);
     }
   }
 
@@ -342,66 +304,77 @@ Description: ${sanitizeForPrompt(event.description || "", 2000)}`;
 
 async function analyzeDrive(
   supabase: ReturnType<typeof createClient>,
-  workspaceId: string,
+  tenantId: string,
+  batchSize: number,
   apiKey: string
 ): Promise<{ analyzed: number; failed: number }> {
+  const { data: documents, error } = await supabase
+    .from("google_drive_documents")
+    .select(
+      "id, name, mime_type, document_type, content_preview, full_text_extracted, owner_email, owner_name, shared_with, is_shared, modified_time"
+    )
+    .eq("tenant_id", tenantId)
+    .is("analyzed_at", null)
+    .order("modified_time", { ascending: false })
+    .limit(batchSize);
+
+  if (error || !documents || documents.length === 0) {
+    return { analyzed: 0, failed: 0 };
+  }
+
   let analyzed = 0;
   let failed = 0;
 
-  const { data: documents, error } = await supabase
-    .from("google_drive_documents")
-    .select("id, name, mime_type, document_type, content_preview, full_text_extracted, is_shared, owner_email, modified_time")
-    .eq("workspace_id", workspaceId)
-    .is("analyzed_at", null)
-    .limit(BATCH_SIZE);
-
-  if (error || !documents?.length) return { analyzed: 0, failed: 0 };
-
-  const systemPrompt = `You are an AI document analyst for a business revenue platform. Analyze the document and return ONLY a valid JSON object (no markdown, no explanation) with this exact schema:
-{
-  "category": "proposal" | "contract" | "report" | "presentation" | "spreadsheet" | "planning" | "marketing" | "technical" | "hr" | "finance" | "other",
-  "key_topics": ["topic1", "topic2"],
-  "summary": "<one sentence>",
-  "revenue_relevance": "high" | "medium" | "low" | "none",
-  "business_value_score": <integer 1-10>,
-  "action_items": ["action1"] or []
-}`;
+  const systemPrompt = `You are an AI analyst for a business revenue platform. Analyze documents and return JSON with:
+- category: one of "proposal", "contract", "invoice", "report", "presentation", "spreadsheet", "template", "meeting_notes", "strategy", "other"
+- key_topics: string[] (3-5 main topics)
+- summary: string (2-3 sentences describing the document's purpose and content)
+- insights: object with keys: revenue_relevance (string: "high", "medium", "low", "none"), action_items (string[]), stakeholders (string[]), document_status (string: "draft", "review", "final", "archived", "unknown")
+Return ONLY valid JSON, no markdown.`;
 
   for (const doc of documents) {
     try {
-      const textContent = doc.full_text_extracted || doc.content_preview || "";
+      const textPreview = (
+        doc.full_text_extracted ||
+        doc.content_preview ||
+        ""
+      ).substring(0, 3000);
 
-      const content = `Document: ${sanitizeForPrompt(doc.name || "", 200)}
-Type: ${doc.document_type || "unknown"} (${doc.mime_type || "unknown"})
-Shared: ${doc.is_shared ? "Yes" : "No"}
-Owner: ${sanitizeForPrompt(doc.owner_email || "", 100)}
-Last Modified: ${doc.modified_time || "unknown"}
-Content: ${sanitizeForPrompt(textContent, 3000)}`;
+      const sharedWithSummary = (doc.shared_with || [])
+        .slice(0, 5)
+        .map(
+          (s: Record<string, string>) =>
+            `${escapePromptInjection(s.displayName || s.email)} (${s.role})`
+        )
+        .join(", ");
 
-      const insights = await callClaude(apiKey, systemPrompt, content);
+      const userPrompt = `Analyze this document:
+Name: ${escapePromptInjection(doc.name)}
+Type: ${doc.document_type} (${doc.mime_type})
+Owner: ${escapePromptInjection(doc.owner_name || "")} <${escapePromptInjection(doc.owner_email || "")}>
+Shared: ${doc.is_shared ? "Yes" : "No"}${sharedWithSummary ? ` with ${sharedWithSummary}` : ""}
+Last Modified: ${doc.modified_time || "Unknown"}
+Content Preview: ${escapePromptInjection(textPreview || "(no text extracted)")}`;
 
-      const { error: updateError } = await supabase
+      const result = await callClaude(apiKey, systemPrompt, userPrompt);
+      const parsed = JSON.parse(result);
+
+      await supabase
         .from("google_drive_documents")
         .update({
           analyzed_at: new Date().toISOString(),
-          ai_insights: insights,
-          ai_category: typeof insights.category === "string" ? insights.category : "other",
-          ai_key_topics: Array.isArray(insights.key_topics) ? insights.key_topics : [],
-          ai_summary: typeof insights.summary === "string" ? insights.summary : "",
+          ai_insights: parsed.insights || parsed,
+          ai_category: parsed.category || "other",
+          ai_key_topics: parsed.key_topics || [],
+          ai_summary: parsed.summary || null,
+          updated_at: new Date().toISOString(),
         })
-        .eq("id", doc.id)
-        .eq("workspace_id", workspaceId);
+        .eq("id", doc.id);
 
-      if (updateError) {
-        console.error("Failed to save document analysis:", updateError.message);
-        failed++;
-      } else {
-        analyzed++;
-      }
+      analyzed++;
     } catch (err) {
-      console.error("Failed to analyze document:", err);
+      console.error("Failed to analyze document:", doc.id, err);
       failed++;
-      await markAnalysisFailed(supabase, "google_drive_documents", doc.id, workspaceId);
     }
   }
 

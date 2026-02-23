@@ -1,10 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getValidAccessToken, verifyWorkspaceMembership, getRequiredEnv } from "../_shared/google-token.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -13,6 +13,10 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Verify user auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -21,16 +25,14 @@ serve(async (req) => {
       });
     }
 
-    const supabaseUrl = getRequiredEnv("SUPABASE_URL");
-    const supabaseAnonKey = getRequiredEnv("SUPABASE_ANON_KEY");
-    const serviceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const token = authHeader.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -38,248 +40,193 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const workspaceId = body.workspace_id;
-    if (!workspaceId || typeof workspaceId !== "string") {
-      return new Response(JSON.stringify({ error: "workspace_id is required" }), {
+    const tenantId = body.tenantId || body.tenant_id;
+    const calendarId = body.calendarId || "primary";
+    const timeMin =
+      body.timeMin || new Date(Date.now() - 30 * 86400000).toISOString();
+    const timeMax =
+      body.timeMax || new Date(Date.now() + 90 * 86400000).toISOString();
+    const maxResults = body.maxResults || 100;
+
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify user belongs to this workspace
-    const isMember = await verifyWorkspaceMembership(supabase, user.id, workspaceId);
-    if (!isMember) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a member of this workspace" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Date range for sync (default: 30 days back, 90 days forward)
-    const timeMin = body.time_min || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const timeMax = body.time_max || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
-    const maxResults = Math.min(body.max_results ?? 100, 500);
-
-    // Get access token
-    const accessToken = await getValidAccessToken(workspaceId, serviceRoleKey, supabaseUrl);
-    if (!accessToken) {
-      return new Response(JSON.stringify({ error: "No valid Google connection" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const startTime = Date.now();
-    const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
-
-    // Create sync job
-    const { data: syncJob, error: jobError } = await adminSupabase
-      .from("google_workspace_sync_jobs")
-      .insert({
-        workspace_id: workspaceId,
-        job_type: "calendar_sync",
-        status: "running",
-        sync_params: { time_min: timeMin, time_max: timeMax, max_results: maxResults },
-        started_at: new Date().toISOString(),
-      })
+    // Verify user has access to this workspace
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from("workspace_members")
       .select("id")
+      .eq("workspace_id", tenantId)
+      .eq("user_id", user.id)
       .single();
 
-    if (jobError) {
-      console.error("Failed to create sync job:", jobError.message);
+    if (membershipError || !membership) {
+      return new Response(
+        JSON.stringify({ error: "Access denied to this workspace" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
+
+    // Get workspace connection
+    const { data: connection, error: connError } = await supabaseAdmin
+      .from("google_workspace_connections")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .single();
+
+    if (connError || !connection) {
+      return new Response(
+        JSON.stringify({ error: "No active Google Workspace connection" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Refresh token if expired
+    let accessToken = connection.access_token;
+    if (new Date(connection.token_expires_at) <= new Date()) {
+      accessToken = await refreshAccessToken(
+        supabaseAdmin,
+        connection,
+        tenantId
+      );
+    }
+
+    // Create sync job
+    const { data: syncJob } = await supabaseAdmin
+      .from("google_workspace_sync_jobs")
+      .insert({
+        tenant_id: tenantId,
+        job_type: "calendar_sync",
+        status: "running",
+        sync_params: { calendarId, timeMin, timeMax, maxResults },
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
     let itemsProcessed = 0;
     let itemsAdded = 0;
+    let itemsUpdated = 0;
     let itemsFailed = 0;
-    let calendarsSynced = 0;
 
     try {
-      // First get list of calendars
-      const calendarsResponse = await fetch(
-        "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          signal: AbortSignal.timeout(15000),
-        }
+      // Fetch events from Google Calendar API
+      const eventsUrl = new URL(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
       );
+      eventsUrl.searchParams.set("timeMin", timeMin);
+      eventsUrl.searchParams.set("timeMax", timeMax);
+      eventsUrl.searchParams.set("maxResults", String(maxResults));
+      eventsUrl.searchParams.set("singleEvents", "true");
+      eventsUrl.searchParams.set("orderBy", "startTime");
 
-      if (!calendarsResponse.ok) {
-        const errText = await calendarsResponse.text().catch(() => calendarsResponse.statusText);
-        throw new Error(`Calendar API error (${calendarsResponse.status}): ${errText}`);
+      const eventsResponse = await fetch(eventsUrl.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!eventsResponse.ok) {
+        const errBody = await eventsResponse.text();
+        throw new Error(
+          `Calendar API error: ${eventsResponse.status} ${errBody}`
+        );
       }
 
-      const calendarsData = await calendarsResponse.json();
-      const calendars = calendarsData.items || [];
-      calendarsSynced = calendars.length;
+      const eventsData = await eventsResponse.json();
+      const calendarName = eventsData.summary || calendarId;
+      const events = eventsData.items || [];
 
-      // Sync events from each calendar
-      for (const calendar of calendars) {
-        const calendarId = encodeURIComponent(calendar.id);
-        const eventsUrl = new URL(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`);
-        eventsUrl.searchParams.set("timeMin", timeMin);
-        eventsUrl.searchParams.set("timeMax", timeMax);
-        eventsUrl.searchParams.set("maxResults", String(maxResults));
-        eventsUrl.searchParams.set("singleEvents", "true");
-        eventsUrl.searchParams.set("orderBy", "startTime");
-
-        let eventsResponse: Response;
+      for (const event of events) {
         try {
-          eventsResponse = await fetch(eventsUrl.toString(), {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            signal: AbortSignal.timeout(15000),
-          });
-        } catch (fetchErr) {
-          console.error(`Failed to fetch events for calendar ${calendar.id}:`, fetchErr);
-          continue;
-        }
+          const parsed = parseCalendarEvent(event, calendarId, calendarName);
 
-        if (!eventsResponse.ok) {
-          console.error(`Calendar API ${eventsResponse.status} for calendar ${calendar.id}`);
-          continue;
-        }
-
-        const eventsData = await eventsResponse.json();
-        const events = eventsData.items || [];
-
-        for (const event of events) {
-          itemsProcessed++;
-          try {
-            const attendees = (event.attendees || []).map((a: Record<string, unknown>) => ({
-              email: a.email || "",
-              name: a.displayName || "",
-              response_status: a.responseStatus || "",
-              organizer: a.organizer || false,
-              self: a.self || false,
-            }));
-
-            // Count external attendees using organizer's email domain
-            const orgDomain = (event.organizer?.email || "").split("@")[1];
-            const externalAttendees = orgDomain
-              ? attendees.filter((a: { email: string }) => {
-                  const aDomain = a.email.split("@")[1];
-                  return aDomain && aDomain !== orgDomain;
-                })
-              : [];
-
-            // Detect meeting link
-            let meetingLink = "";
-            if (event.hangoutLink) {
-              meetingLink = event.hangoutLink;
-            } else if (event.conferenceData?.entryPoints) {
-              const videoEntry = event.conferenceData.entryPoints.find(
-                (e: { entryPointType: string }) => e.entryPointType === "video"
-              );
-              if (videoEntry) meetingLink = videoEntry.uri;
-            }
-
-            const eventStartTime = event.start?.dateTime || event.start?.date;
-            const eventEndTime = event.end?.dateTime || event.end?.date;
-            const isAllDay = !event.start?.dateTime;
-
-            if (!eventStartTime || !eventEndTime) {
-              console.error("Event missing start/end time:", event.id);
-              itemsFailed++;
-              continue;
-            }
-
-            const { error: upsertError } = await adminSupabase
-              .from("google_calendar_events")
-              .upsert({
-                workspace_id: workspaceId,
+          const { error: upsertError } = await supabaseAdmin
+            .from("google_calendar_events")
+            .upsert(
+              {
+                tenant_id: tenantId,
                 event_id: event.id,
-                calendar_id: calendar.id,
-                calendar_name: calendar.summary || "",
-                summary: event.summary || "(No title)",
-                description: (event.description || "").substring(0, 10000),
-                location: event.location || "",
-                start_time: eventStartTime,
-                end_time: eventEndTime,
-                timezone: event.start?.timeZone || "UTC",
-                is_all_day: isAllDay,
-                organizer_email: event.organizer?.email || "",
-                organizer_name: event.organizer?.displayName || "",
-                attendees,
-                event_type: event.eventType || "default",
-                meeting_link: meetingLink,
-                is_recurring: !!event.recurringEventId,
-                recurrence_rules: event.recurrence || [],
-                status: event.status || "confirmed",
-                visibility: event.visibility || "default",
-                ai_attendee_count: attendees.length,
-                ai_external_attendees: externalAttendees.length,
-              }, {
-                onConflict: "workspace_id,event_id,calendar_id",
-              });
+                ...parsed,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "tenant_id,event_id" }
+            );
 
-            if (upsertError) {
-              console.error("Failed to upsert event:", upsertError.message);
-              itemsFailed++;
-            } else {
-              itemsAdded++;
-            }
-          } catch (eventErr) {
-            console.error("Failed to process event:", eventErr);
+          if (upsertError) {
+            console.error("Failed to upsert event:", upsertError);
             itemsFailed++;
+          } else {
+            itemsAdded++;
           }
+
+          itemsProcessed++;
+        } catch (eventError) {
+          console.error("Error processing event:", event.id, eventError);
+          itemsFailed++;
+          itemsProcessed++;
         }
       }
+
+      const duration = syncJob
+        ? Date.now() - new Date(syncJob.started_at).getTime()
+        : 0;
 
       if (syncJob) {
-        await adminSupabase
+        await supabaseAdmin
           .from("google_workspace_sync_jobs")
           .update({
             status: "completed",
             items_processed: itemsProcessed,
             items_added: itemsAdded,
+            items_updated: itemsUpdated,
             items_failed: itemsFailed,
             completed_at: new Date().toISOString(),
-            duration_ms: Date.now() - startTime,
+            duration_ms: duration,
           })
-          .eq("id", syncJob.id)
-          .eq("workspace_id", workspaceId);
+          .eq("id", syncJob.id);
       }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          job_id: syncJob?.id,
+          calendar_name: calendarName,
+          items_processed: itemsProcessed,
+          items_added: itemsAdded,
+          items_failed: itemsFailed,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     } catch (syncError) {
       if (syncJob) {
-        await adminSupabase
+        await supabaseAdmin
           .from("google_workspace_sync_jobs")
           .update({
             status: "failed",
-            error_message: syncError instanceof Error ? syncError.message : "Unknown error",
+            error_message:
+              syncError instanceof Error
+                ? syncError.message
+                : "Unknown error",
             items_processed: itemsProcessed,
             items_added: itemsAdded,
             items_failed: itemsFailed,
             completed_at: new Date().toISOString(),
-            duration_ms: Date.now() - startTime,
           })
-          .eq("id", syncJob.id)
-          .eq("workspace_id", workspaceId);
+          .eq("id", syncJob.id);
       }
-
-      return new Response(JSON.stringify({
-        success: false,
-        error: syncError instanceof Error ? syncError.message : "Sync failed",
-        job_id: syncJob?.id,
-        calendars_synced: calendarsSynced,
-        items_processed: itemsProcessed,
-        items_added: itemsAdded,
-        items_failed: itemsFailed,
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      throw syncError;
     }
-
-    return new Response(JSON.stringify({
-      success: true,
-      job_id: syncJob?.id,
-      calendars_synced: calendarsSynced,
-      items_processed: itemsProcessed,
-      items_added: itemsAdded,
-      items_failed: itemsFailed,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   } catch (error: unknown) {
     console.error("Error in calendar-sync:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -289,3 +236,113 @@ serve(async (req) => {
     });
   }
 });
+
+function parseCalendarEvent(
+  event: Record<string, unknown>,
+  calendarId: string,
+  calendarName: string
+): Record<string, unknown> {
+  const start = event.start as Record<string, string> | undefined;
+  const end = event.end as Record<string, string> | undefined;
+  const isAllDay = !!start?.date;
+
+  const startTime = start?.dateTime || start?.date || new Date().toISOString();
+  const endTime = end?.dateTime || end?.date || startTime;
+  const timezone = start?.timeZone || "UTC";
+
+  const organizer = event.organizer as Record<string, string> | undefined;
+  const attendees =
+    (event.attendees as Array<Record<string, unknown>>) || [];
+
+  const externalAttendees = attendees.filter((a) => {
+    const email = a.email as string;
+    const organizerEmail = organizer?.email || "";
+    const organizerDomain = organizerEmail.split("@")[1];
+    return email && email.split("@")[1] !== organizerDomain;
+  });
+
+  // Extract meeting link from conferenceData or hangoutLink
+  let meetingLink: string | null = null;
+  const conferenceData = event.conferenceData as Record<string, unknown>;
+  if (conferenceData) {
+    const entryPoints =
+      (conferenceData.entryPoints as Array<Record<string, string>>) || [];
+    const videoEntry = entryPoints.find(
+      (ep) => ep.entryPointType === "video"
+    );
+    if (videoEntry) meetingLink = videoEntry.uri;
+  }
+  if (!meetingLink && event.hangoutLink) {
+    meetingLink = event.hangoutLink as string;
+  }
+
+  const recurrence = (event.recurrence as string[]) || [];
+
+  return {
+    calendar_id: calendarId,
+    calendar_name: calendarName,
+    summary: (event.summary as string) || "(No title)",
+    description: (event.description as string) || null,
+    location: (event.location as string) || null,
+    start_time: startTime,
+    end_time: endTime,
+    timezone,
+    is_all_day: isAllDay,
+    organizer_email: organizer?.email || null,
+    organizer_name: organizer?.displayName || null,
+    attendees: attendees.map((a) => ({
+      email: a.email,
+      displayName: a.displayName || null,
+      responseStatus: a.responseStatus || "needsAction",
+      organizer: a.organizer || false,
+    })),
+    event_type: (event.eventType as string) || "default",
+    meeting_link: meetingLink,
+    is_recurring: recurrence.length > 0 || !!event.recurringEventId,
+    recurrence_rules: recurrence,
+    status: (event.status as string) || "confirmed",
+    visibility: (event.visibility as string) || "default",
+    ai_attendee_count: attendees.length,
+    ai_external_attendees: externalAttendees.length,
+  };
+}
+
+async function refreshAccessToken(
+  supabase: ReturnType<typeof createClient>,
+  connection: Record<string, unknown>,
+  tenantId: string
+): Promise<string> {
+  const clientId = Deno.env.get("GOOGLE_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: connection.refresh_token as string,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
+  }
+
+  const tokenExpiresAt = new Date(
+    Date.now() + data.expires_in * 1000
+  ).toISOString();
+
+  await supabase
+    .from("google_workspace_connections")
+    .update({
+      access_token: data.access_token,
+      token_expires_at: tokenExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_id", tenantId);
+
+  return data.access_token;
+}

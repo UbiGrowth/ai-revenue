@@ -38,3 +38,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# VIBE build artifacts and data
+vibe/**/.next
+vibe/**/out
+vibe/**/*.db
+vibe/**/*.db-shm
+vibe/**/*.db-wal
+vibe/data/
+*.tsbuildinfo

@@ -41,7 +41,7 @@ serve(async (req) => {
       const stateData = JSON.parse(atob(state));
       
       // Validate userId is a UUID
-      if (!stateData.user_id || typeof stateData.user_id !== 'string' || stateData.user_id.length < 32) {
+      if (!stateData.user_id || typeof stateData.user_id !== 'string' || stateData.user_id.length < 32 || stateData.user_id.length > 256) {
         throw new Error("Invalid user_id in state");
       }
       userId = stateData.user_id;
