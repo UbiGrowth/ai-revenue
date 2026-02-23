@@ -170,7 +170,8 @@ async function handleCallback(url: URL): Promise<Response> {
     if (
       !stateData.user_id ||
       typeof stateData.user_id !== "string" ||
-      stateData.user_id.length < 32
+      stateData.user_id.length < 32 ||
+      stateData.user_id.length > 256
     ) {
       throw new Error("Invalid user_id in state");
     }
