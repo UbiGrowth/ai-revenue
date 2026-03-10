@@ -21,13 +21,12 @@ import {
 // ============= Types =============
 
 /**
- * Batch group key: (provider, channel, tenant_id, workspace_id)
+ * Batch group key: (provider, channel, tenant_id)
  */
 export interface BatchKey {
   provider: Provider;
   channel: Channel;
   tenantId: string;
-  workspaceId: string;
 }
 
 /**
@@ -86,7 +85,7 @@ export class BatchBuilder {
    * Generate a batch key string from components
    */
   private static makeBatchKeyString(key: BatchKey): string {
-    return `${key.provider}|${key.channel}|${key.tenantId}|${key.workspaceId}`;
+    return `${key.provider}|${key.channel}|${key.tenantId}`;
   }
 
   /**
@@ -328,7 +327,6 @@ export async function fanOutBatchResults(
 export interface BatchEmailProcessorParams {
   supabase: any;
   tenantId: string;
-  workspaceId: string;
   runId: string;
   jobId: string;
   leads: Array<{
@@ -366,7 +364,6 @@ export async function processEmailBatchOptimized(
   const {
     supabase,
     tenantId,
-    workspaceId,
     runId,
     jobId,
     leads,
@@ -398,7 +395,6 @@ export async function processEmailBatchOptimized(
     const outboxResult = await beginOutboxItem({
       supabase,
       tenantId,
-      workspaceId,
       runId,
       jobId,
       channel: "email" as Channel,
@@ -473,89 +469,6 @@ export async function processEmailBatchOptimized(
   };
 }
 
-// ============= Voice Batch Types =============
-
-export interface VoiceBatchItem {
-  outboxId: string;
-  phoneNumber: string;
-  customerName?: string;
-  recipientId?: string | null;
-}
-
-/**
- * VAPI doesn't support true batching, so we use concurrent calls
- * with proper rate limiting
- */
-export async function sendVoiceBatchConcurrent(
-  vapiPrivateKey: string,
-  assistantId: string,
-  phoneNumberId: string,
-  items: VoiceBatchItem[],
-  concurrency: number = 5
-): Promise<BulkProviderResponse> {
-  const results = new Map<string, ProviderItemResult>();
-  let totalCalled = 0;
-  let totalFailed = 0;
-
-  // Process in chunks of `concurrency`
-  for (let i = 0; i < items.length; i += concurrency) {
-    const chunk = items.slice(i, i + concurrency);
-    
-    const promises = chunk.map(async (item) => {
-      try {
-        const res = await fetch("https://api.vapi.ai/call", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${vapiPrivateKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            assistantId,
-            phoneNumberId,
-            customer: { 
-              number: item.phoneNumber, 
-              name: item.customerName 
-            },
-          }),
-        });
-
-        const data = await res.json();
-        
-        if (!res.ok) {
-          results.set(item.phoneNumber, {
-            success: false,
-            error: data.message || `VAPI error: ${res.status}`,
-          });
-          totalFailed++;
-        } else {
-          results.set(item.phoneNumber, {
-            success: true,
-            messageId: data.id,
-            providerResponse: data,
-          });
-          totalCalled++;
-        }
-      } catch (err) {
-        results.set(item.phoneNumber, {
-          success: false,
-          error: err instanceof Error ? err.message : "Unknown error",
-        });
-        totalFailed++;
-      }
-    });
-
-    await Promise.all(promises);
-  }
-
-  return {
-    success: totalFailed === 0,
-    results,
-    partialFailure: totalCalled > 0 && totalFailed > 0,
-    totalSent: totalCalled,
-    totalFailed,
-  };
-}
-
 // ============= Metrics =============
 
 export interface BatchMetrics {
@@ -575,7 +488,6 @@ export interface BatchMetrics {
 export async function logBatchMetrics(
   supabase: any,
   tenantId: string,
-  workspaceId: string,
   runId: string,
   jobId: string,
   metrics: BatchMetrics
@@ -583,7 +495,6 @@ export async function logBatchMetrics(
   try {
     await supabase.from("campaign_audit_log").insert({
       tenant_id: tenantId,
-      workspace_id: workspaceId,
       run_id: runId,
       job_id: jobId,
       event_type: "batch_completed",

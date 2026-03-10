@@ -1,6 +1,6 @@
 /**
- * CMO Campaign Card with Autopilot Controls & Orchestration
- * Displays campaign status, stats, and autopilot settings
+ * CMO Campaign Card with Orchestration Controls
+ * Displays campaign status, stats, and optimization settings
  * Uses React Query mutations for automatic cache invalidation
  * Integrates with orchestration layer for launching and optimizing
  */
@@ -9,7 +9,6 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -26,12 +25,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { 
-  Bot, Target, Users, Calendar, Sparkles, Activity, 
+  Target, Users, Calendar, Sparkles, Activity, 
   Play, Pause, Zap, CheckCircle, AlertCircle, Settings 
 } from 'lucide-react';
 import type { CMOCampaign, CampaignGoal } from '@/lib/cmo/types';
 import { 
-  useToggleCampaignAutopilot, 
   useUpdateCampaignGoal,
   useLaunchCampaign,
   useOptimizeCampaign,
@@ -67,7 +65,6 @@ export function CMOCampaignCard({ campaign, onUpdate }: CMOCampaignCardProps) {
   const [showRunDetails, setShowRunDetails] = useState(false);
   const { workspaceId } = useWorkspace();
   
-  const toggleAutopilot = useToggleCampaignAutopilot();
   const updateGoal = useUpdateCampaignGoal();
   const launchCampaign = useLaunchCampaign();
   const optimizeCampaign = useOptimizeCampaign();
@@ -83,7 +80,7 @@ export function CMOCampaignCard({ campaign, onUpdate }: CMOCampaignCardProps) {
     campaignChannels
   );
   
-  const isUpdating = toggleAutopilot.isPending || updateGoal.isPending;
+  const isUpdating = updateGoal.isPending;
   const isLaunching = launchCampaign.isPending;
   const isOptimizing = optimizeCampaign.isPending;
   const isPausing = pauseCampaign.isPending;
@@ -96,23 +93,6 @@ export function CMOCampaignCard({ campaign, onUpdate }: CMOCampaignCardProps) {
   const integrationReadiness = integrations?.length 
     ? Math.round((readyIntegrations.length / integrations.length) * 100)
     : 0;
-
-  const handleToggleAutopilot = () => {
-    toggleAutopilot.mutate(
-      { campaignId: campaign.id, enabled: !campaign.autopilot_enabled },
-      {
-        onSuccess: () => {
-          toast.success(
-            campaign.autopilot_enabled ? 'Autopilot disabled' : 'Autopilot enabled'
-          );
-          onUpdate?.();
-        },
-        onError: () => {
-          toast.error('Failed to toggle autopilot');
-        },
-      }
-    );
-  };
 
   const handleGoalChange = (goal: string) => {
     updateGoal.mutate(
@@ -347,23 +327,8 @@ export function CMOCampaignCard({ campaign, onUpdate }: CMOCampaignCardProps) {
           )}
         </div>
 
-        {/* Autopilot Controls */}
+        {/* Optimization Settings */}
         <div className="border-t pt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Bot className="h-4 w-4 text-primary" />
-              <Label htmlFor={`autopilot-${campaign.id}`} className="text-sm font-medium">
-                Autopilot
-              </Label>
-            </div>
-            <Switch
-              id={`autopilot-${campaign.id}`}
-              checked={campaign.autopilot_enabled || false}
-              onCheckedChange={handleToggleAutopilot}
-              disabled={isUpdating}
-            />
-          </div>
-
           <div className="space-y-1.5">
             <Label className="text-sm text-muted-foreground">Campaign Goal</Label>
             <Select

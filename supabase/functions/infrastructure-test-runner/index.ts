@@ -19,7 +19,7 @@
  * 1. Mode defaults to 'simulation' if missing/invalid - NEVER defaults to live
  * 2. Live mode hard-fails if any simulation artifacts detected
  * 3. Scale test requires actual throughput progress, not just worker touches
- * 4. Tenant/workspace IDs are validated on every insert
+ * 4. Tenant/tenant IDs are validated on every insert
  * 5. Live mode requires real provider IDs (no sim_ prefixes)
  * 6. All ITR rows tagged with itr_run_id for cleanup and traceability
  */
@@ -71,7 +71,7 @@ interface ITROutput {
     worker_ids: string[];
     errors: string[];
     tenant_id: string;
-    workspace_id: string;
+    tenant_id: string;
     jobs_transitioned_count: number;
     initial_queue_depth: number;
     final_queue_depth: number;
@@ -131,15 +131,6 @@ function validateProviderIdFormat(providerId: string, provider: string): { valid
       // Resend IDs typically look like: "b4f5a8c2-1234-5678-9abc-def012345678"
       if (!/^[a-f0-9-]{20,}$/i.test(providerId)) {
         return { valid: false, reason: `Invalid Resend ID format: ${providerId}` };
-      }
-      break;
-    case 'vapi':
-      // Vapi call IDs typically look like: "call_abc123..."
-      if (!/^call_[a-zA-Z0-9]{8,}$/i.test(providerId)) {
-        // Allow more lenient format but flag simulated ones
-        if (providerId.startsWith('call_sim')) {
-          return { valid: false, reason: `Simulated Vapi call ID: ${providerId}` };
-        }
       }
       break;
     case 'elevenlabs':
@@ -226,32 +217,32 @@ async function waitForRunTerminal(
   return { success: false, run };
 }
 
-// SAFETY: Validate tenant/workspace IDs match what was passed
-function validateIds(row: { tenant_id: string; workspace_id: string }, tenantId: string, workspaceId: string): { valid: boolean; reason?: string } {
+// SAFETY: Validate tenant/tenant IDs match what was passed
+function validateIds(row: { tenant_id: string; tenant_id: string }, tenantId: string, tenantId: string): { valid: boolean; reason?: string } {
   if (row.tenant_id !== tenantId) {
     return { valid: false, reason: `tenant_id mismatch: expected ${tenantId}, got ${row.tenant_id}` };
   }
-  if (row.workspace_id !== workspaceId) {
-    return { valid: false, reason: `workspace_id mismatch: expected ${workspaceId}, got ${row.workspace_id}` };
+  if (row.tenant_id !== tenantId) {
+    return { valid: false, reason: `tenant_id mismatch: expected ${tenantId}, got ${row.tenant_id}` };
   }
   return { valid: true };
 }
 
-function validateWorkspaceId(row: { workspace_id: string }, workspaceId: string): { valid: boolean; reason?: string } {
-  if (row.workspace_id !== workspaceId) {
-    return { valid: false, reason: `workspace_id mismatch: expected ${workspaceId}, got ${row.workspace_id}` };
+function validateWorkspaceId(row: { tenant_id: string }, tenantId: string): { valid: boolean; reason?: string } {
+  if (row.tenant_id !== tenantId) {
+    return { valid: false, reason: `tenant_id mismatch: expected ${tenantId}, got ${row.tenant_id}` };
   }
   return { valid: true };
 }
 
 async function createItrCampaignForRuns(args: {
   supabase: any;
-  workspaceId: string;
+  tenantId: string;
   channel: 'email' | 'voice';
   name: string;
   itrRunId: string;
-}): Promise<{ campaign: { id: string; workspace_id: string; asset_id: string; channel: string; status: string }; asset: { id: string; workspace_id: string; type: string; status: string } }> {
-  const { supabase, workspaceId, channel, name, itrRunId } = args;
+}): Promise<{ campaign: { id: string; tenant_id: string; asset_id: string; channel: string; status: string }; asset: { id: string; tenant_id: string; type: string; status: string } }> {
+  const { supabase, tenantId, channel, name, itrRunId } = args;
 
   // campaign_runs.campaign_id FK points to public.campaigns(id), so we must create the parent row there.
   const assetType = channel === 'voice' ? 'voice' : 'email';
@@ -259,14 +250,14 @@ async function createItrCampaignForRuns(args: {
   const { data: asset, error: assetErr } = await supabase
     .from('assets')
     .insert({
-      workspace_id: workspaceId,
+      tenant_id: tenantId,
       name: `${name} Asset`,
       description: `ITR ${channel} asset (${itrRunId})`,
       type: assetType,
       status: 'draft',
       channel,
     })
-    .select('id, workspace_id, type, status')
+    .select('id, tenant_id, type, status')
     .single();
 
   if (assetErr || !asset?.id) {
@@ -276,12 +267,12 @@ async function createItrCampaignForRuns(args: {
   const { data: campaign, error: campaignErr } = await supabase
     .from('campaigns')
     .insert({
-      workspace_id: workspaceId,
+      tenant_id: tenantId,
       asset_id: asset.id,
       channel,
       status: 'draft',
     })
-    .select('id, workspace_id, asset_id, channel, status')
+    .select('id, tenant_id, asset_id, channel, status')
     .single();
 
   if (campaignErr || !campaign?.id) {
@@ -317,7 +308,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const testsToRun = body.tests || ['email_e2e', 'voice_e2e', 'failure_transparency', 'scale_safety'];
   const tenantId = body.tenant_id;
-  const workspaceId = body.workspace_id;
+  const tenantId = body.tenant_id;
   
   // SAFETY CHECK 1: Mode defaults to simulation if missing/invalid
   const { mode, source: modeSource } = parseMode(body.mode);
@@ -354,7 +345,7 @@ Deno.serve(async (req) => {
       worker_ids: [],
       errors: [],
       tenant_id: tenantId || 'MISSING',
-      workspace_id: workspaceId || 'MISSING',
+      tenant_id: tenantId || 'MISSING',
       jobs_transitioned_count: 0,
       initial_queue_depth: 0,
       final_queue_depth: 0,
@@ -367,17 +358,17 @@ Deno.serve(async (req) => {
   let agentRunId: string | null = null;
 
   try {
-    if (!tenantId || !workspaceId) {
+    if (!tenantId || !tenantId) {
       return new Response(JSON.stringify({
-        error: 'tenant_id and workspace_id required',
+        error: 'tenant_id and tenant_id required',
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // SAFETY CHECK 4: Validate tenant_id and workspace_id are UUIDs
+    // SAFETY CHECK 4: Validate tenant_id and tenant_id are UUIDs
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(tenantId) || !uuidRegex.test(workspaceId)) {
+    if (!uuidRegex.test(tenantId) || !uuidRegex.test(tenantId)) {
       return new Response(JSON.stringify({
-        error: 'tenant_id and workspace_id must be valid UUIDs',
+        error: 'tenant_id and tenant_id must be valid UUIDs',
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -400,7 +391,7 @@ Deno.serve(async (req) => {
     try {
       const { data: agentRun } = await supabase.from('agent_runs').insert({
         tenant_id: tenantId,
-        workspace_id: workspaceId,
+        tenant_id: tenantId,
         agent: 'infrastructure-test-runner',
         mode: `certification-${mode}`,
         status: 'running',
@@ -428,7 +419,7 @@ Deno.serve(async (req) => {
         // 1. Create test campaign in the correct parent table for campaign_runs FK
         const { campaign, asset } = await createItrCampaignForRuns({
           supabase,
-          workspaceId,
+          tenantId,
           channel: 'email',
           name: `ITR-Email-${mode}-${Date.now()}`,
           itrRunId,
@@ -437,7 +428,7 @@ Deno.serve(async (req) => {
         testEvidence.campaign_id = campaign.id;
         testEvidence.asset_id = asset.id;
 
-        const campaignWsCheck = validateWorkspaceId(campaign, workspaceId);
+        const campaignWsCheck = validateWorkspaceId(campaign, tenantId);
         if (!campaignWsCheck.valid) {
           throw new Error(`CRITICAL: ${campaignWsCheck.reason}`);
         }
@@ -445,7 +436,7 @@ Deno.serve(async (req) => {
         // 2. Create test leads
         const leadPromises = [1, 2, 3].map(i => 
           supabase.from('leads').insert({
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             first_name: `ITR`,
             last_name: `Test Lead ${i}`,
             email: `itr-${mode}-${Date.now()}-${i}@test.invalid`,
@@ -462,7 +453,7 @@ Deno.serve(async (req) => {
           .from('campaign_runs')
           .insert({
             tenant_id: tenantId,
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             campaign_id: campaign.id,
             channel: 'email',
             status: 'queued',
@@ -482,8 +473,8 @@ Deno.serve(async (req) => {
         testEvidence.run_id = run.id;
         output.evidence.campaign_run_ids.push(run.id);
         
-        // SAFETY CHECK 4: Verify tenant/workspace IDs
-        const runIdCheck = validateIds(run, tenantId, workspaceId);
+        // SAFETY CHECK 4: Verify tenant/tenant IDs
+        const runIdCheck = validateIds(run, tenantId, tenantId);
         if (!runIdCheck.valid) {
           throw new Error(`CRITICAL: ${runIdCheck.reason}`);
         }
@@ -492,7 +483,7 @@ Deno.serve(async (req) => {
           // SIMULATION: Directly create and update outbox entries
           const outboxEntries = leads.map((lead, idx) => ({
             tenant_id: tenantId,
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             run_id: run.id,
             channel: 'email',
             provider: 'resend',
@@ -593,7 +584,7 @@ Deno.serve(async (req) => {
               .from('job_queue')
               .insert({
                 tenant_id: tenantId,
-                workspace_id: workspaceId,
+                tenant_id: tenantId,
                 run_id: run.id,
                 job_type: 'email_send_batch',
                 status: 'queued',
@@ -614,7 +605,7 @@ Deno.serve(async (req) => {
           // Create outbox entries with 'reserved' status (workers will process)
           const outboxEntries = leads.map(lead => ({
             tenant_id: tenantId,
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             run_id: run.id,
             job_id: job.id,
             channel: 'email',
@@ -755,38 +746,35 @@ Deno.serve(async (req) => {
       const testEvidence: Record<string, unknown> = { mode, itr_run_id: itrRunId };
       
       try {
-        // Check if voice is configured - support both VAPI and ElevenLabs
+        // Check if voice is configured - ElevenLabs only
         const { data: voiceSettings } = await supabase
           .from('ai_settings_voice')
           .select('*')
-          .eq('tenant_id', workspaceId)
+          .eq('tenant_id', tenantId)
           .maybeSingle();
 
         // Determine which provider is available
-        const vapiPrivateKey = Deno.env.get('VAPI_PRIVATE_KEY');
         const elevenLabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
         
-        const hasVapi = Boolean(vapiPrivateKey && voiceSettings?.default_vapi_assistant_id);
         const hasElevenLabs = Boolean(elevenLabsApiKey || voiceSettings?.elevenlabs_api_key);
         
-        // Determine the provider to use (prefer VAPI if both configured, as it's designed for calls)
-        const voiceProvider = hasVapi ? 'vapi' : (hasElevenLabs ? 'elevenlabs' : null);
+        // Determine the provider to use
+        const voiceProvider = hasElevenLabs ? 'elevenlabs' : null;
         
         testEvidence.voice_provider = voiceProvider;
-        testEvidence.has_vapi = hasVapi;
         testEvidence.has_elevenlabs = hasElevenLabs;
 
         if (!voiceSettings?.is_connected && !voiceProvider) {
           output.tests.voice_e2e = {
             status: 'SKIPPED',
-            reason: 'Voice provider not configured - need VAPI assistant ID or ElevenLabs API key',
+            reason: 'Voice provider not configured - need ElevenLabs API key',
             duration_ms: Date.now() - testStart,
             evidence: testEvidence,
           };
         } else if (!voiceProvider) {
           output.tests.voice_e2e = {
             status: 'SKIPPED',
-            reason: 'No voice provider credentials available (VAPI needs assistant ID, ElevenLabs needs API key)',
+            reason: 'No voice provider credentials available (ElevenLabs needs API key)',
             duration_ms: Date.now() - testStart,
             evidence: testEvidence,
           };
@@ -794,7 +782,7 @@ Deno.serve(async (req) => {
           // Create voice campaign in the correct parent table for campaign_runs FK
           const { campaign, asset } = await createItrCampaignForRuns({
             supabase,
-            workspaceId,
+            tenantId,
             channel: 'voice',
             name: `ITR-Voice-${mode}-${Date.now()}`,
             itrRunId,
@@ -803,7 +791,7 @@ Deno.serve(async (req) => {
           testEvidence.campaign_id = campaign.id;
           testEvidence.asset_id = asset.id;
 
-          const campaignWsCheck = validateWorkspaceId(campaign, workspaceId);
+          const campaignWsCheck = validateWorkspaceId(campaign, tenantId);
           if (!campaignWsCheck.valid) {
             throw new Error(`CRITICAL: ${campaignWsCheck.reason}`);
           }
@@ -811,7 +799,7 @@ Deno.serve(async (req) => {
           // Create test leads with phone numbers
           const leadPromises = [1, 2, 3].map(i => 
             supabase.from('leads').insert({
-              workspace_id: workspaceId,
+              tenant_id: tenantId,
               first_name: `ITR Voice`,
               last_name: `Lead ${i}`,
               email: `itr-voice-${mode}-${Date.now()}-${i}@test.invalid`,
@@ -829,7 +817,7 @@ Deno.serve(async (req) => {
             .from('campaign_runs')
             .insert({
               tenant_id: tenantId,
-              workspace_id: workspaceId,
+              tenant_id: tenantId,
               campaign_id: campaign.id,
               channel: 'voice',
               status: 'queued',
@@ -849,8 +837,8 @@ Deno.serve(async (req) => {
           testEvidence.run_id = run.id;
           output.evidence.campaign_run_ids.push(run.id);
           
-          // SAFETY CHECK 4: Verify tenant/workspace IDs
-          const runIdCheck = validateIds(run, tenantId, workspaceId);
+          // SAFETY CHECK 4: Verify tenant/tenant IDs
+          const runIdCheck = validateIds(run, tenantId, tenantId);
           if (!runIdCheck.valid) {
             throw new Error(`CRITICAL: ${runIdCheck.reason}`);
           }
@@ -859,7 +847,7 @@ Deno.serve(async (req) => {
             // SIMULATION: Directly create and update outbox entries
             const outboxEntries = leads.map(lead => ({
               tenant_id: tenantId,
-              workspace_id: workspaceId,
+              tenant_id: tenantId,
               run_id: run.id,
               channel: 'voice',
               provider: voiceProvider, // Use detected provider
@@ -867,8 +855,7 @@ Deno.serve(async (req) => {
               recipient_phone: lead.phone,
               idempotency_key: `itr-sim-voice-${itrRunId}-${lead.id}`,
               status: 'queued',
-              payload: { 
-                assistant_id: voiceSettings?.default_vapi_assistant_id,
+              payload: {
                 voice_id: voiceSettings?.default_elevenlabs_voice_id,
                 provider: voiceProvider,
                 itr_run_id: itrRunId
@@ -917,11 +904,9 @@ Deno.serve(async (req) => {
             // LIVE: Make calls directly (inline) to test actual provider integration
             // Don't rely on workers - ITR needs to verify real provider connectivity
             
-            const vapiPrivateKey = Deno.env.get('VAPI_PRIVATE_KEY');
             const elevenLabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
             
             testEvidence.provider_used = voiceProvider;
-            testEvidence.has_vapi_key = Boolean(vapiPrivateKey);
             testEvidence.has_elevenlabs_key = Boolean(elevenLabsApiKey);
             
             // Create campaign run for tracking
@@ -939,7 +924,7 @@ Deno.serve(async (req) => {
             // Create outbox entries first
             const outboxEntries = leads.map(lead => ({
               tenant_id: tenantId,
-              workspace_id: workspaceId,
+              tenant_id: tenantId,
               run_id: run.id,
               channel: 'voice',
               provider: voiceProvider,
@@ -948,7 +933,6 @@ Deno.serve(async (req) => {
               idempotency_key: `itr-live-voice-${itrRunId}-${lead.id}`,
               status: 'queued',
               payload: { 
-                assistant_id: voiceSettings?.default_vapi_assistant_id,
                 voice_id: voiceSettings?.default_elevenlabs_voice_id,
                 provider: voiceProvider,
                 itr_run_id: itrRunId
@@ -970,54 +954,7 @@ Deno.serve(async (req) => {
               output.evidence.outbox_row_ids.push(outboxRow.id);
               
               try {
-                if (voiceProvider === 'vapi' && vapiPrivateKey) {
-                  // Make VAPI call
-                  const assistantId = voiceSettings?.default_vapi_assistant_id;
-                  if (!assistantId) {
-                    throw new Error('VAPI assistant ID not configured');
-                  }
-                  
-                  // For ITR test, we use a test phone number pattern
-                  const customerNumber = outboxRow.recipient_phone || '+15550001001';
-                  
-                  console.log(`[ITR Voice] Making VAPI call to ${customerNumber}`);
-                  
-                  const vapiResponse = await fetch('https://api.vapi.ai/call', {
-                    method: 'POST',
-                    headers: {
-                      'Authorization': `Bearer ${vapiPrivateKey}`,
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      assistantId,
-                      customer: {
-                        number: customerNumber,
-                      },
-                      // Use a test mode flag if available
-                    }),
-                  });
-                  
-                  const vapiResult = await vapiResponse.json();
-                  
-                  if (vapiResponse.ok && vapiResult.id) {
-                    // Success - update outbox
-                    await supabase
-                      .from('channel_outbox')
-                      .update({
-                        status: 'called',
-                        provider_message_id: vapiResult.id,
-                        provider_response: { ...vapiResult, itr_live: true },
-                      })
-                      .eq('id', outboxRow.id);
-                    
-                    output.evidence.outbox_final_statuses[outboxRow.id] = 'called';
-                    output.evidence.provider_ids.push(vapiResult.id);
-                    callsSucceeded++;
-                  } else {
-                    throw new Error(vapiResult.message || vapiResult.error || 'VAPI call failed');
-                  }
-                  
-                } else if (voiceProvider === 'elevenlabs' && elevenLabsApiKey) {
+                if (voiceProvider === 'elevenlabs' && elevenLabsApiKey) {
                   // ElevenLabs doesn't make outbound phone calls in the same way
                   // It's primarily for TTS/voice generation
                   // For ITR purposes, we'll verify API connectivity
@@ -1168,7 +1105,7 @@ Deno.serve(async (req) => {
         // Create campaign that will fail (in campaigns table to satisfy campaign_runs FK)
         const { campaign, asset } = await createItrCampaignForRuns({
           supabase,
-          workspaceId,
+          tenantId,
           channel: 'email',
           name: `ITR-FailTest-${mode}-${Date.now()}`,
           itrRunId,
@@ -1177,7 +1114,7 @@ Deno.serve(async (req) => {
         testEvidence.campaign_id = campaign.id;
         testEvidence.asset_id = asset.id;
 
-        const campaignWsCheck = validateWorkspaceId(campaign, workspaceId);
+        const campaignWsCheck = validateWorkspaceId(campaign, tenantId);
         if (!campaignWsCheck.valid) {
           throw new Error(`CRITICAL: ${campaignWsCheck.reason}`);
         }
@@ -1187,7 +1124,7 @@ Deno.serve(async (req) => {
           .from('campaign_runs')
           .insert({
             tenant_id: tenantId,
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             campaign_id: campaign.id,
             channel: 'email',
             status: 'queued',
@@ -1216,7 +1153,7 @@ Deno.serve(async (req) => {
           .from('channel_outbox')
           .insert({
             tenant_id: tenantId,
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             run_id: run.id,
             channel: 'email',
             provider: 'resend',
@@ -1454,7 +1391,7 @@ Deno.serve(async (req) => {
         // Create campaign for scale test (in campaigns table to satisfy campaign_runs FK)
         const { campaign, asset } = await createItrCampaignForRuns({
           supabase,
-          workspaceId,
+          tenantId,
           channel: 'email',
           name: `ITR-Scale-${mode}-${Date.now()}`,
           itrRunId,
@@ -1463,7 +1400,7 @@ Deno.serve(async (req) => {
         testEvidence.campaign_id = campaign.id;
         testEvidence.asset_id = asset.id;
 
-        const campaignWsCheck = validateWorkspaceId(campaign, workspaceId);
+        const campaignWsCheck = validateWorkspaceId(campaign, tenantId);
         if (!campaignWsCheck.valid) {
           throw new Error(`CRITICAL: ${campaignWsCheck.reason}`);
         }
@@ -1472,7 +1409,7 @@ Deno.serve(async (req) => {
           .from('campaign_runs')
           .insert({
             tenant_id: tenantId,
-            workspace_id: workspaceId,
+            tenant_id: tenantId,
             campaign_id: campaign.id,
             channel: 'email',
             status: 'running',
@@ -1497,7 +1434,7 @@ Deno.serve(async (req) => {
         // Create 50 job queue entries
         const jobEntries = Array.from({ length: 50 }, (_, i) => ({
           tenant_id: tenantId,
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
           run_id: run.id,
           job_type: 'email_send_batch',
           status: 'queued',
@@ -1935,7 +1872,7 @@ Deno.serve(async (req) => {
     // Only certify if LIVE mode AND all tests pass
     output.certified = mode === 'live' && output.overall === 'PASS';
 
-    // CERTIFICATION LATCH: Write durable certification to workspace on live PASS
+    // CERTIFICATION LATCH: Write durable certification to tenant on live PASS
     if (output.certified) {
       const CERTIFICATION_VERSION = '1.1.0'; // Bumped for safety checks
       
@@ -1991,16 +1928,16 @@ Deno.serve(async (req) => {
       // Timestamp stored separately (not in hash)
       const certifiedAt = new Date().toISOString();
       
-      // Write certification latch to workspace
+      // Write certification latch to tenant
       const { error: latchError } = await supabase
-        .from('workspaces')
+        .from('tenants')
         .update({
           platform_certified_at: certifiedAt,
           platform_certification_hash: certificationHash,
           platform_certification_version: CERTIFICATION_VERSION,
           platform_certification_run_id: certificationRunId,
         })
-        .eq('id', workspaceId);
+        .eq('id', tenantId);
 
       if (latchError) {
         console.error('[ITR] Failed to write certification latch:', latchError);
@@ -2028,7 +1965,7 @@ Deno.serve(async (req) => {
         // Fallback: insert if we didn't create one at start
         await supabase.from('agent_runs').insert({
           tenant_id: tenantId,
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
           agent: 'infrastructure-test-runner',
           mode: `certification-${mode}`,
           status: output.overall === 'PASS' ? 'completed' : 'failed',

@@ -49,12 +49,12 @@ interface Lead {
   segment_code?: string;
 }
 
-interface VapiAssistant {
+interface VoiceAssistant {
   id: string;
   name: string;
 }
 
-interface VapiPhoneNumber {
+interface VoicePhoneNumber {
   id: string;
   number: string;
   name: string;
@@ -89,11 +89,11 @@ const CRM = () => {
   // Outbound calling state
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [vapiAssistants, setVapiAssistants] = useState<VapiAssistant[]>([]);
-  const [vapiPhoneNumbers, setVapiPhoneNumbers] = useState<VapiPhoneNumber[]>([]);
+  const [voiceAssistants, setVoiceAssistants] = useState<VoiceAssistant[]>([]);
+  const [voicePhoneNumbers, setVoicePhoneNumbers] = useState<VoicePhoneNumber[]>([]);
   const [selectedAssistantId, setSelectedAssistantId] = useState("");
   const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState("");
-  const [isLoadingVapi, setIsLoadingVapi] = useState(false);
+  const [isLoadingVoice, setIsLoadingVoice] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
 
   // Scraper form
@@ -290,35 +290,45 @@ const CRM = () => {
 
   // No longer needed - filtering is server-side
 
-  const fetchVapiData = async () => {
-    setIsLoadingVapi(true);
+  const fetchVoiceData = async () => {
+    setIsLoadingVoice(true);
     try {
       // Fetch assistants and phone numbers in parallel
       const [assistantsRes, phoneNumbersRes] = await Promise.all([
-        supabase.functions.invoke('vapi-list-assistants'),
-        supabase.functions.invoke('vapi-list-phone-numbers'),
+        supabase
+          .from('voice_agents')
+          .select('agent_id, name')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('voice_phone_numbers')
+          .select('*')
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: false }),
       ]);
 
-      if (assistantsRes.data?.assistants) {
-        setVapiAssistants(assistantsRes.data.assistants);
-        // Auto-select first assistant if available
-        if (assistantsRes.data.assistants.length > 0 && !selectedAssistantId) {
-          setSelectedAssistantId(assistantsRes.data.assistants[0].id);
+      if (assistantsRes.data) {
+        const mapped = assistantsRes.data.map((agent: any) => ({
+          id: agent.agent_id,
+          name: agent.name || 'Unnamed Agent',
+        }));
+        setVoiceAssistants(mapped);
+        if (mapped.length > 0 && !selectedAssistantId) {
+          setSelectedAssistantId(mapped[0].id);
         }
       }
 
-      if (phoneNumbersRes.data?.phoneNumbers) {
-        setVapiPhoneNumbers(phoneNumbersRes.data.phoneNumbers);
-        // Auto-select first phone number if available
-        if (phoneNumbersRes.data.phoneNumbers.length > 0 && !selectedPhoneNumberId) {
-          setSelectedPhoneNumberId(phoneNumbersRes.data.phoneNumbers[0].id);
+      if (phoneNumbersRes.data) {
+        setVoicePhoneNumbers(phoneNumbersRes.data as VoicePhoneNumber[]);
+        if (phoneNumbersRes.data.length > 0 && !selectedPhoneNumberId) {
+          setSelectedPhoneNumberId(phoneNumbersRes.data[0].id);
         }
       }
     } catch (error) {
-      console.error('Error fetching Vapi data:', error);
+      console.error('Error fetching voice data:', error);
       sonnerToast.error('Failed to load voice agents');
     } finally {
-      setIsLoadingVapi(false);
+      setIsLoadingVoice(false);
     }
   };
 
@@ -329,7 +339,7 @@ const CRM = () => {
     }
     setSelectedLead(lead);
     setShowCallDialog(true);
-    fetchVapiData();
+    fetchVoiceData();
   };
 
   const initiateOutboundCall = async () => {
@@ -345,13 +355,15 @@ const CRM = () => {
 
     setIsCalling(true);
     try {
-      const { data, error } = await supabase.functions.invoke('vapi-outbound-call', {
+      const { data, error } = await supabase.functions.invoke('elevenlabs-make-call', {
         body: {
-          assistantId: selectedAssistantId,
-          phoneNumberId: selectedPhoneNumberId || undefined,
-          customerNumber: selectedLead.phone,
-          customerName: `${selectedLead.first_name} ${selectedLead.last_name}`,
-          leadId: selectedLead.id,
+          agent_id: selectedAssistantId,
+          phone_number: selectedLead.phone,
+          lead_data: {
+            id: selectedLead.id,
+            name: `${selectedLead.first_name} ${selectedLead.last_name}`,
+            company: selectedLead.company,
+          },
         },
       });
 
@@ -1534,7 +1546,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {isLoadingVapi ? (
+                {isLoadingVoice ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
@@ -1547,16 +1559,16 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                           <SelectValue placeholder="Select an assistant" />
                         </SelectTrigger>
                         <SelectContent>
-                          {vapiAssistants.map((assistant) => (
+                          {voiceAssistants.map((assistant) => (
                             <SelectItem key={assistant.id} value={assistant.id}>
                               {assistant.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      {vapiAssistants.length === 0 && (
+                      {voiceAssistants.length === 0 && (
                         <p className="text-xs text-muted-foreground">
-                          No assistants found. Create one in your Vapi dashboard.
+                          No assistants found. Create one in your ElevenLabs dashboard.
                         </p>
                       )}
                     </div>
@@ -1572,7 +1584,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">No phone number</SelectItem>
-                          {vapiPhoneNumbers.map((phone) => (
+                          {voicePhoneNumbers.map((phone) => (
                             <SelectItem key={phone.id} value={phone.id}>
                               {phone.name} ({phone.number})
                             </SelectItem>
@@ -1592,7 +1604,7 @@ Emily Rodriguez,emily@example.com,+1-555-0103,Sports Club,General Manager,Sports
                 </Button>
                 <Button 
                   onClick={initiateOutboundCall} 
-                  disabled={isCalling || !selectedAssistantId || isLoadingVapi}
+                  disabled={isCalling || !selectedAssistantId || isLoadingVoice}
                   className="gap-2"
                 >
                   {isCalling ? (

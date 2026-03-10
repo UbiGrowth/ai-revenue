@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import type {
   VoiceAssistant,
   VoicePhoneNumber,
@@ -14,44 +15,62 @@ import type {
   VoiceKernelResponse,
 } from './types';
 
+type VoiceAgentRow = Database['public']['Tables']['voice_agents']['Row'];
+type VoiceCallRecordRow = Database['public']['Tables']['voice_call_records']['Row'];
+type ListAssistantsRow = Pick<VoiceAgentRow, 'agent_id' | 'name' | 'created_at'>;
+
 // Assistant APIs
 export async function listAssistants(): Promise<VoiceAssistant[]> {
-  const { data, error } = await supabase.functions.invoke('vapi-list-assistants');
+  const { data, error } = await supabase
+    .from('voice_agents')
+    .select('agent_id, name, created_at')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data?.assistants || [];
+  return (data || []).map((agent: ListAssistantsRow) => ({
+    id: agent.agent_id,
+    name: agent.name || 'Unnamed Agent',
+    createdAt: agent.created_at,
+  }));
 }
 
 export async function createAssistant(assistantData: Partial<VoiceAssistant>): Promise<VoiceAssistant> {
-  const { data, error } = await supabase.functions.invoke('vapi-manage-assistant', {
-    body: { action: 'create', assistantData },
+  const { data, error } = await supabase.functions.invoke('elevenlabs-create-agent', {
+    body: {
+      name: assistantData.name,
+      first_message: assistantData.firstMessage,
+      system_prompt: assistantData.systemPrompt,
+      voice_id: assistantData.voice,
+      tenant_id: assistantData.tenantId,
+    },
   });
   if (error) throw error;
-  return data?.assistant;
+  return {
+    id: data?.agent_id || data?.agent?.agent_id,
+    name: assistantData.name || 'Unnamed Agent',
+  };
 }
 
 export async function updateAssistant(
   assistantId: string,
   assistantData: Partial<VoiceAssistant>
 ): Promise<VoiceAssistant> {
-  const { data, error } = await supabase.functions.invoke('vapi-manage-assistant', {
-    body: { action: 'update', assistantId, assistantData },
-  });
-  if (error) throw error;
-  return data?.assistant;
+  throw new Error('Updating assistants is managed in ElevenLabs.');
 }
 
 export async function deleteAssistant(assistantId: string): Promise<void> {
-  const { error } = await supabase.functions.invoke('vapi-manage-assistant', {
-    body: { action: 'delete', assistantId },
-  });
-  if (error) throw error;
+  throw new Error('Deleting assistants is managed in ElevenLabs.');
 }
 
 // Phone Number APIs
 export async function listPhoneNumbers(): Promise<VoicePhoneNumber[]> {
-  const { data, error } = await supabase.functions.invoke('vapi-list-phone-numbers');
+  const { data, error } = await supabase
+    .from('voice_phone_numbers')
+    .select('*')
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data?.phoneNumbers || [];
+  return data || [];
 }
 
 // Call APIs
@@ -59,11 +78,13 @@ export async function listCalls(options?: {
   limit?: number;
   assistantId?: string;
 }): Promise<VoiceCall[]> {
-  const { data, error } = await supabase.functions.invoke('vapi-list-calls', {
-    body: options || {},
-  });
+  const { data, error } = await supabase
+    .from('voice_call_records')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(options?.limit ?? 50);
   if (error) throw error;
-  return data?.calls || [];
+  return data || [];
 }
 
 export async function initiateCall(params: {
@@ -73,18 +94,71 @@ export async function initiateCall(params: {
   customerName?: string;
   leadId?: string;
 }): Promise<VoiceCall> {
-  const { data, error } = await supabase.functions.invoke('vapi-outbound-call', {
-    body: params,
+  const { data, error } = await supabase.functions.invoke('elevenlabs-make-call', {
+    body: {
+      agent_id: params.assistantId,
+      phone_number: params.customerNumber,
+      lead_data: {
+        id: params.leadId,
+        name: params.customerName,
+      },
+    },
   });
   if (error) throw error;
-  return data?.call;
+  if (!data) {
+    throw new Error("ElevenLabs call did not return data");
+  }
+
+  return {
+    id: data.conversation_id || data.id || "",
+    tenant_id: "",
+    workspace_id: "",
+    phone_number_id: params.phoneNumberId || null,
+    voice_agent_id: params.assistantId,
+    lead_id: params.leadId || null,
+    campaign_id: null,
+    provider_call_id: data.conversation_id || null,
+    call_type: "outbound",
+    status: data.status || "queued",
+    customer_number: data.phone_number || params.customerNumber,
+    customer_name: params.customerName || null,
+    duration_seconds: 0,
+    cost: 0,
+    started_at: data.timestamp || null,
+    ended_at: null,
+    transcript: null,
+    summary: null,
+    recording_url: null,
+    outcome: null,
+    failure_reason: null,
+    analysis: {},
+    created_at: data.timestamp || new Date().toISOString(),
+  } as VoiceCall;
 }
 
 // Analytics APIs
 export async function getAnalytics(): Promise<VoiceAnalytics> {
-  const { data, error } = await supabase.functions.invoke('vapi-analytics');
+  const { data, error } = await supabase
+    .from('voice_call_records')
+    .select('*')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  const calls: VoiceCallRecordRow[] = data || [];
+  const completed = calls.filter((c) => c.status === 'completed');
+  const failed = calls.filter((c) => c.status === 'failed');
+  const noAnswer = calls.filter((c) => c.status === 'no-answer');
+  const totalDuration = calls.reduce((sum: number, c) => sum + (c.duration_seconds || 0), 0);
+  return {
+    totalCalls: calls.length,
+    completedCalls: completed.length,
+    failedCalls: failed.length,
+    noAnswerCalls: noAnswer.length,
+    totalDurationMinutes: Math.round(totalDuration / 60),
+    averageCallDuration: calls.length > 0 ? Math.round(totalDuration / calls.length) : 0,
+    callsByType: {},
+    callsByStatus: {},
+    callsByOutcome: {},
+  };
 }
 
 // Campaign APIs
@@ -98,27 +172,30 @@ export async function listCampaigns(workspaceId: string): Promise<VoiceCampaign[
 
   if (error) throw error;
 
-  return (data || []).map((asset) => ({
-    id: asset.id,
-    name: asset.name,
-    status: asset.status as VoiceCampaign['status'],
-    goal: asset.goal,
-    assistantId: asset.vapi_id,
-    config: (asset.content as any)?.config || {
-      maxConcurrentCalls: 1,
-      maxCallsPerDay: 100,
-      businessHoursOnly: true,
-      timezone: 'America/New_York',
-      retryFailedCalls: true,
-      maxRetries: 2,
-      callInterval: 30,
-    },
-    stats: (asset.content as any)?.stats,
-    createdAt: asset.created_at,
-    updatedAt: asset.updated_at,
-    tenantId: asset.created_by || '',
-    workspaceId: asset.workspace_id || '',
-  }));
+  return (data || []).map((asset) => {
+    const content = asset.content as Record<string, unknown> | null;
+    return {
+      id: asset.id,
+      name: asset.name,
+      status: asset.status as VoiceCampaign['status'],
+      goal: asset.goal,
+      assistantId: (content?.assistantId as string) || null,
+      config: (content?.config as VoiceCampaign['config']) || {
+        maxConcurrentCalls: 1,
+        maxCallsPerDay: 100,
+        businessHoursOnly: true,
+        timezone: 'America/New_York',
+        retryFailedCalls: true,
+        maxRetries: 2,
+        callInterval: 30,
+      },
+      stats: content?.stats as VoiceCampaign['stats'] | undefined,
+      createdAt: asset.created_at,
+      updatedAt: asset.updated_at,
+      tenantId: asset.created_by || '',
+      workspaceId: asset.workspace_id || '',
+    };
+  });
 }
 
 export async function createCampaign(
@@ -131,27 +208,36 @@ export async function createCampaign(
       type: 'voice' as const,
       status: 'draft' as const,
       goal: campaign.goal || null,
-      vapi_id: campaign.assistantId || null,
-      workspace_id: campaign.workspaceId,
-      created_by: campaign.tenantId,
       content: JSON.parse(JSON.stringify({
         config: campaign.config,
         stats: campaign.stats,
         phoneNumberId: campaign.phoneNumberId,
+        assistantId: campaign.assistantId,
       })),
+      workspace_id: campaign.workspaceId,
+      created_by: campaign.tenantId,
     }])
     .select()
     .single();
 
   if (error) throw error;
+  const content = data.content as Record<string, unknown> | null;
   return {
     id: data.id,
     name: data.name,
     status: data.status as VoiceCampaign['status'],
     goal: data.goal,
-    assistantId: data.vapi_id,
-    config: (data.content as any)?.config,
-    stats: (data.content as any)?.stats,
+    assistantId: (content?.assistantId as string) || null,
+    config: (content?.config as VoiceCampaign['config']) || {
+      maxConcurrentCalls: 1,
+      maxCallsPerDay: 100,
+      businessHoursOnly: true,
+      timezone: 'America/New_York',
+      retryFailedCalls: true,
+      maxRetries: 2,
+      callInterval: 30,
+    },
+    stats: content?.stats as VoiceCampaign['stats'] | undefined,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     tenantId: data.created_by || '',
@@ -163,15 +249,30 @@ export async function updateCampaign(
   id: string,
   updates: Partial<VoiceCampaign>
 ): Promise<VoiceCampaign> {
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
   if (updates.name) updateData.name = updates.name;
   if (updates.status) updateData.status = updates.status;
   if (updates.goal) updateData.goal = updates.goal;
-  if (updates.assistantId) updateData.vapi_id = updates.assistantId;
-  if (updates.config || updates.stats) {
+  const contentUpdates: Record<string, unknown> = {};
+  if (updates.assistantId) {
+    contentUpdates.assistantId = updates.assistantId;
+  }
+  if (updates.config !== undefined) {
+    contentUpdates.config = updates.config;
+  }
+  if (updates.stats !== undefined) {
+    contentUpdates.stats = updates.stats;
+  }
+  if (Object.keys(contentUpdates).length > 0) {
+    const { data: currentAsset, error: currentError } = await supabase
+      .from('assets')
+      .select('content')
+      .eq('id', id)
+      .single();
+    if (currentError) throw currentError;
     updateData.content = {
-      config: updates.config,
-      stats: updates.stats,
+      ...(currentAsset?.content as Record<string, unknown> | null),
+      ...contentUpdates,
     };
   }
 
@@ -183,14 +284,23 @@ export async function updateCampaign(
     .single();
 
   if (error) throw error;
+  const content = data.content as Record<string, unknown> | null;
   return {
     id: data.id,
     name: data.name,
     status: data.status as VoiceCampaign['status'],
     goal: data.goal,
-    assistantId: data.vapi_id,
-    config: (data.content as any)?.config,
-    stats: (data.content as any)?.stats,
+    assistantId: (content?.assistantId as string) || null,
+    config: (content?.config as VoiceCampaign['config']) || {
+      maxConcurrentCalls: 1,
+      maxCallsPerDay: 100,
+      businessHoursOnly: true,
+      timezone: 'America/New_York',
+      retryFailedCalls: true,
+      maxRetries: 2,
+      callInterval: 30,
+    },
+    stats: content?.stats as VoiceCampaign['stats'] | undefined,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     tenantId: data.created_by || '',
@@ -203,7 +313,7 @@ export async function executeCampaign(params: {
   assistantId: string;
   phoneNumberId?: string;
   leadIds: string[];
-}): Promise<{ success: boolean; results: any[] }> {
+}): Promise<{ success: boolean; results: unknown[] }> {
   const { data, error } = await supabase.functions.invoke('execute-voice-campaign', {
     body: params,
   });

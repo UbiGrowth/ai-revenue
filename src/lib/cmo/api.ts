@@ -276,19 +276,6 @@ export async function getCampaign(id: string) {
   return data as CMOCampaign & { channels: CMOCampaignChannel[] };
 }
 
-// Autopilot Controls
-export async function toggleAutopilot(campaignId: string, enabled: boolean) {
-  const { data, error } = await supabase
-    .from("cmo_campaigns")
-    .update({ autopilot_enabled: enabled } as any)
-    .eq("id", campaignId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as unknown as CMOCampaign;
-}
-
 export async function updateCampaignGoal(campaignId: string, goal: string | null) {
   const { data, error } = await supabase
     .from("cmo_campaigns")
@@ -299,66 +286,6 @@ export async function updateCampaignGoal(campaignId: string, goal: string | null
 
   if (error) throw error;
   return data as unknown as CMOCampaign;
-}
-
-// Autopilot Campaign Builder - Uses kernel campaign-builder mode
-export async function buildAutopilotCampaign(payload: {
-  icp: string;
-  offer: string;
-  channels: string[];
-  desiredResult: 'leads' | 'meetings' | 'revenue' | 'engagement';
-  workspaceId?: string;
-  targetTags?: string[];
-  targetSegments?: string[];
-}): Promise<{
-  campaign_id: string;
-  campaign_name: string;
-  assets: {
-    posts: Array<{ channel: string; content: string; hook: string; cta: string }>;
-    emails: Array<{ step: number; subject: string; body: string; delay_days: number }>;
-    sms: Array<{ step: number; message: string; delay_days: number }>;
-    landing_pages: Array<{ title: string; headline: string; subheadline: string; sections: any[] }>;
-    voice_scripts: Array<{ scenario: string; opening: string; pitch: string; objection_handling: string; close: string }>;
-  };
-  automations: {
-    steps: Array<{ step: number; type: string; delay_days: number; config: any }>;
-  };
-  summary: string;
-}> {
-  const { tenantId } = await getTenantContext();
-  
-  // Get workspace_id if not provided
-  let workspaceId = payload.workspaceId;
-  if (!workspaceId) {
-    const { data: workspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", (await supabase.auth.getUser()).data.user?.id)
-      .single();
-    workspaceId = workspace?.id;
-  }
-
-  // Call via kernel with campaign-builder mode
-  const { data, error } = await supabase.functions.invoke("cmo-kernel", {
-    body: {
-      mode: 'campaign-builder',
-      tenant_id: tenantId,
-      workspace_id: workspaceId,
-      payload: {
-        icp: payload.icp,
-        offer: payload.offer,
-        channels: payload.channels,
-        desired_result: payload.desiredResult,
-        target_tags: payload.targetTags,
-        target_segment_codes: payload.targetSegments,
-      },
-    },
-  });
-
-  if (error) throw error;
-  
-  // Return the result from the kernel response
-  return data?.result || data;
 }
 
 // Content Assets
