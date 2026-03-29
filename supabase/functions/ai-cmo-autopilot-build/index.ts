@@ -79,26 +79,17 @@ serve(async (req) => {
       );
     }
 
-    // No longer need tenant_id - workspace_id is the primary scoping mechanism
-
-    // Get workspace
-    const { data: workspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
-
-    const workspaceId = workspace?.id;
-    if (!workspaceId) {
+    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+    if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
       return new Response(
-        JSON.stringify({ error: "No workspace found" }),
+        JSON.stringify({ error: "tenant_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Step 1: Create campaign row first (status draft, autopilot_enabled = true, goal set)
     const campaignData: Record<string, unknown> = {
-      workspace_id: workspaceId,
+      tenant_id: tenantId,
       campaign_name: `Autopilot Campaign - ${desiredResult}`,
       campaign_type: "autopilot",
       description: `AI-generated campaign targeting ${desiredResult}`,
@@ -215,7 +206,8 @@ serve(async (req) => {
     if (assets.emails) {
       for (const email of assets.emails) {
         assetInserts.push({
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
+          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: email.subject,
           content_type: "email",
@@ -230,7 +222,8 @@ serve(async (req) => {
     if (assets.sms) {
       for (const sms of assets.sms) {
         assetInserts.push({
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
+          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: `SMS Step ${sms.step}`,
           content_type: "sms",
@@ -245,7 +238,8 @@ serve(async (req) => {
     if (assets.voice_scripts) {
       for (const script of assets.voice_scripts) {
         assetInserts.push({
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
+          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: `Voice Script - ${script.scenario}`,
           content_type: "voice_script",
@@ -261,7 +255,8 @@ serve(async (req) => {
     if (assets.posts) {
       for (const post of assets.posts) {
         assetInserts.push({
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
+          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: post.hook || `${post.channel} Post`,
           content_type: "social_post",
@@ -277,7 +272,8 @@ serve(async (req) => {
     if (assets.landing_pages) {
       for (const page of assets.landing_pages) {
         assetInserts.push({
-          workspace_id: workspaceId,
+          tenant_id: tenantId,
+          tenant_id: tenantId,
           campaign_id: campaign.id,
           title: page.title || page.headline,
           content_type: "landing_page",
@@ -299,7 +295,8 @@ serve(async (req) => {
     
     if (automationSteps.length > 0) {
       const stepInserts = automationSteps.map((step: any, index: number) => ({
-        workspace_id: workspaceId,
+        tenant_id: tenantId,
+        tenant_id: tenantId,
         automation_id: campaign.id, // Link to campaign as automation container
         step_order: step.step || index + 1,
         step_type: step.type, // email, sms, wait, voice, condition

@@ -4,7 +4,7 @@ import { runLLM } from "../_shared/llmRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-workspace-id, x-tenant-id",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-tenant-id",
   "Access-Control-Expose-Headers": "x-ai-revenue-build",
   "x-ai-revenue-build": "content-generate-llm-router-v1",
 };
@@ -15,7 +15,7 @@ interface ContentRequest {
   assetGoal?: string;
   tone?: string;
   businessProfile?: any;
-  workspaceId?: string;
+  tenantId?: string;
 }
 
 serve(async (req) => {
@@ -58,55 +58,15 @@ serve(async (req) => {
       });
     }
 
-    const { vertical, contentType, assetGoal, tone = 'professional', businessProfile, workspaceId: bodyWorkspaceId }: ContentRequest =
+    const { vertical, contentType, assetGoal, tone = 'professional', businessProfile }: ContentRequest =
       await req.json();
 
-    const workspaceId = req.headers.get("x-workspace-id") || req.headers.get("x-tenant-id") || bodyWorkspaceId || null;
-    if (!workspaceId) {
+    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+    if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
       return new Response(
-        JSON.stringify({ error: "Missing workspace context", missing: ["x-workspace-id"] }),
+        JSON.stringify({ error: "tenant_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // Validate workspace membership (owner or member)
-    const { data: workspace, error: wsError } = await supabase
-      .from("workspaces")
-      .select("id, owner_id")
-      .eq("id", workspaceId)
-      .maybeSingle();
-
-    if (wsError || !workspace) {
-      return new Response(JSON.stringify({ error: "Invalid workspace", details: wsError?.message || "Not found" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let hasAccess = workspace.owner_id === user.id;
-    if (!hasAccess) {
-      const { data: membership, error: membershipError } = await supabase
-        .from("workspace_members")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (membershipError) {
-        return new Response(JSON.stringify({ error: "Workspace membership check failed", details: membershipError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      hasAccess = !!membership;
-    }
-
-    if (!hasAccess) {
-      return new Response(JSON.stringify({ error: "Forbidden: workspace access denied" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     console.log(`Generating ${contentType} content for ${vertical}`);
@@ -281,7 +241,7 @@ IMPORTANT RULES:
     console.log(`[content-generate] Calling LLM router for ${contentType}`);
 
     const out = await runLLM({
-      tenantId: workspaceId,
+      tenantId,
       capability: "content.generate",
       messages: [
         { role: "system", content: systemPrompt },

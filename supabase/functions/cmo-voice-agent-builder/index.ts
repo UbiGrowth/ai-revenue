@@ -7,8 +7,8 @@ const corsHeaders = {
 };
 
 interface VoiceAgentBuilderInput {
-  tenant_id?: string; // Deprecated, kept for backward compatibility
-  workspace_id: string;
+  tenant_id: string;
+  tenant_id?: string;
   brand_voice: string;
   icp: string;
   offer: string;
@@ -46,7 +46,7 @@ serve(async (req) => {
     }
 
     const input: VoiceAgentBuilderInput = await req.json();
-    const { tenant_id, workspace_id, brand_voice, icp, offer, constraints = [] } = input;
+    const { tenant_id, tenant_id, brand_voice, icp, offer, constraints = [] } = input;
 
     // Prefer workspace_id, fallback to tenant_id for backward compatibility
     const workspaceId = workspace_id || tenant_id;
@@ -60,7 +60,9 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Voice Agent Builder: Building agent for workspace ${workspaceId}`);
+    const tenantId = tenant_id || tenant_id;
+
+    console.log(`Voice Agent Builder: Building agent for tenant ${tenant_id}`);
 
     // Fetch brand profile for additional context
     const { data: brandProfile } = await supabase
@@ -211,7 +213,13 @@ Make the system_prompt comprehensive and ready to use directly with Vapi or Elev
     }
 
     // Determine provider based on settings
-    const provider = voiceSettings?.vapi_private_key ? 'vapi' : 'elevenlabs';
+    const provider =
+      voiceSettings?.voice_provider ??
+      (voiceSettings?.elevenlabs_api_key
+        ? 'elevenlabs'
+        : (voiceSettings as any)?.vapi_api_key
+          ? 'vapi'
+          : null);
     
     // Use configured voice ID if available
     const voiceId = voiceSettings?.default_elevenlabs_voice_id || agentConfig.voice_id || 'EXAVITQu4vr4xnSDxMaL';
@@ -220,7 +228,8 @@ Make the system_prompt comprehensive and ready to use directly with Vapi or Elev
     const { data: savedAgent, error: saveError } = await supabase
       .from('cmo_content_assets')
       .insert({
-        workspace_id: workspaceId,
+        tenant_id,
+        tenant_id: tenantId,
         title: agentConfig.agent_name || 'Voice Agent Configuration',
         content_type: 'voice_agent_config',
         channel: 'voice',

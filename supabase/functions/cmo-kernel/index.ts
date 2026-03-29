@@ -108,7 +108,8 @@ serve(async (req) => {
     const { data: agentRun } = await supabase
       .from('agent_runs')
       .insert({
-        workspace_id: workspaceId,
+        tenant_id: tenant_id,
+        tenant_id: tenant_id,
         agent: 'cmo-kernel',
         mode: mode,
         input: { payload },
