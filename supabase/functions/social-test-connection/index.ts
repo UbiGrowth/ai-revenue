@@ -44,7 +44,7 @@ serve(async (req) => {
     // Fetch the integration for this user and platform
     // Try by user_id first, then by workspace_id (for workspace-scoped integrations)
     let integration = null;
-    let fetchError = null;
+    const fetchError = null;
 
     // First try by user_id
     const userResult = await supabase

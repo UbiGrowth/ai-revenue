@@ -65,7 +65,7 @@ function getNextScheduledDates(schedule: ScheduleConfig, count: number = 7): Dat
   }
   
   // Start from today
-  let checkDate = new Date(now);
+  const checkDate = new Date(now);
   checkDate.setHours(0, 0, 0, 0);
   
   let daysChecked = 0;

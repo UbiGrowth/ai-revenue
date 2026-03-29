@@ -1688,7 +1688,7 @@ Deno.serve(async (req) => {
             const waitStart = Date.now();
             let uniqueWorkers: string[] = [];
             // Seed worker set with the workers we invoked (workers may clear locked_by on completion)
-            let allWorkersSeen: Set<string> = new Set(invokedWorkerIds);
+            const allWorkersSeen: Set<string> = new Set(invokedWorkerIds);
             let oldestQueuedSeconds = 0;
             let pollCount = 0;
             let currentSnapshot: QueueSnapshot = t0Snapshot;

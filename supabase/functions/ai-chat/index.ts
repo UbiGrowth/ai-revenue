@@ -49,8 +49,8 @@ serve(async (req) => {
     let industry = context?.industry || "your industry";
     let leadCount = context?.leadCount || 0;
     let campaignCount = context?.campaignCount || 0;
-    let currentRoute = context?.currentRoute || "/dashboard";
-    let modulesEnabled = context?.modulesEnabled || [];
+    const currentRoute = context?.currentRoute || "/dashboard";
+    const modulesEnabled = context?.modulesEnabled || [];
     let icpSegments: string[] = context?.icpSegments || [];
     let workspaceId = context?.workspaceId;
 

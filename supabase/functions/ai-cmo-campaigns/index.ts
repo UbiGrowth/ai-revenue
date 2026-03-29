@@ -127,8 +127,8 @@ serve(async (req) => {
     const workspaceId = workspace?.id;
 
     // Aggregate leads count per campaign (if leads table exists)
-    let leadsCountMap: Record<string, number> = {};
-    let meetingsCountMap: Record<string, number> = {};
+    const leadsCountMap: Record<string, number> = {};
+    const meetingsCountMap: Record<string, number> = {};
 
     if (workspaceId) {
       // Try to get leads counts - campaigns may be linked to leads via tags or other mechanisms
