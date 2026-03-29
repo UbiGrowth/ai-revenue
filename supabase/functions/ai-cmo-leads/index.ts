@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
 
       // Get last activity for each lead
       const leadIds = leads?.map((l: any) => l.id) || [];
-      let activitiesMap: Record<string, { type: string; createdAt: string }> = {};
+      const activitiesMap: Record<string, { type: string; createdAt: string }> = {};
 
       if (leadIds.length > 0) {
         const { data: activities } = await supabase
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
 
       // Get campaign names
       const campaignIds = [...new Set(leads?.map((l: any) => l.campaign_id).filter(Boolean) || [])];
-      let campaignNamesMap: Record<string, string> = {};
+      const campaignNamesMap: Record<string, string> = {};
 
       if (campaignIds.length > 0) {
         const { data: campaigns } = await supabase
@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
 
       // Last activity from lead_activities
       const leadIds = leads?.map((l: any) => l.id) || [];
-      let activitiesMap: Record<string, { type: string; createdAt: string }> = {};
+      const activitiesMap: Record<string, { type: string; createdAt: string }> = {};
 
       if (leadIds.length > 0) {
         const { data: activities } = await supabase
@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
 
       // Campaign names
       const campaignIds = [...new Set(leads?.map((l: any) => l.campaign_id).filter(Boolean) || [])];
-      let campaignNamesMap: Record<string, string> = {};
+      const campaignNamesMap: Record<string, string> = {};
 
       if (campaignIds.length > 0) {
         const { data: campaigns } = await supabase

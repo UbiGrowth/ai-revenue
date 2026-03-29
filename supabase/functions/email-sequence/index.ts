@@ -56,9 +56,9 @@ serve(async (req) => {
       .eq('id', tenantId)
       .single();
 
-    // Fetch business profile for this tenant's owner
-    let businessName = tenant?.name || 'Marketing';
-    let fromEmail = 'campaigns@ubigrowth.com'; // Default fallback
+    // Fetch business profile for this workspace's owner
+    let businessName = workspace?.name || 'Marketing';
+    const fromEmail = 'campaigns@ubigrowth.com'; // Default fallback
     
     if (tenant?.owner_id) {
       const { data: profile } = await supabase

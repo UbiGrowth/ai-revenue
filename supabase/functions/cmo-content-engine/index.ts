@@ -196,7 +196,7 @@ serve(async (req) => {
     });
 
     // Build context prompt
-    let contextPrompt = `## Brand Profile
+    const contextPrompt = `## Brand Profile
 - **Name:** ${brand.brand_name}
 - **Industry:** ${brand.industry || 'Not specified'}
 - **Voice:** ${brand.brand_voice || 'Professional'}

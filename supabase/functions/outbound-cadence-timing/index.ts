@@ -79,7 +79,7 @@ serve(async (req) => {
     const baseDate = last_event_at ? new Date(last_event_at) : now;
     
     // Add delay days
-    let targetDate = new Date(baseDate);
+    const targetDate = new Date(baseDate);
     targetDate.setDate(targetDate.getDate() + delayDays);
     
     // Adjust for weekends

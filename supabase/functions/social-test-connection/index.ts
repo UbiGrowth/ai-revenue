@@ -47,7 +47,10 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[social-test-connection] User ${user.id} testing connection for platform: ${platform}`);
+    // Fetch the integration for this user and platform
+    // Try by user_id first, then by workspace_id (for workspace-scoped integrations)
+    let integration = null;
+    const fetchError = null;
 
     // Fetch the integration for this tenant and platform
     const { data: integration, error: fetchError } = await supabase

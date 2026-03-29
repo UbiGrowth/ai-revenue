@@ -117,8 +117,8 @@ serve(async (req) => {
     }
 
     // Aggregate leads count per campaign (if leads table exists)
-    let leadsCountMap: Record<string, number> = {};
-    let meetingsCountMap: Record<string, number> = {};
+    const leadsCountMap: Record<string, number> = {};
+    const meetingsCountMap: Record<string, number> = {};
 
     // Try to get leads counts - campaigns may be linked to leads via tags or other mechanisms
     const { data: leads } = await supabase
