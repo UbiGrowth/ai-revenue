@@ -1,32 +1,12 @@
 FROM node:20-alpine AS builder
-
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-RUN npm install
-
-# Copy config files
-COPY postcss.config.js ./
-COPY tsconfig.json* ./
-COPY next.config.* ./
-
-# Copy source files
+COPY apps/web/package.json apps/web/package.json
+RUN npm ci
 COPY . .
+RUN npm run build --workspace=apps/web
 
-# Build the application
-RUN npm run build
-
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Copy built files and dependencies
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/public ./public
-COPY package*.json ./
-
-ENV NODE_ENV=production
-
-CMD ["npm", "start"]
+FROM nginx:alpine
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

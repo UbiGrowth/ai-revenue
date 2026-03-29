@@ -1,0 +1,22 @@
+{
+  "name": "vibe-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:executor": "npm run dev --workspace=apps/executor",
+    "build": "npm run build --workspaces --if-present",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:executor\" \"npm run dev:web\"",
+    "test:e2e": "cd tests && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "concurrently": "^8.2.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

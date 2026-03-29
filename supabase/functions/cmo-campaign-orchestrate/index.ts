@@ -15,7 +15,7 @@ interface IntegrationStatus {
 
 interface OrchestrationInput {
   tenant_id: string;
-  workspace_id?: string;
+  tenant_id?: string;
   campaign_id: string;
   action: 'validate' | 'launch' | 'optimize' | 'pause' | 'resume';
   channels?: string[];
@@ -38,7 +38,7 @@ interface OrchestrationResult {
 // Validate all required integrations for campaign channels
 async function validateIntegrations(
   supabase: any,
-  workspaceId: string,
+  tenantId: string,
   channels: string[]
 ): Promise<IntegrationStatus[]> {
   const statuses: IntegrationStatus[] = [];
@@ -48,7 +48,7 @@ async function validateIntegrations(
     const { data: emailSettings } = await supabase
       .from('ai_settings_email')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     statuses.push({
@@ -64,14 +64,14 @@ async function validateIntegrations(
     const { data: socialSettings } = await supabase
       .from('ai_settings_social')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     // Also check social_integrations table
     const { data: socialIntegrations } = await supabase
       .from('social_integrations')
       .select('platform, is_active')
-      .eq('workspace_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .eq('is_active', true);
 
     const activePlatforms = socialIntegrations?.map((i: any) => i.platform) || [];
@@ -84,20 +84,23 @@ async function validateIntegrations(
     });
   }
 
-  // Check voice/VAPI settings
+  // Check voice/Eleven Labs settings
   if (channels.includes('voice')) {
     const { data: voiceSettings } = await supabase
       .from('ai_settings_voice')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
+
+    const elevenLabsApiKey = voiceSettings?.elevenlabs_api_key;
+    const elevenLabsVoiceId = voiceSettings?.default_elevenlabs_voice_id;
 
     statuses.push({
       name: 'voice',
-      configured: !!voiceSettings?.vapi_private_key || !!voiceSettings?.vapi_public_key,
-      ready: !!voiceSettings?.is_connected && !!voiceSettings?.default_vapi_assistant_id,
-      error: !voiceSettings?.vapi_private_key ? 'VAPI API keys not configured' : 
-             !voiceSettings?.default_vapi_assistant_id ? 'No default voice assistant configured' : undefined,
+      configured: !!elevenLabsApiKey,
+      ready: !!elevenLabsApiKey && !!elevenLabsVoiceId,
+      error: !elevenLabsApiKey ? 'Eleven Labs API key not configured' : 
+             !elevenLabsVoiceId ? 'No Eleven Labs voice ID configured' : undefined,
     });
   }
 
@@ -106,15 +109,18 @@ async function validateIntegrations(
     const { data: voiceSettings } = await supabase
       .from('ai_settings_voice')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
+
+    const elevenLabsApiKey = voiceSettings?.elevenlabs_api_key;
+    const elevenLabsVoiceId = voiceSettings?.default_elevenlabs_voice_id;
 
     statuses.push({
       name: 'voice_vm',
-      configured: !!voiceSettings?.vapi_private_key || !!voiceSettings?.vapi_public_key,
-      ready: !!voiceSettings?.is_connected && !!voiceSettings?.default_vapi_assistant_id,
-      error: !voiceSettings?.vapi_private_key ? 'VAPI API keys not configured for voicemail' : 
-             !voiceSettings?.default_vapi_assistant_id ? 'No voice assistant configured for voicemail' : undefined,
+      configured: !!elevenLabsApiKey,
+      ready: !!elevenLabsApiKey && !!elevenLabsVoiceId,
+      error: !elevenLabsApiKey ? 'Eleven Labs API key not configured for voicemail' : 
+             !elevenLabsVoiceId ? 'No Eleven Labs voice ID configured for voicemail' : undefined,
     });
   }
 
@@ -123,7 +129,7 @@ async function validateIntegrations(
     const { data: smsSettings } = await supabase
       .from('ai_settings_sms')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     statuses.push({
@@ -139,7 +145,7 @@ async function validateIntegrations(
     const { data: calendarSettings } = await supabase
       .from('ai_settings_calendar')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     statuses.push({
@@ -155,7 +161,7 @@ async function validateIntegrations(
     const { data: domainSettings } = await supabase
       .from('ai_settings_domain')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     statuses.push({
@@ -172,7 +178,7 @@ async function validateIntegrations(
     const { data: stripeSettings } = await supabase
       .from('ai_settings_stripe')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     statuses.push({
@@ -188,7 +194,7 @@ async function validateIntegrations(
     const { data: linkedinSettings } = await supabase
       .from('ai_settings_linkedin')
       .select('*')
-      .eq('tenant_id', workspaceId)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     statuses.push({
@@ -203,7 +209,7 @@ async function validateIntegrations(
   const { data: crmSettings } = await supabase
     .from('ai_settings_crm_webhooks')
     .select('*')
-    .eq('tenant_id', workspaceId)
+    .eq('tenant_id', tenantId)
     .maybeSingle();
 
   statuses.push({
@@ -219,7 +225,7 @@ async function validateIntegrations(
 // Process campaign leads and create/update CRM deals
 async function processLeadsForPipeline(
   supabase: any,
-  workspaceId: string,
+  tenantId: string,
   campaignId: string,
   autoCreateDeals: boolean,
   pipelineStage: string
@@ -254,11 +260,11 @@ async function processLeadsForPipeline(
   // Collect lead IDs from various sources
   const leadIds = new Set<string>();
 
-  // Get leads from workspace that were contacted/engaged
+  // Get leads from tenant that were contacted/engaged
   const { data: leads } = await supabase
     .from('leads')
     .select('id, first_name, last_name, email, company, status, lead_score')
-    .eq('workspace_id', workspaceId)
+    .eq('tenant_id', tenantId)
     .in('status', ['qualified', 'engaged', 'contacted'])
     .order('lead_score', { ascending: false })
     .limit(100);
@@ -290,8 +296,8 @@ async function processLeadsForPipeline(
       const { data: newDeal, error: dealError } = await supabase
         .from('deals')
         .insert({
-          workspace_id: workspaceId,
-          tenant_id: workspaceId,
+          tenant_id: tenantId,
+          tenant_id: tenantId,
           lead_id: lead.id,
           name: `${lead.company || lead.first_name || 'New'} - ${campaign.campaign_name}`,
           value: estimatedValue,
@@ -329,7 +335,7 @@ async function processLeadsForPipeline(
 async function launchCampaign(
   supabase: any,
   supabaseAdmin: any,
-  workspaceId: string,
+  tenantId: string,
   campaignId: string,
   channels: string[],
   authHeader: string
@@ -370,7 +376,7 @@ async function launchCampaign(
     let query = supabase
       .from('leads')
       .select(`id, ${requiredFields.join(', ')}`)
-      .eq('workspace_id', workspaceId);
+      .eq('tenant_id', tenantId);
 
     // Filter by target_tags if campaign has them configured
     if (targetTags.length > 0) {
@@ -404,8 +410,8 @@ async function launchCampaign(
             await supabaseAdmin
               .from('channel_outbox')
               .insert({
-                tenant_id: workspaceId,
-                workspace_id: workspaceId,
+                tenant_id: tenantId,
+                tenant_id: tenantId,
                 channel: 'email',
                 provider: 'resend',
                 recipient_id: lead.id,
@@ -443,7 +449,7 @@ async function launchCampaign(
       const { data: socialIntegrations } = await supabase
         .from('social_integrations')
         .select('platform, access_token')
-        .eq('workspace_id', workspaceId)
+        .eq('tenant_id', tenantId)
         .eq('is_active', true);
 
       if (socialIntegrations && socialIntegrations.length > 0) {
@@ -452,8 +458,8 @@ async function launchCampaign(
             await supabaseAdmin
               .from('channel_outbox')
               .insert({
-                tenant_id: workspaceId,
-                workspace_id: workspaceId,
+                tenant_id: tenantId,
+                tenant_id: tenantId,
                 channel: 'social',
                 provider: integration.platform,
                 payload: {
@@ -488,7 +494,7 @@ async function launchCampaign(
       const { data: voiceSettings } = await supabase
         .from('ai_settings_voice')
         .select('*')
-        .eq('tenant_id', workspaceId)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (voiceSettings?.default_vapi_assistant_id) {
@@ -504,8 +510,8 @@ async function launchCampaign(
               await supabaseAdmin
                 .from('channel_outbox')
                 .insert({
-                  tenant_id: workspaceId,
-                  workspace_id: workspaceId,
+                  tenant_id: tenantId,
+                  tenant_id: tenantId,
                   channel: 'voice',
                   provider: 'vapi',
                   recipient_id: lead.id,
@@ -544,7 +550,7 @@ async function launchCampaign(
       const { data: voiceSettings } = await supabase
         .from('ai_settings_voice')
         .select('*')
-        .eq('tenant_id', workspaceId)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (voiceSettings?.default_vapi_assistant_id) {
@@ -560,8 +566,8 @@ async function launchCampaign(
               await supabaseAdmin
                 .from('channel_outbox')
                 .insert({
-                  tenant_id: workspaceId,
-                  workspace_id: workspaceId,
+                  tenant_id: tenantId,
+                  tenant_id: tenantId,
                   channel: 'voice_vm',
                   provider: 'vapi',
                   recipient_id: lead.id,
@@ -600,7 +606,7 @@ async function launchCampaign(
       const { data: smsSettings } = await supabase
         .from('ai_settings_sms')
         .select('*')
-        .eq('tenant_id', workspaceId)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       // For now, allow SMS even without explicit settings (will use default Twilio config)
@@ -617,8 +623,8 @@ async function launchCampaign(
             await supabaseAdmin
               .from('channel_outbox')
               .insert({
-                tenant_id: workspaceId,
-                workspace_id: workspaceId,
+                tenant_id: tenantId,
+                tenant_id: tenantId,
                 channel: 'sms',
                 provider: 'twilio',
                 recipient_id: lead.id,
@@ -658,13 +664,13 @@ async function makeIdempotencyKey(parts: string[]): Promise<string> {
 }
 
 // Emit kernel event to kernel_events table (OS v1 contract)
-// CRITICAL: tenant_id and workspace_id must be kept separate
+// CRITICAL: tenant_id and tenant_id must be kept separate
 // CORRELATION_ID: Request-level unique ID for tracing (includes requestId)
 // IDEMPOTENCY_KEY: Hash that prevents duplicate processing (action-level)
 async function emitKernelEvent(
   supabaseAdmin: any,
   tenantId: string,
-  workspaceId: string,
+  tenantId: string,
   campaignId: string,
   eventType: string,
   action: string,
@@ -702,7 +708,7 @@ async function emitKernelEvent(
         entity_id: campaignId,
         payload_json: {
           ...payload,
-          workspace_id: workspaceId, // Include workspace_id in payload for context
+          tenant_id: tenantId, // Include tenant_id in payload for context
           request_id: requestId,
         },
         status: 'pending',
@@ -735,7 +741,7 @@ async function emitKernelEvent(
 async function logAuditEvent(
   supabaseAdmin: any,
   tenantId: string,
-  workspaceId: string,
+  tenantId: string,
   agent: string,
   mode: string,
   input: any,
@@ -745,7 +751,7 @@ async function logAuditEvent(
   try {
     await supabaseAdmin.from('agent_runs').insert({
       tenant_id: tenantId,
-      workspace_id: workspaceId,
+      tenant_id: tenantId,
       agent,
       mode,
       input,
@@ -790,7 +796,7 @@ serve(async (req) => {
     }
 
     const input: OrchestrationInput = await req.json();
-    const { tenant_id, workspace_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
+    const { tenant_id, tenant_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
 
     // Generate unique request ID for correlation tracking
     const requestId = crypto.randomUUID();
@@ -823,12 +829,12 @@ serve(async (req) => {
       });
     }
 
-    // CRITICAL: tenant_id and workspace_id are distinct concepts
+    // CRITICAL: tenant_id and tenant_id are distinct concepts
     // tenant_id = logical tenant for RLS and isolation
-    // workspace_id = operational workspace for data scoping
-    // They may be the same in single-workspace tenants, but must be tracked separately
+    // tenant_id = operational tenant for data scoping
+    // They may be the same in single-tenant tenants, but must be tracked separately
     const tenantId = tenant_id;
-    const workspaceId = workspace_id || tenant_id;
+    const tenantId = tenant_id || tenant_id;
     const result: OrchestrationResult = {
       success: false,
       campaign_id,
@@ -841,11 +847,11 @@ serve(async (req) => {
       recommendations: [],
     };
 
-    console.log(`[cmo-campaign-orchestrate] Action: ${action} for campaign ${campaign_id}, tenant: ${workspaceId}`);
+    console.log(`[cmo-campaign-orchestrate] Action: ${action} for campaign ${campaign_id}, tenant: ${tenantId}`);
 
     // Step 1: Validate integrations
     const campaignChannels = channels.length > 0 ? channels : ['email', 'social', 'voice'];
-    result.integrations = await validateIntegrations(supabase, workspaceId, campaignChannels);
+    result.integrations = await validateIntegrations(supabase, tenantId, campaignChannels);
 
     const notReadyIntegrations = result.integrations.filter(i => !i.ready && campaignChannels.some(c => c.includes(i.name) || i.name.includes(c)));
     
@@ -867,7 +873,7 @@ serve(async (req) => {
     // Step 2: Process leads for pipeline
     const pipelineResult = await processLeadsForPipeline(
       supabase,
-      workspaceId,
+      tenantId,
       campaign_id,
       auto_create_deals,
       pipeline_stage
@@ -882,7 +888,7 @@ serve(async (req) => {
       const kernelResult = await emitKernelEvent(
         supabaseAdmin, 
         tenantId, 
-        workspaceId, 
+        tenantId, 
         campaign_id, 
         'campaign_launched', 
         action,
@@ -899,7 +905,7 @@ serve(async (req) => {
       const launchResult = await launchCampaign(
         supabase,
         supabaseAdmin,
-        workspaceId,
+        tenantId,
         campaign_id,
         campaignChannels,
         authHeader
@@ -935,8 +941,8 @@ serve(async (req) => {
           // Call optimizer
           const { data: optimizationResult } = await supabase.functions.invoke('cmo-optimizer', {
             body: {
-              tenant_id: workspaceId,
-              workspace_id: workspaceId,
+              tenant_id: tenantId,
+              tenant_id: tenantId,
               campaign_id,
               goal: campaign.objective || 'leads',
               metrics: metrics || { opens: 0, clicks: 0, replies: 0, booked_meetings: 0 },
@@ -983,7 +989,7 @@ serve(async (req) => {
     await logAuditEvent(
       supabaseAdmin,
       tenantId,
-      workspaceId,
+      tenantId,
       'cmo-campaign-orchestrate',
       action,
       input,

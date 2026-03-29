@@ -55,7 +55,7 @@ serve(async (req) => {
 
     const { 
       tenant_id, 
-      workspace_id, 
+      tenant_id, 
       last_event_at,
       channel,
       delay_days,
@@ -63,8 +63,8 @@ serve(async (req) => {
       custom_limits,
     } = await req.json();
 
-    if (!tenant_id || !workspace_id) {
-      return new Response(JSON.stringify({ error: "tenant_id and workspace_id required" }), {
+    if (!tenant_id || !tenant_id) {
+      return new Response(JSON.stringify({ error: "tenant_id and tenant_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -79,7 +79,7 @@ serve(async (req) => {
     const baseDate = last_event_at ? new Date(last_event_at) : now;
     
     // Add delay days
-    let targetDate = new Date(baseDate);
+    const targetDate = new Date(baseDate);
     targetDate.setDate(targetDate.getDate() + delayDays);
     
     // Adjust for weekends
@@ -166,7 +166,7 @@ serve(async (req) => {
     // Log agent run
     await supabase.from("agent_runs").insert({
       tenant_id,
-      workspace_id,
+      tenant_id,
       agent: "cadence_timing",
       mode: "outbound",
       status: "completed",

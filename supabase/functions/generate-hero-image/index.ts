@@ -4,7 +4,7 @@ import { runImage } from "../_shared/llmRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-workspace-id, x-tenant-id",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-tenant-id",
   "Access-Control-Expose-Headers": "x-ai-revenue-build",
   "x-ai-revenue-build": "generate-hero-image-llm-router-v1",
 };
@@ -15,7 +15,7 @@ interface ImageRequest {
   goal?: string;
   assetGoal?: string;
   businessName?: string;
-  workspaceId?: string;
+  tenantId?: string;
   size?: string;
 }
 
@@ -69,50 +69,10 @@ serve(async (req) => {
       });
     }
 
-    const workspaceId = req.headers.get("x-workspace-id") || req.headers.get("x-tenant-id") || body.workspaceId || null;
-    if (!workspaceId) {
-      return new Response(JSON.stringify({ error: "Missing workspace context", missing: ["x-workspace-id"] }), {
+    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+    if (typeof tenantId !== "string" || tenantId.trim().length === 0) {
+      return new Response(JSON.stringify({ error: "tenant_id is required" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Validate workspace membership (owner or member)
-    const { data: workspace, error: wsError } = await supabase
-      .from("workspaces")
-      .select("id, owner_id")
-      .eq("id", workspaceId)
-      .maybeSingle();
-
-    if (wsError || !workspace) {
-      return new Response(JSON.stringify({ error: "Invalid workspace", details: wsError?.message || "Not found" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let hasAccess = workspace.owner_id === user.id;
-    if (!hasAccess) {
-      const { data: membership, error: membershipError } = await supabase
-        .from("workspace_members")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (membershipError) {
-        return new Response(JSON.stringify({ error: "Workspace membership check failed", details: membershipError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      hasAccess = !!membership;
-    }
-
-    if (!hasAccess) {
-      return new Response(JSON.stringify({ error: "Forbidden: workspace access denied" }), {
-        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -129,7 +89,7 @@ serve(async (req) => {
       'Restaurants': `Upscale restaurant interior, delicious cuisine presentation, dining atmosphere, professional food photography, warm ambiance, ultra high resolution`,
       'Retail': `Modern retail store, premium shopping experience, product displays, professional retail photography, inviting atmosphere, ultra high resolution`,
       'Healthcare': `Modern healthcare facility, professional medical services, patient care environment, clean clinical setting, professional photography, ultra high resolution`,
-      'Technology': `Innovative tech company workspace, modern technology environment, digital innovation, professional tech photography, contemporary design, ultra high resolution`,
+      'Technology': `Innovative tech company tenant, modern technology environment, digital innovation, professional tech photography, contemporary design, ultra high resolution`,
       'Finance': `Professional financial services office, modern business environment, trust and reliability, professional corporate photography, sophisticated atmosphere, ultra high resolution`,
       'Real Estate': `Beautiful property exterior and interior, real estate showcase, professional property photography, inviting atmosphere, ultra high resolution`,
       'Automotive': `Premium automotive showroom, vehicles on display, professional automotive photography, sleek design, ultra high resolution`,
@@ -172,7 +132,7 @@ serve(async (req) => {
 
     // Centralized image routing (provider/model selection + fallback)
     const out = await runImage({
-      tenantId: workspaceId,
+      tenantId,
       capability: "image.generate",
       prompt: imagePrompt,
       size,
@@ -191,7 +151,7 @@ serve(async (req) => {
     // Store to Supabase Storage to avoid giant data URLs in DB fields.
     const admin = createClient(supabaseUrl, supabaseServiceKey);
     const bucket = "cmo-assets";
-    const objectPath = `generated/${workspaceId}/${crypto.randomUUID()}.png`;
+    const objectPath = `generated/${tenantId}/${crypto.randomUUID()}.png`;
     let blob: Blob;
     if (b64 && typeof b64 === "string") {
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
