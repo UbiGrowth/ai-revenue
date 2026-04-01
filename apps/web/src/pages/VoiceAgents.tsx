@@ -754,7 +754,11 @@ const VoiceAgents = () => {
 
       if (provisionError) {
         console.error('❌ Auto-provision error:', provisionError);
-        toast.error('Failed to create voice agents. Please try again.', { id: 'auto-provision' });
+        const friendlyMessage =
+          provisionError.message?.includes('Agent slug already exists')
+            ? 'Agent slug already exists. Please choose a different name.'
+            : (provisionError.message || 'Failed to create voice agents. Please try again.');
+        toast.error(friendlyMessage, { id: 'auto-provision' });
         return;
       }
 
@@ -772,7 +776,12 @@ const VoiceAgents = () => {
         await fetchAllData();
       } else {
         console.warn('⚠️ Auto-provision returned but not successful:', provisionData);
-        toast.info('Voice agents setup in progress...', { id: 'auto-provision' });
+        toast.error(
+          provisionData?.error?.includes('Agent slug already exists')
+            ? 'Agent slug already exists. Please choose a different name.'
+            : (provisionData?.error || 'Voice agents setup failed. Please try again.'),
+          { id: 'auto-provision' }
+        );
       }
     } catch (error) {
       console.error('💥 Exception during auto-provision:', error);

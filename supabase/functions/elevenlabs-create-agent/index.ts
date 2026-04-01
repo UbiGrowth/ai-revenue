@@ -19,13 +19,14 @@ serve(async (req) => {
     }
 
     // Get request body
-    const { 
+    const {
       name, 
       first_message, 
       system_prompt,
       voice_id,
       language = 'en',
       tenant_id,
+      workspace_id,
       industry,
       use_case = 'sales_outreach'
     } = await req.json()
@@ -41,15 +42,60 @@ serve(async (req) => {
       }
     )
 
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
+      throw new Error('Unauthorized')
+    }
+
+    const userTenantId =
+      (typeof user.user_metadata?.tenant_id === 'string' && user.user_metadata.tenant_id.trim().length > 0
+        ? user.user_metadata.tenant_id
+        : null) ||
+      (typeof user.app_metadata?.tenant_id === 'string' && user.app_metadata.tenant_id.trim().length > 0
+        ? user.app_metadata.tenant_id
+        : null)
+
+    let resolvedWorkspaceId = workspace_id as string | undefined
+    if (!resolvedWorkspaceId) {
+      const { data: membership, error: membershipError } = await supabaseClient
+        .from('workspace_members')
+        .select('workspace_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+
+      if (membershipError) {
+        console.error('Failed to resolve workspace membership:', membershipError)
+      }
+
+      resolvedWorkspaceId = membership?.workspace_id
+    }
+
+    let resolvedTenantId = userTenantId || (typeof tenant_id === 'string' ? tenant_id : undefined)
+
+    if (!resolvedTenantId && resolvedWorkspaceId) {
+      const { data: workspace, error: workspaceError } = await supabaseClient
+        .from('workspaces')
+        .select('tenant_id')
+        .eq('id', resolvedWorkspaceId)
+        .maybeSingle()
+
+      if (workspaceError) {
+        console.error('Failed to resolve tenant from workspace:', workspaceError)
+      }
+
+      resolvedTenantId = workspace?.tenant_id || undefined
+    }
+
     // Get tenant/brand info if tenant_id provided
     let brandName = 'Your Company'
     let brandVoice = 'professional and friendly'
     
-    if (tenant_id) {
+    if (resolvedTenantId) {
       const { data: tenant } = await supabaseClient
         .from('tenants')
         .select('name')
-        .eq('id', tenant_id)
+        .eq('id', resolvedTenantId)
         .single()
       
       if (tenant) {
@@ -60,7 +106,7 @@ serve(async (req) => {
       const { data: brandSettings } = await supabaseClient
         .from('ai_settings_brand')
         .select('brand_voice, brand_values')
-        .eq('tenant_id', tenant_id)
+        .eq('tenant_id', resolvedTenantId)
         .single()
       
       if (brandSettings?.brand_voice) {
@@ -169,27 +215,46 @@ Keep it conversational. Don't sound like you're reading from a script.`,
     console.log('✅ Agent created successfully:', agentData.agent_id)
 
     // Store agent reference in database if tenant_id provided
-    if (tenant_id && agentData.agent_id) {
+    if (resolvedWorkspaceId && agentData.agent_id) {
       try {
-        await supabaseClient
+        const { error: insertError } = await supabaseClient
           .from('voice_agents')
           .insert({
-            tenant_id: tenant_id,
+            tenant_id: resolvedTenantId,
+            workspace_id: resolvedWorkspaceId,
             provider: 'elevenlabs',
-            agent_id: agentData.agent_id,
+            provider_assistant_id: agentData.agent_id,
             name: agentName,
-            use_case: use_case,
+            description: `${use_case} voice agent`,
+            voice_id: agentVoiceId,
+            model: 'elevenlabs-convai',
+            system_prompt: agentPrompt,
+            first_message: agentFirstMessage,
             config: {
-              first_message: agentFirstMessage,
-              system_prompt: agentPrompt,
-              voice_id: agentVoiceId,
-              language: language,
+              use_case,
+              language,
+              industry: industry || null,
             },
-            status: 'active',
+            is_active: true,
           })
+
+        if (insertError) {
+          console.error('Failed to store agent in database', {
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            code: insertError.code,
+          })
+          if (insertError.code === '23505') {
+            throw new Error('Agent slug already exists. Please choose a different name.')
+          }
+        }
       } catch (dbError) {
         console.error('Failed to store agent in database:', dbError)
-        // Don't fail the request - agent was created successfully
+        if (dbError instanceof Error) {
+          throw dbError
+        }
+        throw new Error('Failed to store agent in database')
       }
     }
 
@@ -211,7 +276,7 @@ Keep it conversational. Don't sound like you're reading from a script.`,
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       }),
       {
         status: 500,
