@@ -12,11 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { tenant_id } = await req.json()
-
-    if (!tenant_id) {
-      throw new Error('tenant_id is required')
-    }
+    const { tenant_id, workspace_id } = await req.json()
 
     // Get Supabase client
     const supabaseClient = createClient(
@@ -29,12 +25,60 @@ serve(async (req) => {
       }
     )
 
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
+      throw new Error('Unauthorized')
+    }
+
+    let resolvedWorkspaceId = workspace_id as string | undefined
+    if (!resolvedWorkspaceId) {
+      const { data: membership, error: membershipError } = await supabaseClient
+        .from('workspace_members')
+        .select('workspace_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+
+      if (membershipError) {
+        console.error('Error resolving workspace membership:', membershipError)
+      }
+
+      resolvedWorkspaceId = membership?.workspace_id
+    }
+
+    if (!resolvedWorkspaceId) {
+      throw new Error('workspace_id is required')
+    }
+
+    let resolvedTenantId =
+      (typeof user.user_metadata?.tenant_id === 'string' && user.user_metadata.tenant_id.trim().length > 0
+        ? user.user_metadata.tenant_id
+        : null) ||
+      (typeof user.app_metadata?.tenant_id === 'string' && user.app_metadata.tenant_id.trim().length > 0
+        ? user.app_metadata.tenant_id
+        : null) ||
+      (typeof tenant_id === 'string' && tenant_id.trim().length > 0 ? tenant_id : null)
+
+    if (!resolvedTenantId) {
+      const { data: workspace, error: workspaceError } = await supabaseClient
+        .from('workspaces')
+        .select('tenant_id')
+        .eq('id', resolvedWorkspaceId)
+        .maybeSingle()
+
+      if (workspaceError) {
+        console.error('Error resolving tenant_id from workspace:', workspaceError)
+      }
+
+      resolvedTenantId = workspace?.tenant_id || null
+    }
+
     // Check if tenant already has agents
     const { data: existingAgents, error: checkError } = await supabaseClient
       .from('voice_agents')
       .select('id')
-      .eq('tenant_id', tenant_id)
-      .eq('status', 'active')
+      .eq('workspace_id', resolvedWorkspaceId)
+      .eq('is_active', true)
 
     if (checkError) {
       console.error('Error checking existing agents:', checkError)
@@ -59,7 +103,7 @@ serve(async (req) => {
     const { data: tenant } = await supabaseClient
       .from('tenants')
       .select('name')
-      .eq('id', tenant_id)
+      .eq('id', resolvedTenantId)
       .single()
 
     const tenantName = tenant?.name || 'Your Company'
@@ -88,7 +132,8 @@ serve(async (req) => {
       try {
         const createResponse = await supabaseClient.functions.invoke('elevenlabs-create-agent', {
           body: {
-            tenant_id: tenant_id,
+            tenant_id: resolvedTenantId,
+            workspace_id: resolvedWorkspaceId,
             use_case: agentConfig.use_case,
             name: agentConfig.name,
           },
@@ -124,7 +169,8 @@ serve(async (req) => {
         message: `Created ${createdAgents.length} out of ${agentsToCreate.length} agents`,
         agents: createdAgents,
         errors: errors.length > 0 ? errors : undefined,
-        tenant_id: tenant_id,
+        tenant_id: resolvedTenantId,
+        workspace_id: resolvedWorkspaceId,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
