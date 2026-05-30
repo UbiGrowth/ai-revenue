@@ -1,0 +1,6 @@
+supabase/functions/_shared/revenue_os_kernel/runtime.ts:30:      status: decision.status,
+supabase/functions/_shared/revenue_os_kernel/runtime.ts:41:async function updateDecisionStatus(supabase: any, id: string, status: string): Promise<void> {
+supabase/functions/_shared/revenue_os_kernel/runtime.ts:44:    .update({ status, executed_at: status === "executed" ? new Date().toISOString() : null } as never)
+supabase/functions/_shared/revenue_os_kernel/runtime.ts:49:async function updateEventStatus(supabase: any, id: string, status: string): Promise<void> {
+supabase/functions/_shared/revenue_os_kernel/runtime.ts:52:    .update({ status, processed_at: new Date().toISOString() } as never)
+supabase/functions/_shared/revenue_os_kernel/runtime.ts:128:  await updateEventStatus(supabase, emitted.event_id, "completed");
