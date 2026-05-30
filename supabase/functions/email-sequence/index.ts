@@ -57,7 +57,7 @@ serve(async (req) => {
       .single();
 
     // Fetch business profile for this workspace's owner
-    let businessName = workspace?.name || 'Marketing';
+    let businessName = tenant?.name || 'Marketing';
     const fromEmail = 'campaigns@ubigrowth.com'; // Default fallback
     
     if (tenant?.owner_id) {
