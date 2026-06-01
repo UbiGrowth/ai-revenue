@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -27,7 +27,7 @@ export type Database = {
           name: string
           segment: string | null
           size_bucket: string | null
-          tenant_id: string
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -42,7 +42,7 @@ export type Database = {
           name: string
           segment?: string | null
           size_bucket?: string | null
-          tenant_id: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -57,7 +57,7 @@ export type Database = {
           name?: string
           segment?: string | null
           size_bucket?: string | null
-          tenant_id?: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -146,20 +146,6 @@ export type Database = {
             foreignKeyName: "agent_runs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "agent_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "agent_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -225,20 +211,6 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_calendar_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_calendar_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -316,20 +288,6 @@ export type Database = {
             foreignKeyName: "ai_settings_crm_webhooks_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_crm_webhooks_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_crm_webhooks_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -395,20 +353,6 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_domain_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_domain_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -513,20 +457,6 @@ export type Database = {
             foreignKeyName: "ai_settings_email_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_email_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_email_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -601,20 +531,6 @@ export type Database = {
             foreignKeyName: "ai_settings_linkedin_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_linkedin_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_linkedin_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -642,8 +558,8 @@ export type Database = {
           last_test_result: Json | null
           last_tested_at: string | null
           social_provider: string | null
-          tenant_id: string
           updated_at: string | null
+          workspace_id: string
         }
         Insert: {
           account_name?: string | null
@@ -652,8 +568,8 @@ export type Database = {
           last_test_result?: Json | null
           last_tested_at?: string | null
           social_provider?: string | null
-          tenant_id: string
           updated_at?: string | null
+          workspace_id: string
         }
         Update: {
           account_name?: string | null
@@ -662,70 +578,56 @@ export type Database = {
           last_test_result?: Json | null
           last_tested_at?: string | null
           social_provider?: string | null
-          tenant_id?: string
           updated_at?: string | null
+          workspace_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_crm_conversion_funnel"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_revenue_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_social_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_social_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -792,20 +694,6 @@ export type Database = {
             foreignKeyName: "ai_settings_stripe_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_stripe_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_stripe_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -835,11 +723,11 @@ export type Database = {
           is_connected: boolean | null
           last_test_result: Json | null
           last_tested_at: string | null
-          tenant_id: string
           updated_at: string | null
           vapi_private_key: string | null
           vapi_public_key: string | null
           voice_provider: string | null
+          workspace_id: string
         }
         Insert: {
           default_elevenlabs_voice_id?: string | null
@@ -850,11 +738,11 @@ export type Database = {
           is_connected?: boolean | null
           last_test_result?: Json | null
           last_tested_at?: string | null
-          tenant_id: string
           updated_at?: string | null
           vapi_private_key?: string | null
           vapi_public_key?: string | null
           voice_provider?: string | null
+          workspace_id: string
         }
         Update: {
           default_elevenlabs_voice_id?: string | null
@@ -865,77 +753,105 @@ export type Database = {
           is_connected?: boolean | null
           last_test_result?: Json | null
           last_tested_at?: string | null
-          tenant_id?: string
           updated_at?: string | null
           vapi_private_key?: string | null
           vapi_public_key?: string | null
           voice_provider?: string | null
+          workspace_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_cmo_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_crm_conversion_funnel"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_crm_pipeline_truth"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "v_revenue_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
-            foreignKeyName: "ai_settings_voice_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
+            foreignKeyName: "fk_ai_settings_voice_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
+      }
+      approvals: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          asset_id: string
+          campaign_id: string
+          channel: string
+          created_at: string
+          id: string
+          status: string
+          tenant_id: string
+          type: string | null
+          workspace_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          asset_id: string
+          campaign_id: string
+          channel: string
+          created_at?: string
+          id?: string
+          status?: string
+          tenant_id: string
+          type?: string | null
+          workspace_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          asset_id?: string
+          campaign_id?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          status?: string
+          tenant_id?: string
+          type?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       asset_approvals: {
         Row: {
@@ -945,6 +861,7 @@ export type Database = {
           created_at: string
           id: string
           status: Database["public"]["Enums"]["asset_status"]
+          workspace_id: string
         }
         Insert: {
           approved_by?: string | null
@@ -953,6 +870,7 @@ export type Database = {
           created_at?: string
           id?: string
           status: Database["public"]["Enums"]["asset_status"]
+          workspace_id: string
         }
         Update: {
           approved_by?: string | null
@@ -961,6 +879,7 @@ export type Database = {
           created_at?: string
           id?: string
           status?: Database["public"]["Enums"]["asset_status"]
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -968,6 +887,55 @@ export type Database = {
             columns: ["asset_id"]
             isOneToOne: false
             referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_asset_approvals_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -1085,20 +1053,6 @@ export type Database = {
             foreignKeyName: "assets_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "assets_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "assets_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1182,20 +1136,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "automation_jobs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "automation_jobs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -1288,20 +1228,6 @@ export type Database = {
             foreignKeyName: "automation_steps_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "automation_steps_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "automation_steps_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1344,7 +1270,7 @@ export type Database = {
           unique_selling_points: string[] | null
           updated_at: string
           user_id: string
-          workspace_id: string | null
+          workspace_id: string
         }
         Insert: {
           brand_colors?: Json | null
@@ -1368,7 +1294,7 @@ export type Database = {
           unique_selling_points?: string[] | null
           updated_at?: string
           user_id: string
-          workspace_id?: string | null
+          workspace_id: string
         }
         Update: {
           brand_colors?: Json | null
@@ -1392,7 +1318,7 @@ export type Database = {
           unique_selling_points?: string[] | null
           updated_at?: string
           user_id?: string
-          workspace_id?: string | null
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -1427,20 +1353,6 @@ export type Database = {
             foreignKeyName: "business_profiles_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "business_profiles_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "business_profiles_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -1459,6 +1371,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campaign_assets: {
+        Row: {
+          campaign_id: string
+          content: Json
+          created_at: string
+          id: string
+          tenant_id: string
+          type: string
+          workspace_id: string
+        }
+        Insert: {
+          campaign_id: string
+          content?: Json
+          created_at?: string
+          id?: string
+          tenant_id: string
+          type: string
+          workspace_id: string
+        }
+        Update: {
+          campaign_id?: string
+          content?: Json
+          created_at?: string
+          id?: string
+          tenant_id?: string
+          type?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       campaign_audit_log: {
         Row: {
@@ -1502,127 +1444,6 @@ export type Database = {
         }
         Relationships: []
       }
-      campaign_channel_stats_daily: {
-        Row: {
-          bounces: number
-          campaign_id: string
-          channel: string
-          clicks: number
-          created_at: string
-          data_mode: Database["public"]["Enums"]["data_mode"]
-          day: string
-          deliveries: number
-          id: string
-          meetings_booked: number
-          opens: number
-          replies: number
-          sends: number
-          tenant_id: string
-          updated_at: string
-          workspace_id: string
-        }
-        Insert: {
-          bounces?: number
-          campaign_id: string
-          channel: string
-          clicks?: number
-          created_at?: string
-          data_mode?: Database["public"]["Enums"]["data_mode"]
-          day: string
-          deliveries?: number
-          id?: string
-          meetings_booked?: number
-          opens?: number
-          replies?: number
-          sends?: number
-          tenant_id: string
-          updated_at?: string
-          workspace_id: string
-        }
-        Update: {
-          bounces?: number
-          campaign_id?: string
-          channel?: string
-          clicks?: number
-          created_at?: string
-          data_mode?: Database["public"]["Enums"]["data_mode"]
-          day?: string
-          deliveries?: number
-          id?: string
-          meetings_booked?: number
-          opens?: number
-          replies?: number
-          sends?: number
-          tenant_id?: string
-          updated_at?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_cmo_metrics_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_conversion_funnel"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_pipeline_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_pipeline_metrics_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_revenue_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_channel_stats_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       campaign_metrics: {
         Row: {
           bounce_count: number | null
@@ -1647,7 +1468,7 @@ export type Database = {
           unsubscribe_count: number | null
           updated_at: string
           video_views: number | null
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           bounce_count?: number | null
@@ -1672,7 +1493,7 @@ export type Database = {
           unsubscribe_count?: number | null
           updated_at?: string
           video_views?: number | null
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           bounce_count?: number | null
@@ -1697,7 +1518,7 @@ export type Database = {
           unsubscribe_count?: number | null
           updated_at?: string
           video_views?: number | null
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -1733,20 +1554,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_metrics_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_metrics_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -1926,20 +1733,6 @@ export type Database = {
             foreignKeyName: "campaign_runs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2051,20 +1844,6 @@ export type Database = {
             foreignKeyName: "campaigns_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaigns_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaigns_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2105,7 +1884,6 @@ export type Database = {
           skip_reason: string | null
           skipped: boolean | null
           status: string
-          tenant_id: string
           workspace_id: string
         }
         Insert: {
@@ -2128,7 +1906,6 @@ export type Database = {
           skip_reason?: string | null
           skipped?: boolean | null
           status?: string
-          tenant_id: string
           workspace_id: string
         }
         Update: {
@@ -2151,7 +1928,6 @@ export type Database = {
           skip_reason?: string | null
           skipped?: boolean | null
           status?: string
-          tenant_id?: string
           workspace_id?: string
         }
         Relationships: [
@@ -2168,13 +1944,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_runs"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "channel_outbox_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "v_campaign_dashboard_metrics"
-            referencedColumns: ["run_id"]
           },
         ]
       }
@@ -2248,20 +2017,6 @@ export type Database = {
             foreignKeyName: "channel_preferences_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_preferences_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_preferences_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2274,144 +2029,6 @@ export type Database = {
           },
           {
             foreignKeyName: "channel_preferences_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      channel_spend_daily: {
-        Row: {
-          attribution_model: string
-          attribution_window_days: number
-          channel_id: string
-          clicks: number
-          created_at: string
-          currency: string
-          data_mode: Database["public"]["Enums"]["data_mode"]
-          date: string
-          id: string
-          impressions: number
-          leads: number
-          opportunities: number
-          revenue_booked: number
-          spend: number
-          tenant_id: string
-          updated_at: string
-          workspace_id: string
-        }
-        Insert: {
-          attribution_model?: string
-          attribution_window_days?: number
-          channel_id: string
-          clicks?: number
-          created_at?: string
-          currency?: string
-          data_mode?: Database["public"]["Enums"]["data_mode"]
-          date: string
-          id?: string
-          impressions?: number
-          leads?: number
-          opportunities?: number
-          revenue_booked?: number
-          spend?: number
-          tenant_id: string
-          updated_at?: string
-          workspace_id: string
-        }
-        Update: {
-          attribution_model?: string
-          attribution_window_days?: number
-          channel_id?: string
-          clicks?: number
-          created_at?: string
-          currency?: string
-          data_mode?: Database["public"]["Enums"]["data_mode"]
-          date?: string
-          id?: string
-          impressions?: number
-          leads?: number
-          opportunities?: number
-          revenue_booked?: number
-          spend?: number
-          tenant_id?: string
-          updated_at?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "channel_spend_daily_channel_fk"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "cmo_campaign_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_tenant_fk"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_cmo_metrics_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_conversion_funnel"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_pipeline_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_pipeline_metrics_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_revenue_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "channel_spend_daily_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -2439,7 +2056,6 @@ export type Database = {
           messaging_pillars: Json | null
           mission_statement: string | null
           tagline: string | null
-          tenant_id: string
           unique_value_proposition: string | null
           updated_at: string
           website_url: string | null
@@ -2464,7 +2080,6 @@ export type Database = {
           messaging_pillars?: Json | null
           mission_statement?: string | null
           tagline?: string | null
-          tenant_id: string
           unique_value_proposition?: string | null
           updated_at?: string
           website_url?: string | null
@@ -2489,7 +2104,6 @@ export type Database = {
           messaging_pillars?: Json | null
           mission_statement?: string | null
           tagline?: string | null
-          tenant_id?: string
           unique_value_proposition?: string | null
           updated_at?: string
           website_url?: string | null
@@ -2522,20 +2136,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_brand_profiles_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_brand_profiles_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -2657,20 +2257,6 @@ export type Database = {
             foreignKeyName: "cmo_calendar_events_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_calendar_events_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_calendar_events_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2699,20 +2285,11 @@ export type Database = {
           content_types: Json | null
           created_at: string
           expected_metrics: Json | null
-          external_account_id: string | null
-          external_ad_id: string | null
-          external_adset_id: string | null
-          external_campaign_id: string | null
-          external_source: string | null
           id: string
-          is_paid: boolean | null
           posting_frequency: string | null
           priority: string | null
           targeting_notes: string | null
           updated_at: string
-          utm_campaign: string | null
-          utm_medium: string | null
-          utm_source: string | null
         }
         Insert: {
           budget_percentage?: number | null
@@ -2722,20 +2299,11 @@ export type Database = {
           content_types?: Json | null
           created_at?: string
           expected_metrics?: Json | null
-          external_account_id?: string | null
-          external_ad_id?: string | null
-          external_adset_id?: string | null
-          external_campaign_id?: string | null
-          external_source?: string | null
           id?: string
-          is_paid?: boolean | null
           posting_frequency?: string | null
           priority?: string | null
           targeting_notes?: string | null
           updated_at?: string
-          utm_campaign?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
         }
         Update: {
           budget_percentage?: number | null
@@ -2745,20 +2313,11 @@ export type Database = {
           content_types?: Json | null
           created_at?: string
           expected_metrics?: Json | null
-          external_account_id?: string | null
-          external_ad_id?: string | null
-          external_adset_id?: string | null
-          external_campaign_id?: string | null
-          external_source?: string | null
           id?: string
-          is_paid?: boolean | null
           posting_frequency?: string | null
           priority?: string | null
           targeting_notes?: string | null
           updated_at?: string
-          utm_campaign?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
         }
         Relationships: [
           {
@@ -2796,7 +2355,6 @@ export type Database = {
           target_icp: string | null
           target_offer: string | null
           target_segment_codes: string[] | null
-          target_segments: string[] | null
           target_tags: string[] | null
           tenant_id: string
           updated_at: string
@@ -2827,7 +2385,6 @@ export type Database = {
           target_icp?: string | null
           target_offer?: string | null
           target_segment_codes?: string[] | null
-          target_segments?: string[] | null
           target_tags?: string[] | null
           tenant_id: string
           updated_at?: string
@@ -2858,7 +2415,6 @@ export type Database = {
           target_icp?: string | null
           target_offer?: string | null
           target_segment_codes?: string[] | null
-          target_segments?: string[] | null
           target_tags?: string[] | null
           tenant_id?: string
           updated_at?: string
@@ -2911,20 +2467,6 @@ export type Database = {
             foreignKeyName: "cmo_campaigns_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_campaigns_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_campaigns_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -2962,7 +2504,6 @@ export type Database = {
           status: string | null
           supporting_points: Json | null
           target_icp: string | null
-          tenant_id: string
           title: string
           tone: string | null
           updated_at: string
@@ -2985,7 +2526,6 @@ export type Database = {
           status?: string | null
           supporting_points?: Json | null
           target_icp?: string | null
-          tenant_id: string
           title: string
           tone?: string | null
           updated_at?: string
@@ -3008,7 +2548,6 @@ export type Database = {
           status?: string | null
           supporting_points?: Json | null
           target_icp?: string | null
-          tenant_id?: string
           title?: string
           tone?: string | null
           updated_at?: string
@@ -3048,20 +2587,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_content_assets_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_content_assets_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3237,7 +2762,6 @@ export type Database = {
           status: string
           target_icp_segments: Json | null
           target_offers: Json | null
-          tenant_id: string
           total_budget: number | null
           updated_at: string
           workspace_id: string
@@ -3255,7 +2779,6 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
-          tenant_id: string
           total_budget?: number | null
           updated_at?: string
           workspace_id: string
@@ -3273,7 +2796,6 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
-          tenant_id?: string
           total_budget?: number | null
           updated_at?: string
           workspace_id?: string
@@ -3312,20 +2834,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_funnels_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_funnels_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3373,7 +2881,6 @@ export type Database = {
           psychographics: Json | null
           segment_description: string | null
           segment_name: string
-          tenant_id: string
           updated_at: string
           workspace_id: string
         }
@@ -3398,7 +2905,6 @@ export type Database = {
           psychographics?: Json | null
           segment_description?: string | null
           segment_name: string
-          tenant_id: string
           updated_at?: string
           workspace_id: string
         }
@@ -3423,7 +2929,6 @@ export type Database = {
           psychographics?: Json | null
           segment_description?: string | null
           segment_name?: string
-          tenant_id?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -3454,20 +2959,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_icp_segments_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_icp_segments_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3519,7 +3010,6 @@ export type Database = {
           status: string
           target_icp_segments: Json | null
           target_offers: Json | null
-          tenant_id: string
           updated_at: string
           workspace_id: string
         }
@@ -3548,7 +3038,6 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
-          tenant_id: string
           updated_at?: string
           workspace_id: string
         }
@@ -3577,7 +3066,6 @@ export type Database = {
           status?: string
           target_icp_segments?: Json | null
           target_offers?: Json | null
-          tenant_id?: string
           updated_at?: string
           workspace_id?: string
         }
@@ -3608,20 +3096,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_marketing_plans_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_marketing_plans_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -3755,20 +3229,6 @@ export type Database = {
             foreignKeyName: "cmo_metrics_snapshots_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_metrics_snapshots_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_metrics_snapshots_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3809,7 +3269,6 @@ export type Database = {
           status: string | null
           success_metrics: Json | null
           target_segments: Json | null
-          tenant_id: string
           testimonials: Json | null
           updated_at: string
           use_cases: Json | null
@@ -3835,7 +3294,6 @@ export type Database = {
           status?: string | null
           success_metrics?: Json | null
           target_segments?: Json | null
-          tenant_id: string
           testimonials?: Json | null
           updated_at?: string
           use_cases?: Json | null
@@ -3861,7 +3319,6 @@ export type Database = {
           status?: string | null
           success_metrics?: Json | null
           target_segments?: Json | null
-          tenant_id?: string
           testimonials?: Json | null
           updated_at?: string
           use_cases?: Json | null
@@ -3900,20 +3357,6 @@ export type Database = {
             foreignKeyName: "cmo_offers_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_offers_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_offers_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -3929,6 +3372,62 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cmo_plan_milestones: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          deliverables: Json | null
+          dependencies: Json | null
+          description: string | null
+          id: string
+          kpis: Json | null
+          milestone_name: string
+          milestone_order: number | null
+          plan_id: string
+          status: string | null
+          target_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          deliverables?: Json | null
+          dependencies?: Json | null
+          description?: string | null
+          id?: string
+          kpis?: Json | null
+          milestone_name: string
+          milestone_order?: number | null
+          plan_id: string
+          status?: string | null
+          target_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          deliverables?: Json | null
+          dependencies?: Json | null
+          description?: string | null
+          id?: string
+          kpis?: Json | null
+          milestone_name?: string
+          milestone_order?: number | null
+          plan_id?: string
+          status?: string | null
+          target_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cmo_plan_milestones_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "cmo_marketing_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -4022,20 +3521,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_recommendations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_recommendations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -4137,20 +3622,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_weekly_summaries_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cmo_weekly_summaries_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -4272,20 +3743,6 @@ export type Database = {
             foreignKeyName: "content_calendar_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "content_calendar_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "content_calendar_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4322,7 +3779,7 @@ export type Database = {
           tone: string | null
           updated_at: string
           vertical: string
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           content: string
@@ -4340,7 +3797,7 @@ export type Database = {
           tone?: string | null
           updated_at?: string
           vertical: string
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           content?: string
@@ -4358,7 +3815,7 @@ export type Database = {
           tone?: string | null
           updated_at?: string
           vertical?: string
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -4387,20 +3844,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "content_templates_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "content_templates_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -4487,8 +3930,8 @@ export type Database = {
           role_title: string | null
           segment_code: string | null
           status: string | null
-          tenant_id: string
           updated_at: string
+          workspace_id: string
         }
         Insert: {
           company_name?: string | null
@@ -4502,8 +3945,8 @@ export type Database = {
           role_title?: string | null
           segment_code?: string | null
           status?: string | null
-          tenant_id: string
           updated_at?: string
+          workspace_id: string
         }
         Update: {
           company_name?: string | null
@@ -4517,10 +3960,60 @@ export type Database = {
           role_title?: string | null
           segment_code?: string | null
           status?: string | null
-          tenant_id?: string
           updated_at?: string
+          workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_crm_contacts_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crm_leads: {
         Row: {
@@ -4585,7 +4078,6 @@ export type Database = {
           risks: string | null
           score: number | null
           summary_md: string | null
-          tenant_id: string
           updated_at: string | null
           workspace_id: string
         }
@@ -4597,7 +4089,6 @@ export type Database = {
           risks?: string | null
           score?: number | null
           summary_md?: string | null
-          tenant_id: string
           updated_at?: string | null
           workspace_id: string
         }
@@ -4609,7 +4100,6 @@ export type Database = {
           risks?: string | null
           score?: number | null
           summary_md?: string | null
-          tenant_id?: string
           updated_at?: string | null
           workspace_id?: string
         }
@@ -4653,20 +4143,6 @@ export type Database = {
             foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_deal_reviews_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4695,7 +4171,6 @@ export type Database = {
           notes: string | null
           period: string
           scenario: string
-          tenant_id: string
           updated_at: string | null
           workspace_id: string
         }
@@ -4707,7 +4182,6 @@ export type Database = {
           notes?: string | null
           period: string
           scenario: string
-          tenant_id: string
           updated_at?: string | null
           workspace_id: string
         }
@@ -4719,7 +4193,6 @@ export type Database = {
           notes?: string | null
           period?: string
           scenario?: string
-          tenant_id?: string
           updated_at?: string | null
           workspace_id?: string
         }
@@ -4756,20 +4229,6 @@ export type Database = {
             foreignKeyName: "cro_forecasts_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_forecasts_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_forecasts_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4799,7 +4258,6 @@ export type Database = {
           source_type: string | null
           status: string | null
           suggested_actions: string | null
-          tenant_id: string
           title: string
           updated_at: string | null
           workspace_id: string
@@ -4813,7 +4271,6 @@ export type Database = {
           source_type?: string | null
           status?: string | null
           suggested_actions?: string | null
-          tenant_id: string
           title: string
           updated_at?: string | null
           workspace_id: string
@@ -4827,7 +4284,6 @@ export type Database = {
           source_type?: string | null
           status?: string | null
           suggested_actions?: string | null
-          tenant_id?: string
           title?: string
           updated_at?: string | null
           workspace_id?: string
@@ -4865,20 +4321,6 @@ export type Database = {
             foreignKeyName: "cro_recommendations_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_recommendations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_recommendations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -4907,7 +4349,6 @@ export type Database = {
           period: string
           target_new_arr: number | null
           target_pipeline: number | null
-          tenant_id: string
           updated_at: string | null
           workspace_id: string
         }
@@ -4919,7 +4360,6 @@ export type Database = {
           period: string
           target_new_arr?: number | null
           target_pipeline?: number | null
-          tenant_id: string
           updated_at?: string | null
           workspace_id: string
         }
@@ -4931,7 +4371,6 @@ export type Database = {
           period?: string
           target_new_arr?: number | null
           target_pipeline?: number | null
-          tenant_id?: string
           updated_at?: string | null
           workspace_id?: string
         }
@@ -4962,20 +4401,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_targets_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "cro_targets_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -5098,20 +4523,6 @@ export type Database = {
             foreignKeyName: "customer_integrations_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "customer_integrations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "customer_integrations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: true
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -5155,7 +4566,7 @@ export type Database = {
           updated_at: string
           value: number | null
           won_at: string | null
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           actual_close_date?: string | null
@@ -5180,7 +4591,7 @@ export type Database = {
           updated_at?: string
           value?: number | null
           won_at?: string | null
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           actual_close_date?: string | null
@@ -5205,7 +4616,7 @@ export type Database = {
           updated_at?: string
           value?: number | null
           won_at?: string | null
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -5254,20 +4665,6 @@ export type Database = {
             foreignKeyName: "deals_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "deals_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "deals_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -5287,92 +4684,6 @@ export type Database = {
           },
         ]
       }
-      email_events: {
-        Row: {
-          campaign_id: string | null
-          contact_id: string | null
-          email_address: string
-          event_type: string
-          event_type_internal: string | null
-          id: string
-          lead_id: string | null
-          meta: Json
-          occurred_at: string
-          provider: string
-          provider_event_type: string | null
-          provider_message_id: string | null
-          provider_thread_id: string | null
-          received_at: string
-          sequence_run_id: string | null
-          tenant_id: string
-        }
-        Insert: {
-          campaign_id?: string | null
-          contact_id?: string | null
-          email_address: string
-          event_type: string
-          event_type_internal?: string | null
-          id?: string
-          lead_id?: string | null
-          meta?: Json
-          occurred_at: string
-          provider: string
-          provider_event_type?: string | null
-          provider_message_id?: string | null
-          provider_thread_id?: string | null
-          received_at?: string
-          sequence_run_id?: string | null
-          tenant_id: string
-        }
-        Update: {
-          campaign_id?: string | null
-          contact_id?: string | null
-          email_address?: string
-          event_type?: string
-          event_type_internal?: string | null
-          id?: string
-          lead_id?: string | null
-          meta?: Json
-          occurred_at?: string
-          provider?: string
-          provider_event_type?: string | null
-          provider_message_id?: string | null
-          provider_thread_id?: string | null
-          received_at?: string
-          sequence_run_id?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "email_events_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "cmo_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_events_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "crm_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_events_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "crm_leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_events_sequence_run_id_fkey"
-            columns: ["sequence_run_id"]
-            isOneToOne: false
-            referencedRelation: "outbound_sequence_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       email_sequence_steps: {
         Row: {
           body: string
@@ -5383,6 +4694,7 @@ export type Database = {
           step_order: number
           subject: string
           updated_at: string
+          workspace_id: string
         }
         Insert: {
           body: string
@@ -5393,6 +4705,7 @@ export type Database = {
           step_order: number
           subject: string
           updated_at?: string
+          workspace_id: string
         }
         Update: {
           body?: string
@@ -5403,6 +4716,7 @@ export type Database = {
           step_order?: number
           subject?: string
           updated_at?: string
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -5410,6 +4724,55 @@ export type Database = {
             columns: ["sequence_id"]
             isOneToOne: false
             referencedRelation: "email_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequence_steps_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -5490,20 +4853,6 @@ export type Database = {
             foreignKeyName: "email_sequences_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "email_sequences_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "email_sequences_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -5521,131 +4870,681 @@ export type Database = {
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "fk_email_sequences_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
         ]
       }
-      errors_email_webhook: {
+      gmail_messages: {
         Row: {
-          created_at: string
-          error_message: string
-          error_type: string
+          ai_category: string | null
+          ai_insights: Json | null
+          ai_priority_score: number | null
+          ai_sentiment: string | null
+          analyzed_at: string | null
+          attachments: Json | null
+          bcc_emails: string[] | null
+          body_html: string | null
+          body_text: string | null
+          cc_emails: string[] | null
+          created_at: string | null
+          from_email: string | null
+          from_name: string | null
+          has_attachments: boolean | null
           id: string
-          provider_event_id: string | null
-          provider_message_id: string | null
-          provider_type: string | null
-          raw_payload: Json | null
-          tenant_id: string | null
+          is_read: boolean | null
+          is_starred: boolean | null
+          labels: string[] | null
+          message_id: string
+          received_at: string | null
+          sent_at: string | null
+          snippet: string | null
+          subject: string | null
+          tenant_id: string
+          thread_id: string
+          to_emails: string[] | null
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
-          error_message: string
-          error_type: string
+          ai_category?: string | null
+          ai_insights?: Json | null
+          ai_priority_score?: number | null
+          ai_sentiment?: string | null
+          analyzed_at?: string | null
+          attachments?: Json | null
+          bcc_emails?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[] | null
+          created_at?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          has_attachments?: boolean | null
           id?: string
-          provider_event_id?: string | null
-          provider_message_id?: string | null
-          provider_type?: string | null
-          raw_payload?: Json | null
-          tenant_id?: string | null
+          is_read?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
+          message_id: string
+          received_at?: string | null
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          tenant_id: string
+          thread_id: string
+          to_emails?: string[] | null
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
-          error_message?: string
-          error_type?: string
+          ai_category?: string | null
+          ai_insights?: Json | null
+          ai_priority_score?: number | null
+          ai_sentiment?: string | null
+          analyzed_at?: string | null
+          attachments?: Json | null
+          bcc_emails?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[] | null
+          created_at?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          has_attachments?: boolean | null
           id?: string
-          provider_event_id?: string | null
-          provider_message_id?: string | null
-          provider_type?: string | null
-          raw_payload?: Json | null
-          tenant_id?: string | null
+          is_read?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
+          message_id?: string
+          received_at?: string | null
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          tenant_id?: string
+          thread_id?: string
+          to_emails?: string[] | null
+          updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "gmail_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      events_raw: {
+      google_calendar_events: {
         Row: {
-          account_id: string | null
-          campaign_channel_id: string | null
-          campaign_id: string | null
-          contact_id: string | null
-          created_at: string
-          event_type: string
+          ai_attendee_count: number | null
+          ai_category: string | null
+          ai_external_attendees: number | null
+          ai_insights: Json | null
+          analyzed_at: string | null
+          attendees: Json | null
+          calendar_id: string
+          calendar_name: string | null
+          created_at: string | null
+          description: string | null
+          end_time: string
+          event_id: string
+          event_type: string | null
           id: string
-          idempotency_key: string | null
-          occurred_at: string
-          opportunity_id: string | null
-          properties: Json | null
-          source_system: string
+          is_all_day: boolean | null
+          is_recurring: boolean | null
+          location: string | null
+          meeting_link: string | null
+          organizer_email: string | null
+          organizer_name: string | null
+          recurrence_rules: string[] | null
+          start_time: string
+          status: string | null
+          summary: string | null
+          tenant_id: string
+          timezone: string | null
+          updated_at: string | null
+          visibility: string | null
+        }
+        Insert: {
+          ai_attendee_count?: number | null
+          ai_category?: string | null
+          ai_external_attendees?: number | null
+          ai_insights?: Json | null
+          analyzed_at?: string | null
+          attendees?: Json | null
+          calendar_id: string
+          calendar_name?: string | null
+          created_at?: string | null
+          description?: string | null
+          end_time: string
+          event_id: string
+          event_type?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_recurring?: boolean | null
+          location?: string | null
+          meeting_link?: string | null
+          organizer_email?: string | null
+          organizer_name?: string | null
+          recurrence_rules?: string[] | null
+          start_time: string
+          status?: string | null
+          summary?: string | null
+          tenant_id: string
+          timezone?: string | null
+          updated_at?: string | null
+          visibility?: string | null
+        }
+        Update: {
+          ai_attendee_count?: number | null
+          ai_category?: string | null
+          ai_external_attendees?: number | null
+          ai_insights?: Json | null
+          analyzed_at?: string | null
+          attendees?: Json | null
+          calendar_id?: string
+          calendar_name?: string | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string
+          event_id?: string
+          event_type?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_recurring?: boolean | null
+          location?: string | null
+          meeting_link?: string | null
+          organizer_email?: string | null
+          organizer_name?: string | null
+          recurrence_rules?: string[] | null
+          start_time?: string
+          status?: string | null
+          summary?: string | null
+          tenant_id?: string
+          timezone?: string | null
+          updated_at?: string | null
+          visibility?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_drive_documents: {
+        Row: {
+          ai_category: string | null
+          ai_insights: Json | null
+          ai_key_topics: string[] | null
+          ai_summary: string | null
+          analyzed_at: string | null
+          content_preview: string | null
+          created_at: string | null
+          created_time: string | null
+          document_type: string | null
+          download_url: string | null
+          file_extension: string | null
+          file_id: string
+          folder_id: string | null
+          folder_path: string | null
+          full_text_extracted: string | null
+          id: string
+          is_shared: boolean | null
+          last_modified_by_email: string | null
+          mime_type: string | null
+          modified_time: string | null
+          name: string
+          owner_email: string | null
+          owner_name: string | null
+          shared_with: Json | null
+          size_bytes: number | null
+          tenant_id: string
+          updated_at: string | null
+          web_view_link: string | null
+        }
+        Insert: {
+          ai_category?: string | null
+          ai_insights?: Json | null
+          ai_key_topics?: string[] | null
+          ai_summary?: string | null
+          analyzed_at?: string | null
+          content_preview?: string | null
+          created_at?: string | null
+          created_time?: string | null
+          document_type?: string | null
+          download_url?: string | null
+          file_extension?: string | null
+          file_id: string
+          folder_id?: string | null
+          folder_path?: string | null
+          full_text_extracted?: string | null
+          id?: string
+          is_shared?: boolean | null
+          last_modified_by_email?: string | null
+          mime_type?: string | null
+          modified_time?: string | null
+          name: string
+          owner_email?: string | null
+          owner_name?: string | null
+          shared_with?: Json | null
+          size_bytes?: number | null
+          tenant_id: string
+          updated_at?: string | null
+          web_view_link?: string | null
+        }
+        Update: {
+          ai_category?: string | null
+          ai_insights?: Json | null
+          ai_key_topics?: string[] | null
+          ai_summary?: string | null
+          analyzed_at?: string | null
+          content_preview?: string | null
+          created_at?: string | null
+          created_time?: string | null
+          document_type?: string | null
+          download_url?: string | null
+          file_extension?: string | null
+          file_id?: string
+          folder_id?: string | null
+          folder_path?: string | null
+          full_text_extracted?: string | null
+          id?: string
+          is_shared?: boolean | null
+          last_modified_by_email?: string | null
+          mime_type?: string | null
+          modified_time?: string | null
+          name?: string
+          owner_email?: string | null
+          owner_name?: string | null
+          shared_with?: Json | null
+          size_bytes?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+          web_view_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_drive_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_workspace_connections: {
+        Row: {
+          access_token: string
+          connected_at: string | null
+          created_at: string | null
+          google_email: string
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          refresh_token: string
+          scopes: string[]
+          tenant_id: string
+          token_expires_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string | null
+          created_at?: string | null
+          google_email: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          refresh_token: string
+          scopes?: string[]
+          tenant_id: string
+          token_expires_at: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string | null
+          created_at?: string | null
+          google_email?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          refresh_token?: string
+          scopes?: string[]
+          tenant_id?: string
+          token_expires_at?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_workspace_sync_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          duration_ms: number | null
+          error_details: Json | null
+          error_message: string | null
+          id: string
+          items_added: number | null
+          items_failed: number | null
+          items_processed: number | null
+          items_updated: number | null
+          job_type: string
+          last_sync_cursor: string | null
+          started_at: string | null
+          status: string | null
+          sync_params: Json | null
           tenant_id: string
         }
         Insert: {
-          account_id?: string | null
-          campaign_channel_id?: string | null
-          campaign_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          event_type: string
+          completed_at?: string | null
+          created_at?: string | null
+          duration_ms?: number | null
+          error_details?: Json | null
+          error_message?: string | null
           id?: string
-          idempotency_key?: string | null
-          occurred_at?: string
-          opportunity_id?: string | null
-          properties?: Json | null
-          source_system: string
+          items_added?: number | null
+          items_failed?: number | null
+          items_processed?: number | null
+          items_updated?: number | null
+          job_type: string
+          last_sync_cursor?: string | null
+          started_at?: string | null
+          status?: string | null
+          sync_params?: Json | null
           tenant_id: string
         }
         Update: {
-          account_id?: string | null
-          campaign_channel_id?: string | null
-          campaign_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          event_type?: string
+          completed_at?: string | null
+          created_at?: string | null
+          duration_ms?: number | null
+          error_details?: Json | null
+          error_message?: string | null
           id?: string
-          idempotency_key?: string | null
-          occurred_at?: string
-          opportunity_id?: string | null
-          properties?: Json | null
-          source_system?: string
+          items_added?: number | null
+          items_failed?: number | null
+          items_processed?: number | null
+          items_updated?: number | null
+          job_type?: string
+          last_sync_cursor?: string | null
+          started_at?: string | null
+          status?: string | null
+          sync_params?: Json | null
           tenant_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "events_raw_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_raw_campaign_channel_id_fkey"
-            columns: ["campaign_channel_id"]
-            isOneToOne: false
-            referencedRelation: "spine_campaign_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_raw_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "spine_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_raw_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "spine_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_raw_opportunity_id_fkey"
-            columns: ["opportunity_id"]
-            isOneToOne: false
-            referencedRelation: "opportunities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_raw_tenant_id_fkey"
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "google_workspace_sync_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -5761,13 +5660,6 @@ export type Database = {
             referencedRelation: "campaign_runs"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "job_queue_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "v_campaign_dashboard_metrics"
-            referencedColumns: ["run_id"]
-          },
         ]
       }
       kernel_actions: {
@@ -5815,57 +5707,6 @@ export type Database = {
             referencedRelation: "kernel_decisions"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "kernel_actions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      kernel_cycle_slo: {
-        Row: {
-          created_at: string
-          cycle_date: string
-          cycles_attempted: number
-          cycles_failed: number
-          cycles_succeeded: number
-          economics_actions_count: number
-          id: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          cycle_date: string
-          cycles_attempted?: number
-          cycles_failed?: number
-          cycles_succeeded?: number
-          economics_actions_count?: number
-          id?: string
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          cycle_date?: string
-          cycles_attempted?: number
-          cycles_failed?: number
-          cycles_succeeded?: number
-          economics_actions_count?: number
-          id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kernel_cycle_slo_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
         ]
       }
       kernel_decisions: {
@@ -5875,7 +5716,6 @@ export type Database = {
           decision_json: Json
           decision_type: string
           event_id: string
-          executed_at: string | null
           id: string
           policy_name: string
           status: string
@@ -5887,7 +5727,6 @@ export type Database = {
           decision_json?: Json
           decision_type: string
           event_id: string
-          executed_at?: string | null
           id?: string
           policy_name: string
           status?: string
@@ -5899,7 +5738,6 @@ export type Database = {
           decision_json?: Json
           decision_type?: string
           event_id?: string
-          executed_at?: string | null
           id?: string
           policy_name?: string
           status?: string
@@ -5913,70 +5751,91 @@ export type Database = {
             referencedRelation: "kernel_events"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "kernel_decisions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
         ]
       }
       kernel_events: {
         Row: {
           correlation_id: string
           created_at: string
-          entity_id: string | null
-          entity_type: string | null
+          entity_id: string
+          entity_type: string
           id: string
           idempotency_key: string
           occurred_at: string
           payload_json: Json
-          processed_at: string | null
           source: string
-          status: string
           tenant_id: string
           type: string
         }
         Insert: {
           correlation_id: string
           created_at?: string
-          entity_id?: string | null
-          entity_type?: string | null
+          entity_id: string
+          entity_type: string
           id?: string
           idempotency_key: string
           occurred_at?: string
           payload_json?: Json
-          processed_at?: string | null
           source: string
-          status?: string
           tenant_id: string
           type: string
         }
         Update: {
           correlation_id?: string
           created_at?: string
-          entity_id?: string | null
-          entity_type?: string | null
+          entity_id?: string
+          entity_type?: string
           id?: string
           idempotency_key?: string
           occurred_at?: string
           payload_json?: Json
-          processed_at?: string | null
           source?: string
-          status?: string
           tenant_id?: string
           type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "kernel_events_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      kernel_events_archive: {
+        Row: {
+          correlation_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          payload_json: Json
+          source: string
+          tenant_id: string
+          type: string
+        }
+        Insert: {
+          correlation_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          payload_json?: Json
+          source: string
+          tenant_id: string
+          type: string
+        }
+        Update: {
+          correlation_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          payload_json?: Json
+          source?: string
+          tenant_id?: string
+          type?: string
+        }
+        Relationships: []
       }
       landing_pages: {
         Row: {
@@ -6055,7 +5914,7 @@ export type Database = {
           id: string
           lead_id: string
           metadata: Json | null
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           activity_type: string
@@ -6065,7 +5924,7 @@ export type Database = {
           id?: string
           lead_id: string
           metadata?: Json | null
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           activity_type?: string
@@ -6075,7 +5934,7 @@ export type Database = {
           id?: string
           lead_id?: string
           metadata?: Json | null
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -6118,20 +5977,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "lead_activities_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "lead_activities_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -6232,20 +6077,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "lead_stage_events_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "lead_stage_events_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -6423,20 +6254,6 @@ export type Database = {
             foreignKeyName: "leads_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "leads_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "leads_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -6563,20 +6380,6 @@ export type Database = {
             foreignKeyName: "linkedin_tasks_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "linkedin_tasks_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "linkedin_tasks_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -6596,43 +6399,59 @@ export type Database = {
           },
         ]
       }
-      metric_snapshots_daily: {
+      message_logs: {
         Row: {
+          campaign_id: string | null
+          channel: string
           created_at: string
-          date: string
-          dimension: Json | null
+          error: string | null
           id: string
-          metric_id: string
+          idempotency_key: string
+          lead_id: string | null
+          message_text: string | null
+          provider: string
+          provider_message_id: string | null
+          provider_response: Json
+          recipient_phone: string | null
+          status: string
           tenant_id: string
-          value: number
+          workspace_id: string
         }
         Insert: {
+          campaign_id?: string | null
+          channel: string
           created_at?: string
-          date: string
-          dimension?: Json | null
+          error?: string | null
           id?: string
-          metric_id: string
+          idempotency_key: string
+          lead_id?: string | null
+          message_text?: string | null
+          provider: string
+          provider_message_id?: string | null
+          provider_response?: Json
+          recipient_phone?: string | null
+          status: string
           tenant_id: string
-          value: number
+          workspace_id: string
         }
         Update: {
+          campaign_id?: string | null
+          channel?: string
           created_at?: string
-          date?: string
-          dimension?: Json | null
+          error?: string | null
           id?: string
-          metric_id?: string
+          idempotency_key?: string
+          lead_id?: string | null
+          message_text?: string | null
+          provider?: string
+          provider_message_id?: string | null
+          provider_response?: Json
+          recipient_phone?: string | null
+          status?: string
           tenant_id?: string
-          value?: number
+          workspace_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "metric_snapshots_daily_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -6701,20 +6520,6 @@ export type Database = {
             foreignKeyName: "notifications_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "notifications_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "notifications_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -6751,7 +6556,7 @@ export type Database = {
           owner_user_id: string | null
           source: string | null
           stage: string
-          tenant_id: string
+          tenant_id: string | null
           updated_at: string
           win_probability: number | null
         }
@@ -6771,7 +6576,7 @@ export type Database = {
           owner_user_id?: string | null
           source?: string | null
           stage?: string
-          tenant_id: string
+          tenant_id?: string | null
           updated_at?: string
           win_probability?: number | null
         }
@@ -6791,7 +6596,7 @@ export type Database = {
           owner_user_id?: string | null
           source?: string | null
           stage?: string
-          tenant_id?: string
+          tenant_id?: string | null
           updated_at?: string
           win_probability?: number | null
         }
@@ -6807,7 +6612,7 @@ export type Database = {
             foreignKeyName: "opportunities_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "spine_contacts"
+            referencedRelation: "crm_contacts"
             referencedColumns: ["id"]
           },
           {
@@ -6819,297 +6624,30 @@ export type Database = {
           },
         ]
       }
-      opportunity_channel_attribution: {
-        Row: {
-          channel_id: string
-          created_at: string
-          id: string
-          opportunity_id: string
-          role: string
-          tenant_id: string
-          weight: number
-        }
-        Insert: {
-          channel_id: string
-          created_at?: string
-          id?: string
-          opportunity_id: string
-          role?: string
-          tenant_id: string
-          weight?: number
-        }
-        Update: {
-          channel_id?: string
-          created_at?: string
-          id?: string
-          opportunity_id?: string
-          role?: string
-          tenant_id?: string
-          weight?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "opp_channel_attr_channel_fk"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "cmo_campaign_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "opp_channel_attr_opp_fk"
-            columns: ["opportunity_id"]
-            isOneToOne: false
-            referencedRelation: "opportunities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "opp_channel_attr_tenant_fk"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      optimization_action_results: {
-        Row: {
-          baseline_value: number | null
-          confidence: number | null
-          context_snapshot: Json | null
-          created_at: string
-          delta: number | null
-          delta_direction: string | null
-          economic_deltas: Json | null
-          id: string
-          metadata: Json | null
-          metric_id: string
-          observation_end_date: string | null
-          observation_start_date: string | null
-          observed_value: number | null
-          optimization_action_id: string
-          tenant_id: string
-        }
-        Insert: {
-          baseline_value?: number | null
-          confidence?: number | null
-          context_snapshot?: Json | null
-          created_at?: string
-          delta?: number | null
-          delta_direction?: string | null
-          economic_deltas?: Json | null
-          id?: string
-          metadata?: Json | null
-          metric_id: string
-          observation_end_date?: string | null
-          observation_start_date?: string | null
-          observed_value?: number | null
-          optimization_action_id: string
-          tenant_id: string
-        }
-        Update: {
-          baseline_value?: number | null
-          confidence?: number | null
-          context_snapshot?: Json | null
-          created_at?: string
-          delta?: number | null
-          delta_direction?: string | null
-          economic_deltas?: Json | null
-          id?: string
-          metadata?: Json | null
-          metric_id?: string
-          observation_end_date?: string | null
-          observation_start_date?: string | null
-          observed_value?: number | null
-          optimization_action_id?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "optimization_action_results_optimization_action_id_fkey"
-            columns: ["optimization_action_id"]
-            isOneToOne: false
-            referencedRelation: "optimization_actions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "optimization_action_results_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      optimization_actions: {
-        Row: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          action_id: string
-          config: Json | null
-          created_at: string
-          expected_observation_window_days: number | null
-          guardrails: Json | null
-          hypothesis: string | null
-          id: string
-          lens_emphasis: string | null
-          notes_for_humans: string | null
-          optimization_cycle_id: string
-          owner_subsystem: string | null
-          priority_rank: number | null
-          requires_acknowledgment: boolean | null
-          status: string | null
-          target_direction: string | null
-          target_metric: string | null
-          tenant_id: string
-          type: string | null
-          updated_at: string
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          action_id: string
-          config?: Json | null
-          created_at?: string
-          expected_observation_window_days?: number | null
-          guardrails?: Json | null
-          hypothesis?: string | null
-          id?: string
-          lens_emphasis?: string | null
-          notes_for_humans?: string | null
-          optimization_cycle_id: string
-          owner_subsystem?: string | null
-          priority_rank?: number | null
-          requires_acknowledgment?: boolean | null
-          status?: string | null
-          target_direction?: string | null
-          target_metric?: string | null
-          tenant_id: string
-          type?: string | null
-          updated_at?: string
-        }
-        Update: {
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          action_id?: string
-          config?: Json | null
-          created_at?: string
-          expected_observation_window_days?: number | null
-          guardrails?: Json | null
-          hypothesis?: string | null
-          id?: string
-          lens_emphasis?: string | null
-          notes_for_humans?: string | null
-          optimization_cycle_id?: string
-          owner_subsystem?: string | null
-          priority_rank?: number | null
-          requires_acknowledgment?: boolean | null
-          status?: string | null
-          target_direction?: string | null
-          target_metric?: string | null
-          tenant_id?: string
-          type?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "optimization_actions_optimization_cycle_id_fkey"
-            columns: ["optimization_cycle_id"]
-            isOneToOne: false
-            referencedRelation: "optimization_cycles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "optimization_actions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      optimization_cycles: {
-        Row: {
-          binding_constraint: string | null
-          cfo_gates_active: string[] | null
-          created_at: string
-          duration_ms: number | null
-          error_message: string | null
-          id: string
-          input_snapshot_ref: Json | null
-          invoked_at: string
-          priority_metric_id: string | null
-          raw_kernel_output: Json | null
-          status: string | null
-          tenant_id: string
-        }
-        Insert: {
-          binding_constraint?: string | null
-          cfo_gates_active?: string[] | null
-          created_at?: string
-          duration_ms?: number | null
-          error_message?: string | null
-          id?: string
-          input_snapshot_ref?: Json | null
-          invoked_at?: string
-          priority_metric_id?: string | null
-          raw_kernel_output?: Json | null
-          status?: string | null
-          tenant_id: string
-        }
-        Update: {
-          binding_constraint?: string | null
-          cfo_gates_active?: string[] | null
-          created_at?: string
-          duration_ms?: number | null
-          error_message?: string | null
-          id?: string
-          input_snapshot_ref?: Json | null
-          invoked_at?: string
-          priority_metric_id?: string | null
-          raw_kernel_output?: Json | null
-          status?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "optimization_cycles_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      optimizer_configs: {
+      opt_outs: {
         Row: {
           channel: string
-          click_weight: number
           created_at: string
           id: string
-          open_weight: number
-          prompt_version: string
-          reply_weight: number
+          phone: string
           tenant_id: string
+          workspace_id: string
         }
         Insert: {
           channel: string
-          click_weight?: number
           created_at?: string
           id?: string
-          open_weight?: number
-          prompt_version?: string
-          reply_weight?: number
+          phone: string
           tenant_id: string
+          workspace_id: string
         }
         Update: {
           channel?: string
-          click_weight?: number
           created_at?: string
           id?: string
-          open_weight?: number
-          prompt_version?: string
-          reply_weight?: number
+          phone?: string
           tenant_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -7641,130 +7179,7 @@ export type Database = {
           run_id?: string | null
           tenant_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "rate_limit_events_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      release_notes: {
-        Row: {
-          body_md: string
-          created_at: string
-          created_by: string | null
-          id: string
-          released_at: string
-          tenant_id: string | null
-          title: string
-        }
-        Insert: {
-          body_md: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          released_at?: string
-          tenant_id?: string | null
-          title: string
-        }
-        Update: {
-          body_md?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          released_at?: string
-          tenant_id?: string | null
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "release_notes_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      revenue_events: {
-        Row: {
-          account_id: string | null
-          amount: number
-          attributed_campaign_id: string | null
-          attributed_channel: string | null
-          attribution_model: string | null
-          created_at: string
-          currency: string | null
-          effective_date: string
-          id: string
-          metadata: Json | null
-          opportunity_id: string | null
-          tenant_id: string
-          type: string
-        }
-        Insert: {
-          account_id?: string | null
-          amount: number
-          attributed_campaign_id?: string | null
-          attributed_channel?: string | null
-          attribution_model?: string | null
-          created_at?: string
-          currency?: string | null
-          effective_date: string
-          id?: string
-          metadata?: Json | null
-          opportunity_id?: string | null
-          tenant_id: string
-          type: string
-        }
-        Update: {
-          account_id?: string | null
-          amount?: number
-          attributed_campaign_id?: string | null
-          attributed_channel?: string | null
-          attribution_model?: string | null
-          created_at?: string
-          currency?: string | null
-          effective_date?: string
-          id?: string
-          metadata?: Json | null
-          opportunity_id?: string | null
-          tenant_id?: string
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "revenue_events_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "revenue_events_attributed_campaign_id_fkey"
-            columns: ["attributed_campaign_id"]
-            isOneToOne: false
-            referencedRelation: "spine_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "revenue_events_opportunity_id_fkey"
-            columns: ["opportunity_id"]
-            isOneToOne: false
-            referencedRelation: "opportunities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "revenue_events_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       rollout_gate_checks: {
         Row: {
@@ -7888,13 +7303,6 @@ export type Database = {
             referencedRelation: "rollout_phases"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "rollout_tenant_assignments_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
         ]
       }
       segments: {
@@ -7905,7 +7313,7 @@ export type Database = {
           name: string
           targeting_rules: Json | null
           updated_at: string
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           created_at?: string
@@ -7914,7 +7322,7 @@ export type Database = {
           name: string
           targeting_rules?: Json | null
           updated_at?: string
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           created_at?: string
@@ -7923,7 +7331,7 @@ export type Database = {
           name?: string
           targeting_rules?: Json | null
           updated_at?: string
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -7952,20 +7360,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "segments_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "segments_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -8082,20 +7476,6 @@ export type Database = {
             foreignKeyName: "sequence_enrollments_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "sequence_enrollments_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "sequence_enrollments_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -8111,6 +7491,79 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequence_runs: {
+        Row: {
+          bounced_at: string | null
+          clicked_at: string | null
+          created_at: string | null
+          enrollment_id: string
+          error_message: string | null
+          id: string
+          opened_at: string | null
+          provider_message_id: string | null
+          replied_at: string | null
+          scheduled_at: string | null
+          sent_at: string | null
+          status: string | null
+          step_id: string
+          tenant_id: string | null
+        }
+        Insert: {
+          bounced_at?: string | null
+          clicked_at?: string | null
+          created_at?: string | null
+          enrollment_id: string
+          error_message?: string | null
+          id?: string
+          opened_at?: string | null
+          provider_message_id?: string | null
+          replied_at?: string | null
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          step_id: string
+          tenant_id?: string | null
+        }
+        Update: {
+          bounced_at?: string | null
+          clicked_at?: string | null
+          created_at?: string | null
+          enrollment_id?: string
+          error_message?: string | null
+          id?: string
+          opened_at?: string | null
+          provider_message_id?: string | null
+          replied_at?: string | null
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          step_id?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_runs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "sequence_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequence_runs_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_sequence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequence_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -8329,20 +7782,6 @@ export type Database = {
             foreignKeyName: "social_integrations_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "social_integrations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "social_integrations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -8358,259 +7797,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      spine_campaign_channels: {
-        Row: {
-          bidding_strategy: Json | null
-          campaign_id: string
-          channel: string
-          config: Json | null
-          created_at: string
-          daily_budget: number | null
-          id: string
-          status: string | null
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          bidding_strategy?: Json | null
-          campaign_id: string
-          channel: string
-          config?: Json | null
-          created_at?: string
-          daily_budget?: number | null
-          id?: string
-          status?: string | null
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          bidding_strategy?: Json | null
-          campaign_id?: string
-          channel?: string
-          config?: Json | null
-          created_at?: string
-          daily_budget?: number | null
-          id?: string
-          status?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "spine_campaign_channels_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "spine_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "spine_campaign_channels_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      spine_campaigns: {
-        Row: {
-          budget_currency: string | null
-          budget_total: number | null
-          created_at: string
-          end_date: string | null
-          id: string
-          metadata: Json | null
-          name: string
-          objective: string | null
-          start_date: string | null
-          status: string | null
-          target_segment: Json | null
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          budget_currency?: string | null
-          budget_total?: number | null
-          created_at?: string
-          end_date?: string | null
-          id?: string
-          metadata?: Json | null
-          name: string
-          objective?: string | null
-          start_date?: string | null
-          status?: string | null
-          target_segment?: Json | null
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          budget_currency?: string | null
-          budget_total?: number | null
-          created_at?: string
-          end_date?: string | null
-          id?: string
-          metadata?: Json | null
-          name?: string
-          objective?: string | null
-          start_date?: string | null
-          status?: string | null
-          target_segment?: Json | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "spine_campaigns_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      spine_contacts: {
-        Row: {
-          account_id: string | null
-          created_at: string
-          email: string | null
-          external_crm_id: string | null
-          first_name: string | null
-          id: string
-          last_name: string | null
-          lifecycle_stage: string | null
-          metadata: Json | null
-          persona_tag: string | null
-          phone: string | null
-          role_title: string | null
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          account_id?: string | null
-          created_at?: string
-          email?: string | null
-          external_crm_id?: string | null
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          lifecycle_stage?: string | null
-          metadata?: Json | null
-          persona_tag?: string | null
-          phone?: string | null
-          role_title?: string | null
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          account_id?: string | null
-          created_at?: string
-          email?: string | null
-          external_crm_id?: string | null
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          lifecycle_stage?: string | null
-          metadata?: Json | null
-          persona_tag?: string | null
-          phone?: string | null
-          role_title?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "spine_contacts_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "spine_contacts_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      spine_crm_activities: {
-        Row: {
-          account_id: string | null
-          activity_type: string
-          contact_id: string | null
-          created_at: string
-          direction: string | null
-          id: string
-          metadata: Json | null
-          occurred_at: string
-          opportunity_id: string | null
-          outcome: string | null
-          performed_by_agent_id: string | null
-          performed_by_user_id: string | null
-          tenant_id: string
-        }
-        Insert: {
-          account_id?: string | null
-          activity_type: string
-          contact_id?: string | null
-          created_at?: string
-          direction?: string | null
-          id?: string
-          metadata?: Json | null
-          occurred_at?: string
-          opportunity_id?: string | null
-          outcome?: string | null
-          performed_by_agent_id?: string | null
-          performed_by_user_id?: string | null
-          tenant_id: string
-        }
-        Update: {
-          account_id?: string | null
-          activity_type?: string
-          contact_id?: string | null
-          created_at?: string
-          direction?: string | null
-          id?: string
-          metadata?: Json | null
-          occurred_at?: string
-          opportunity_id?: string | null
-          outcome?: string | null
-          performed_by_agent_id?: string | null
-          performed_by_user_id?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "spine_crm_activities_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "spine_crm_activities_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "spine_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "spine_crm_activities_opportunity_id_fkey"
-            columns: ["opportunity_id"]
-            isOneToOne: false
-            referencedRelation: "opportunities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "spine_crm_activities_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -8661,7 +7847,7 @@ export type Database = {
           task_type: string | null
           title: string
           updated_at: string
-          workspace_id: string
+          workspace_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -8678,7 +7864,7 @@ export type Database = {
           task_type?: string | null
           title: string
           updated_at?: string
-          workspace_id: string
+          workspace_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -8695,7 +7881,7 @@ export type Database = {
           task_type?: string | null
           title?: string
           updated_at?: string
-          workspace_id?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -8745,20 +7931,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "tasks_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "tasks_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -8851,20 +8023,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "team_invitations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "team_invitations_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -8978,15 +8136,7 @@ export type Database = {
           voice_hourly_minutes?: number
           voice_hourly_minutes_used?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "tenant_rate_limits_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       tenant_segments: {
         Row: {
@@ -9027,66 +8177,6 @@ export type Database = {
           sort_order?: number | null
           tenant_id?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      tenant_targets: {
-        Row: {
-          cash_risk_tolerance: string | null
-          created_at: string
-          email_enabled: boolean | null
-          experiment_exposure_pct: number | null
-          landing_pages_enabled: boolean | null
-          linkedin_enabled: boolean | null
-          margin_floor_pct: number | null
-          max_cac: number | null
-          max_cac_by_segment: Json | null
-          monthly_budget_cap: number | null
-          sms_enabled: boolean | null
-          target_bookings: number | null
-          target_payback_months: number | null
-          target_pipeline: number | null
-          tenant_id: string
-          updated_at: string
-          voice_enabled: boolean | null
-        }
-        Insert: {
-          cash_risk_tolerance?: string | null
-          created_at?: string
-          email_enabled?: boolean | null
-          experiment_exposure_pct?: number | null
-          landing_pages_enabled?: boolean | null
-          linkedin_enabled?: boolean | null
-          margin_floor_pct?: number | null
-          max_cac?: number | null
-          max_cac_by_segment?: Json | null
-          monthly_budget_cap?: number | null
-          sms_enabled?: boolean | null
-          target_bookings?: number | null
-          target_payback_months?: number | null
-          target_pipeline?: number | null
-          tenant_id: string
-          updated_at?: string
-          voice_enabled?: boolean | null
-        }
-        Update: {
-          cash_risk_tolerance?: string | null
-          created_at?: string
-          email_enabled?: boolean | null
-          experiment_exposure_pct?: number | null
-          landing_pages_enabled?: boolean | null
-          linkedin_enabled?: boolean | null
-          margin_floor_pct?: number | null
-          max_cac?: number | null
-          max_cac_by_segment?: Json | null
-          monthly_budget_cap?: number | null
-          sms_enabled?: boolean | null
-          target_bookings?: number | null
-          target_payback_months?: number | null
-          target_pipeline?: number | null
-          tenant_id?: string
-          updated_at?: string
-          voice_enabled?: boolean | null
         }
         Relationships: []
       }
@@ -9135,6 +8225,54 @@ export type Database = {
           slug?: string
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      usage_events: {
+        Row: {
+          billable: boolean
+          campaign_id: string | null
+          channel: string
+          created_at: string
+          id: string
+          lead_id: string | null
+          metadata: Json
+          provider: string | null
+          provider_message_id: string | null
+          recipient_phone: string | null
+          tenant_id: string
+          units: number
+          workspace_id: string
+        }
+        Insert: {
+          billable?: boolean
+          campaign_id?: string | null
+          channel: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          metadata?: Json
+          provider?: string | null
+          provider_message_id?: string | null
+          recipient_phone?: string | null
+          tenant_id: string
+          units?: number
+          workspace_id: string
+        }
+        Update: {
+          billable?: boolean
+          campaign_id?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          metadata?: Json
+          provider?: string | null
+          provider_message_id?: string | null
+          recipient_phone?: string | null
+          tenant_id?: string
+          units?: number
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -9220,12 +8358,43 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_workspaces: {
+        Row: {
+          created_at: string
+          id: string
           last_used_workspace_id: string | null
           onboarding_completed_at: string | null
           role: string | null
-          tenant_id: string
           user_id: string
-          wants_product_updates: boolean
+          workspace_id: string
         }
         Insert: {
           created_at?: string
@@ -9233,9 +8402,8 @@ export type Database = {
           last_used_workspace_id?: string | null
           onboarding_completed_at?: string | null
           role?: string | null
-          tenant_id: string
           user_id: string
-          wants_product_updates?: boolean
+          workspace_id: string
         }
         Update: {
           created_at?: string
@@ -9243,9 +8411,8 @@ export type Database = {
           last_used_workspace_id?: string | null
           onboarding_completed_at?: string | null
           role?: string | null
-          tenant_id?: string
           user_id?: string
-          wants_product_updates?: boolean
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -9280,20 +8447,6 @@ export type Database = {
             foreignKeyName: "user_tenants_last_used_workspace_id_fkey"
             columns: ["last_used_workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "user_tenants_last_used_workspace_id_fkey"
-            columns: ["last_used_workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "user_tenants_last_used_workspace_id_fkey"
-            columns: ["last_used_workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -9315,6 +8468,7 @@ export type Database = {
       }
       voice_agents: {
         Row: {
+          agent_id: string | null
           campaign_id: string | null
           config: Json
           created_at: string
@@ -9322,11 +8476,14 @@ export type Database = {
           is_default: boolean
           name: string
           provider: string
+          status: string
           tenant_id: string
           updated_at: string
+          use_case: string
           workspace_id: string
         }
         Insert: {
+          agent_id?: string | null
           campaign_id?: string | null
           config?: Json
           created_at?: string
@@ -9334,11 +8491,14 @@ export type Database = {
           is_default?: boolean
           name: string
           provider: string
+          status?: string
           tenant_id: string
           updated_at?: string
+          use_case?: string
           workspace_id: string
         }
         Update: {
+          agent_id?: string | null
           campaign_id?: string | null
           config?: Json
           created_at?: string
@@ -9346,8 +8506,10 @@ export type Database = {
           is_default?: boolean
           name?: string
           provider?: string
+          status?: string
           tenant_id?: string
           updated_at?: string
+          use_case?: string
           workspace_id?: string
         }
         Relationships: [
@@ -9384,20 +8546,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "voice_agents_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "voice_agents_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -9536,6 +8684,137 @@ export type Database = {
             columns: ["voice_agent_id"]
             isOneToOne: false
             referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_campaigns: {
+        Row: {
+          call_schedule: Json | null
+          completed_at: string | null
+          completed_calls: number | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          phone_number_id: string | null
+          started_at: string | null
+          status: string | null
+          successful_calls: number | null
+          target_segment: string | null
+          tenant_id: string | null
+          total_contacts: number | null
+          updated_at: string
+          voice_agent_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          call_schedule?: Json | null
+          completed_at?: string | null
+          completed_calls?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          phone_number_id?: string | null
+          started_at?: string | null
+          status?: string | null
+          successful_calls?: number | null
+          target_segment?: string | null
+          tenant_id?: string | null
+          total_contacts?: number | null
+          updated_at?: string
+          voice_agent_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          call_schedule?: Json | null
+          completed_at?: string | null
+          completed_calls?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          phone_number_id?: string | null
+          started_at?: string | null
+          status?: string | null
+          successful_calls?: number | null
+          target_segment?: string | null
+          tenant_id?: string | null
+          total_contacts?: number | null
+          updated_at?: string
+          voice_agent_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_campaigns_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "voice_phone_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_voice_agent_id_fkey"
+            columns: ["voice_agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_cmo_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_conversion_funnel"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_pipeline_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_crm_source_of_truth"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_pipeline_metrics_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "v_revenue_by_workspace"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -9691,20 +8970,6 @@ export type Database = {
             foreignKeyName: "workspace_members_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "workspace_members_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "workspace_members_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -9783,83 +9048,13 @@ export type Database = {
       }
     }
     Views: {
-      v_campaign_dashboard_metrics: {
+      database_health: {
         Row: {
-          created_at: string | null
-          delivered_or_sent: number | null
-          failed: number | null
-          outbox_total: number | null
-          provider_ids: number | null
-          run_id: string | null
-          run_status: string | null
-          tenant_id: string | null
-          workspace_id: string | null
+          check_name: string | null
+          count: number | null
+          details: unknown[] | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_cmo_metrics_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_conversion_funnel"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_pipeline_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_pipeline_metrics_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_revenue_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_runs_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       v_campaign_metrics_gated: {
         Row: {
@@ -9923,20 +9118,6 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "v_crm_source_of_truth"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_metrics_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "campaign_metrics_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
             referencedColumns: ["workspace_id"]
           },
           {
@@ -10077,20 +9258,6 @@ export type Database = {
             foreignKeyName: "leads_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "v_data_quality_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "leads_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "v_impressions_clicks_by_workspace"
-            referencedColumns: ["workspace_id"]
-          },
-          {
-            foreignKeyName: "leads_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "v_pipeline_metrics_by_workspace"
             referencedColumns: ["workspace_id"]
           },
@@ -10155,40 +9322,6 @@ export type Database = {
           win_rate: number | null
           won_deals: number | null
           won_revenue: number | null
-          workspace_id: string | null
-        }
-        Relationships: []
-      }
-      v_data_quality_by_workspace: {
-        Row: {
-          analytics_connected: boolean | null
-          data_quality_status: string | null
-          demo_mode: boolean | null
-          email_provider_configured: boolean | null
-          stripe_connected: boolean | null
-          tenant_id: string | null
-          voice_provider_configured: boolean | null
-          workspace_id: string | null
-        }
-        Relationships: []
-      }
-      v_impressions_clicks_by_workspace: {
-        Row: {
-          analytics_connected: boolean | null
-          cmo_clicks: number | null
-          cmo_conversions: number | null
-          cmo_impressions: number | null
-          data_quality_status: string | null
-          demo_mode: boolean | null
-          email_clicks: number | null
-          email_opens: number | null
-          email_sends: number | null
-          paid_clicks: number | null
-          paid_impressions: number | null
-          stripe_connected: boolean | null
-          tenant_id: string | null
-          total_clicks: number | null
-          total_impressions: number | null
           workspace_id: string | null
         }
         Relationships: []
@@ -10388,6 +9521,7 @@ export type Database = {
         Args: { p_window_hours?: number }
         Returns: number
       }
+      get_tenant_id_from_user: { Args: { p_user_id: string }; Returns: string }
       get_tenant_metrics_mode: {
         Args: { p_tenant_id: string }
         Returns: string
@@ -10410,39 +9544,6 @@ export type Database = {
           is_owner: boolean
           workspace_id: string
           workspace_name: string
-        }[]
-      }
-      get_weekly_cfo_portfolio_summary: {
-        Args: never
-        Returns: {
-          avg_cac_blended: number
-          avg_contribution_margin_pct: number
-          avg_gross_margin_pct: number
-          avg_payback_months: number
-          avg_revenue_per_fte: number
-          avg_sales_efficiency_ratio: number
-          tenants_active: number
-          total_econ_actions: number
-          total_econ_actions_hurt: number
-          total_econ_actions_improved: number
-        }[]
-      }
-      get_weekly_cfo_snapshot: {
-        Args: never
-        Returns: {
-          cac_blended: number
-          cfo_enabled: boolean
-          cfo_gates_triggered: number
-          contribution_margin_pct: number
-          econ_actions_hurt: number
-          econ_actions_improved: number
-          econ_actions_total: number
-          gross_margin_pct: number
-          payback_months: number
-          revenue_per_fte: number
-          sales_efficiency_ratio: number
-          tenant_id: string
-          tenant_name: string
         }[]
       }
       get_workspace_certification: {
@@ -10494,10 +9595,6 @@ export type Database = {
         Returns: boolean
       }
       must_change_password: { Args: { _user_id: string }; Returns: boolean }
-      rebuild_campaign_daily_stats: {
-        Args: { _date_from: string; _date_to: string; _tenant_id: string }
-        Returns: undefined
-      }
       record_reply_metric_snapshot: {
         Args: {
           p_campaign_id: string
@@ -10526,10 +9623,7 @@ export type Database = {
         Args: { p_timeout_minutes?: number }
         Returns: number
       }
-      resume_sequence_for_lead: {
-        Args: { _lead_id: string; _user_id: string }
-        Returns: undefined
-      }
+      refresh_google_token: { Args: { p_tenant_id: string }; Returns: boolean }
       retry_job: { Args: { p_job_id: string }; Returns: boolean }
       run_job_queue_cron: { Args: never; Returns: undefined }
       run_job_queue_parallel: { Args: never; Returns: undefined }
@@ -10568,17 +9662,6 @@ export type Database = {
             }
             Returns: Json
           }
-      upsert_campaign_daily_stat: {
-        Args: {
-          p_campaign_id: string
-          p_channel: string
-          p_day: string
-          p_increment?: number
-          p_stat_type: string
-          p_tenant_id: string
-        }
-        Returns: undefined
-      }
       user_belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       user_has_workspace_access: {
         Args: { _workspace_id: string }
@@ -10591,37 +9674,6 @@ export type Database = {
       validate_campaign_integrations: {
         Args: { p_campaign_id: string }
         Returns: Json
-      }
-      weekly_cfo_portfolio_snapshot: {
-        Args: never
-        Returns: {
-          avg_cac_blended: number
-          avg_contribution_margin_pct: number
-          avg_gross_margin_pct: number
-          avg_payback_months: number
-          avg_revenue_per_fte: number
-          avg_sales_efficiency_ratio: number
-          tenants_active: number
-          total_econ_actions: number
-          total_econ_actions_hurt: number
-          total_econ_actions_improved: number
-        }[]
-      }
-      weekly_cfo_snapshot: {
-        Args: never
-        Returns: {
-          cac_blended: number
-          contribution_margin_pct: number
-          econ_actions_hurt: number
-          econ_actions_improved: number
-          econ_actions_total: number
-          gross_margin_pct: number
-          payback_months: number
-          revenue_per_fte: number
-          sales_efficiency_ratio: number
-          tenant_id: string
-          tenant_name: string
-        }[]
       }
     }
     Enums: {
