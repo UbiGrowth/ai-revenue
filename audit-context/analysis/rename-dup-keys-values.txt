@@ -1,0 +1,198 @@
+===== supabase/functions/cmo-launch-campaign/index.ts =====
+10:  tenant_id: string;
+82:        tenant_id: input.tenant_id,
+83:        tenant_id: input.tenant_id,
+142:      tenant_id: input.tenant_id,
+143:      tenant_id: input.tenant_id,
+
+===== supabase/functions/outbound-dispatch-due/index.ts =====
+182:              tenant_id: run.tenant_id,
+183:              tenant_id: campaign?.tenant_id,
+256:          tenant_id: run.tenant_id,
+282:              tenant_id: run.tenant_id,
+283:              tenant_id: run.tenant_id, // fallback
+
+===== supabase/functions/test-email/index.ts =====
+365:              tenant_id: tenantId,
+366:              tenant_id: tenantId,
+
+===== supabase/functions/vapi-outbound-call/index.ts =====
+90:        tenant_id: effectiveTenantId,
+91:        tenant_id: effectiveWorkspaceId,
+
+===== supabase/functions/execute-voice-campaign/index.ts =====
+145:              tenant_id: effectiveTenantId,
+146:              tenant_id: asset.tenant_id,
+168:              tenant_id: effectiveTenantId,
+212:              tenant_id: effectiveTenantId,
+213:              tenant_id: asset.tenant_id,
+239:            tenant_id: effectiveTenantId,
+240:            tenant_id: asset.tenant_id,
+281:        tenant_id: asset.tenant_id,
+
+===== supabase/functions/cmo-kernel/index.ts =====
+28:  tenant_id: string;
+107:        tenant_id: tenant_id,
+108:        tenant_id: tenant_id,
+
+===== supabase/functions/cmo-campaign-orchestrate/index.ts =====
+17:  tenant_id: string;
+299:          tenant_id: tenantId,
+300:          tenant_id: tenantId,
+413:                tenant_id: tenantId,
+414:                tenant_id: tenantId,
+461:                tenant_id: tenantId,
+462:                tenant_id: tenantId,
+513:                  tenant_id: tenantId,
+514:                  tenant_id: tenantId,
+569:                  tenant_id: tenantId,
+570:                  tenant_id: tenantId,
+626:                tenant_id: tenantId,
+627:                tenant_id: tenantId,
+703:        tenant_id: tenantId,
+711:          tenant_id: tenantId, // Include tenant_id in payload for context
+753:      tenant_id: tenantId,
+754:      tenant_id: tenantId,
+807:        error: 'Invalid tenant_id: must be a valid UUID string' 
+944:              tenant_id: tenantId,
+945:              tenant_id: tenantId,
+
+===== supabase/functions/cmo-webhook-outbound/index.ts =====
+12:  tenant_id: string;
+133:      tenant_id: tenant_id,
+134:      tenant_id: tenant_id,
+
+===== supabase/functions/campaign-schedule-outbox/index.ts =====
+226:            tenant_id: tenantId,
+227:            tenant_id: campaign.tenant_id,
+
+===== supabase/functions/qa-execution-cert/index.ts =====
+163:        tenant_id: testTenantId,
+176:        tenant_id: testTenantId,
+190:        tenant_id: testTenantId,
+203:        tenant_id: testTenantId,
+353:        tenant_id: config.tenantId,
+354:        tenant_id: config.tenantId,
+624:        tenant_id: testTenantId,
+649:        tenant_id: testTenantId,
+662:        tenant_id: testTenantId,
+676:        tenant_id: testTenantId,
+677:        tenant_id: testTenantId,
+781:      tenant_id: run.tenant_id,
+782:      tenant_id: run.tenant_id,
+812:      tenant_id: run.tenant_id,
+813:      tenant_id: run.tenant_id,
+941:      tenant_id: string;
+942:      tenant_id: string;
+1159:        tenant_id: testTenantId,
+1172:        tenant_id: testTenantId,
+1186:        tenant_id: testTenantId,
+1202:        tenant_id: testTenantId,
+1282:      tenant_id: run.tenant_id,
+1283:      tenant_id: run.tenant_id,
+1397:        tenant_id: testTenantId,
+1412:        tenant_id: testTenantId,
+1424:        tenant_id: testTenantId,
+1441:        tenant_id: testTenantId,
+1543:      tenant_id: run.tenant_id,
+1544:      tenant_id: run.tenant_id,
+1577:      tenant_id: run.tenant_id,
+1578:      tenant_id: run.tenant_id,
+
+===== supabase/functions/cmo-generate-content/index.ts =====
+10:  tenant_id: string;
+89:          tenant_id: input.tenant_id,
+90:          tenant_id: input.tenant_id,
+147:      tenant_id: input.tenant_id,
+148:      tenant_id: input.tenant_id,
+
+===== supabase/functions/cmo-summarize-weekly/index.ts =====
+10:  tenant_id: string;
+169:        tenant_id: input.tenant_id,
+170:        tenant_id: input.tenant_id,
+194:      tenant_id: input.tenant_id,
+195:      tenant_id: input.tenant_id,
+
+===== supabase/functions/cmo-optimizer-cron/index.ts =====
+106:              tenant_id: campaign.tenant_id,
+107:              tenant_id: campaign.tenant_id,
+
+===== supabase/functions/ai-cmo-autopilot-build/index.ts =====
+92:      tenant_id: tenantId,
+134:      tenant_id: tenantId,
+209:          tenant_id: tenantId,
+210:          tenant_id: tenantId,
+225:          tenant_id: tenantId,
+226:          tenant_id: tenantId,
+241:          tenant_id: tenantId,
+242:          tenant_id: tenantId,
+258:          tenant_id: tenantId,
+259:          tenant_id: tenantId,
+275:          tenant_id: tenantId,
+276:          tenant_id: tenantId,
+298:        tenant_id: tenantId,
+299:        tenant_id: tenantId,
+
+===== supabase/functions/cmo-generate-funnel/index.ts =====
+10:  tenant_id: string;
+84:        tenant_id: input.tenant_id,
+85:        tenant_id: input.tenant_id,
+146:      tenant_id: input.tenant_id,
+147:      tenant_id: input.tenant_id,
+
+===== supabase/functions/infrastructure-test-runner/index.ts =====
+73:    tenant_id: string;
+74:    tenant_id: string;
+230:function validateIds(row: { tenant_id: string; tenant_id: string }, tenantId: string, tenantId: string): { valid: boolean; reason?: string } {
+240:function validateWorkspaceId(row: { tenant_id: string }, tenantId: string): { valid: boolean; reason?: string } {
+253:}): Promise<{ campaign: { id: string; tenant_id: string; asset_id: string; channel: string; status: string }; asset: { id: string; tenant_id: string; type: string; status: string } }> {
+262:      tenant_id: tenantId,
+279:      tenant_id: tenantId,
+356:      tenant_id: tenantId || 'MISSING',
+357:      tenant_id: tenantId || 'MISSING',
+402:        tenant_id: tenantId,
+403:        tenant_id: tenantId,
+448:            tenant_id: tenantId,
+464:            tenant_id: tenantId,
+465:            tenant_id: tenantId,
+494:            tenant_id: tenantId,
+495:            tenant_id: tenantId,
+595:                tenant_id: tenantId,
+596:                tenant_id: tenantId,
+616:            tenant_id: tenantId,
+617:            tenant_id: tenantId,
+814:              tenant_id: tenantId,
+831:              tenant_id: tenantId,
+832:              tenant_id: tenantId,
+861:              tenant_id: tenantId,
+862:              tenant_id: tenantId,
+941:              tenant_id: tenantId,
+942:              tenant_id: tenantId,
+1189:            tenant_id: tenantId,
+1190:            tenant_id: tenantId,
+1218:            tenant_id: tenantId,
+1219:            tenant_id: tenantId,
+1474:            tenant_id: tenantId,
+1475:            tenant_id: tenantId,
+1499:          tenant_id: tenantId,
+1500:          tenant_id: tenantId,
+2030:          tenant_id: tenantId,
+2031:          tenant_id: tenantId,
+
+===== supabase/functions/email-deploy/index.ts =====
+232:          tenant_id: asset.tenant_id,
+280:            tenant_id: tenantId,
+281:            tenant_id: tenantId,
+440:        tenant_id: asset.tenant_id,
+
+===== supabase/functions/channel-outbox-webhook/index.ts =====
+149:      tenant_id: outboxRecord.tenant_id,
+150:      tenant_id: outboxRecord.tenant_id,
+
+===== supabase/functions/cmo-create-plan/index.ts =====
+10:  tenant_id: string;
+75:        tenant_id: planInput.tenant_id,
+76:        tenant_id: planInput.tenant_id,
+113:      tenant_id: planInput.tenant_id,
+114:      tenant_id: planInput.tenant_id,
+

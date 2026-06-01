@@ -1,0 +1,21 @@
+### duplicate 'const tenantId' / 'let tenantId' in same file
+supabase/functions/ai-cmo-voice-agents/index.ts
+supabase/functions/cmo-campaign-orchestrate/index.ts
+supabase/functions/email-deploy/index.ts
+supabase/functions/google-oauth/index.ts
+supabase/functions/infrastructure-test-runner/index.ts
+
+### lines with duplicate identifier in destructuring or self-init
+supabase/functions/outbound-prospect-intel/index.ts:72:    const { tenant_id, tenant_id, prospect, brand_context, prospect_id } = await req.json();
+supabase/functions/cmo-voice-agent-builder/index.ts:49:    const { tenant_id, tenant_id, brand_voice, icp, offer, constraints = [] } = input;
+supabase/functions/cmo-voice-agent-builder/index.ts:60:    const tenantId = tenant_id || tenant_id;
+supabase/functions/cmo-optimizer/index.ts:83:    const { tenant_id, tenant_id, campaign_id, goal, metrics, assets, constraints = [] } = input;
+supabase/functions/cmo-optimizer/index.ts:94:    const tenantId = tenant_id || tenant_id;
+supabase/functions/cmo-campaign-orchestrate/index.ts:799:    const { tenant_id, tenant_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
+supabase/functions/cmo-campaign-orchestrate/index.ts:837:    const tenantId = tenant_id || tenant_id;
+supabase/functions/qa-execution-cert/index.ts:953:        .select("id, tenant_id, tenant_id, provider_call_id, status, customer_number, duration_seconds, created_at")
+supabase/functions/qa-execution-cert/index.ts:1563:        onConflict: "tenant_id,tenant_id,idempotency_key",
+supabase/functions/cmo-optimizer-cron/index.ts:44:      .select("id, tenant_id, tenant_id, campaign_name, goal")
+supabase/functions/infrastructure-test-runner/index.ts:486:        const runIdCheck = validateIds(run, tenantId, tenantId);
+supabase/functions/infrastructure-test-runner/index.ts:853:          const runIdCheck = validateIds(run, tenantId, tenantId);
+supabase/functions/channel-outbox-webhook/index.ts:112:      .select("id, status, tenant_id, tenant_id, run_id, recipient_email")
