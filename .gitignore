@@ -41,6 +41,9 @@ apps/*/node_modules
 *.sln
 *.sw?
 
+# Local reference / audit material (not app code)
+audit-context/
+
 # VIBE build artifacts and data
 vibe/**/.next
 vibe/**/out

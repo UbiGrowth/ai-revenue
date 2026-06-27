@@ -17,6 +17,7 @@ const IGNORE_DIRS = new Set([
   ".turbo",
   ".next",
   "coverage",
+  "audit-context",
 ]);
 
 function walk(dirAbs: string): string[] {
