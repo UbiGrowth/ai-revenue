@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { openaiChat } from "../_shared/providers/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Expose-Headers": "x-ai-revenue-build",
-  "x-ai-revenue-build": "ai-cmo-autopilot-build-openai-direct-v1",
+  "x-ai-revenue-build": "ai-cmo-autopilot-build-v2",
 };
 
 const VALID_CHANNELS = ["email", "sms", "linkedin", "voice", "landing_page"];
@@ -184,25 +185,20 @@ serve(async (req) => {
     const system = "You are a marketing campaign generator. Return only valid JSON, no markdown.";
     const userPrompt = `Generate assets for a marketing campaign.\n\nRequirements:\n- Return JSON with keys: campaign_name (string), campaign_description (string), assets (object), automations (object), summary (string)\n- assets may include: emails (array), voice_scripts (array)\n- If email is requested, generate 3 emails with fields: step (number), subject (string), body (string), delay_days (number)\n- If voice is requested, generate 1 voice_scripts item with fields: scenario, opening, pitch, objection_handling, close\n- Use plain text, no markdown.\n\nInput:\nicp: ${icp}\noffer: ${offer}\ndesired_result: ${desiredResult}\nchannels: ${channels.join(", ")}\n`;
 
-    const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }], temperature: 0.4, max_tokens: 1200 }),
-    });
-
-    if (!aiResp.ok) {
-      const t = await aiResp.text().catch(() => "");
-      return new Response(JSON.stringify({ error: "AI generation failed", details: t || `status=${aiResp.status}` }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    let aiText: string;
+    try {
+      const { text } = await openaiChat({ apiKey: OPENAI_API_KEY, model: "gpt-4o-mini", messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }], temperature: 0.4, maxTokens: 1200 });
+      aiText = text;
+    } catch (aiErr: any) {
+      return new Response(JSON.stringify({ error: "AI generation failed", details: aiErr?.message || "Unknown AI error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const aiData = await aiResp.json();
-    const raw = aiData?.choices?.[0]?.message?.content;
-    if (!raw || typeof raw !== "string") {
+    if (!aiText) {
       return new Response(JSON.stringify({ error: "AI generation failed", details: "Empty model response" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let result: any;
-    try { result = JSON.parse(raw); } catch {
+    try { result = JSON.parse(aiText); } catch {
       return new Response(JSON.stringify({ error: "AI generation failed", details: "Model returned non-JSON output" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
