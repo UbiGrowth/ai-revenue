@@ -15,7 +15,7 @@ interface IntegrationStatus {
 
 interface OrchestrationInput {
   tenant_id: string;
-  tenant_id?: string;
+  workspace_id?: string;
   campaign_id: string;
   action: 'validate' | 'launch' | 'optimize' | 'pause' | 'resume';
   channels?: string[];
@@ -297,7 +297,6 @@ async function processLeadsForPipeline(
         .from('deals')
         .insert({
           tenant_id: tenantId,
-          tenant_id: tenantId,
           lead_id: lead.id,
           name: `${lead.company || lead.first_name || 'New'} - ${campaign.campaign_name}`,
           value: estimatedValue,
@@ -411,7 +410,6 @@ async function launchCampaign(
               .from('channel_outbox')
               .insert({
                 tenant_id: tenantId,
-                tenant_id: tenantId,
                 channel: 'email',
                 provider: 'resend',
                 recipient_id: lead.id,
@@ -458,7 +456,6 @@ async function launchCampaign(
             await supabaseAdmin
               .from('channel_outbox')
               .insert({
-                tenant_id: tenantId,
                 tenant_id: tenantId,
                 channel: 'social',
                 provider: integration.platform,
@@ -510,7 +507,6 @@ async function launchCampaign(
               await supabaseAdmin
                 .from('channel_outbox')
                 .insert({
-                  tenant_id: tenantId,
                   tenant_id: tenantId,
                   channel: 'voice',
                   provider: 'vapi',
@@ -566,7 +562,6 @@ async function launchCampaign(
               await supabaseAdmin
                 .from('channel_outbox')
                 .insert({
-                  tenant_id: tenantId,
                   tenant_id: tenantId,
                   channel: 'voice_vm',
                   provider: 'vapi',
@@ -624,7 +619,6 @@ async function launchCampaign(
               .from('channel_outbox')
               .insert({
                 tenant_id: tenantId,
-                tenant_id: tenantId,
                 channel: 'sms',
                 provider: 'twilio',
                 recipient_id: lead.id,
@@ -664,13 +658,12 @@ async function makeIdempotencyKey(parts: string[]): Promise<string> {
 }
 
 // Emit kernel event to kernel_events table (OS v1 contract)
-// CRITICAL: tenant_id and tenant_id must be kept separate
 // CORRELATION_ID: Request-level unique ID for tracing (includes requestId)
 // IDEMPOTENCY_KEY: Hash that prevents duplicate processing (action-level)
 async function emitKernelEvent(
   supabaseAdmin: any,
   tenantId: string,
-  tenantId: string,
+  workspaceId: string,
   campaignId: string,
   eventType: string,
   action: string,
@@ -708,7 +701,8 @@ async function emitKernelEvent(
         entity_id: campaignId,
         payload_json: {
           ...payload,
-          tenant_id: tenantId, // Include tenant_id in payload for context
+          tenant_id: tenantId,
+          workspace_id: workspaceId,
           request_id: requestId,
         },
         status: 'pending',
@@ -741,7 +735,7 @@ async function emitKernelEvent(
 async function logAuditEvent(
   supabaseAdmin: any,
   tenantId: string,
-  tenantId: string,
+  workspaceId: string,
   agent: string,
   mode: string,
   input: any,
@@ -750,7 +744,6 @@ async function logAuditEvent(
 ): Promise<void> {
   try {
     await supabaseAdmin.from('agent_runs').insert({
-      tenant_id: tenantId,
       tenant_id: tenantId,
       agent,
       mode,
@@ -796,7 +789,7 @@ serve(async (req) => {
     }
 
     const input: OrchestrationInput = await req.json();
-    const { tenant_id, tenant_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
+    const { tenant_id, workspace_id, campaign_id, action, channels = [], auto_create_deals = true, pipeline_stage = 'qualification' } = input;
 
     // Generate unique request ID for correlation tracking
     const requestId = crypto.randomUUID();
@@ -829,12 +822,8 @@ serve(async (req) => {
       });
     }
 
-    // CRITICAL: tenant_id and tenant_id are distinct concepts
-    // tenant_id = logical tenant for RLS and isolation
-    // tenant_id = operational tenant for data scoping
-    // They may be the same in single-tenant tenants, but must be tracked separately
     const tenantId = tenant_id;
-    const tenantId = tenant_id || tenant_id;
+    const workspaceId = workspace_id || tenantId;
     const result: OrchestrationResult = {
       success: false,
       campaign_id,
@@ -886,11 +875,11 @@ serve(async (req) => {
     if (action === 'launch') {
       // Emit kernel event for campaign launch (OS v1 contract)
       const kernelResult = await emitKernelEvent(
-        supabaseAdmin, 
-        tenantId, 
-        tenantId, 
-        campaign_id, 
-        'campaign_launched', 
+        supabaseAdmin,
+        tenantId,
+        workspaceId,
+        campaign_id,
+        'campaign_launched',
         action,
         {
           campaign_id,
@@ -942,7 +931,6 @@ serve(async (req) => {
           const { data: optimizationResult } = await supabase.functions.invoke('cmo-optimizer', {
             body: {
               tenant_id: tenantId,
-              tenant_id: tenantId,
               campaign_id,
               goal: campaign.objective || 'leads',
               metrics: metrics || { opens: 0, clicks: 0, replies: 0, booked_meetings: 0 },
@@ -989,7 +977,7 @@ serve(async (req) => {
     await logAuditEvent(
       supabaseAdmin,
       tenantId,
-      tenantId,
+      workspaceId,
       'cmo-campaign-orchestrate',
       action,
       input,
