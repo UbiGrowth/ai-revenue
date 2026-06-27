@@ -170,9 +170,8 @@ async function main() {
     channels: ["email", "voice"],
     desiredResult: "leads",
     tenant_id: tenantId,
-    tenantId,
+    workspace_id: workspaceId,
     workspaceId,
-    tenant_id: workspaceId,
   });
 
   let autopilotCampaignId: string | null = null;
