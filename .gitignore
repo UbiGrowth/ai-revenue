@@ -41,6 +41,9 @@ apps/*/node_modules
 *.sln
 *.sw?
 
+# Local audit/fix-prep context (kept local, not tracked)
+audit-context/
+
 # VIBE build artifacts and data
 vibe/**/.next
 vibe/**/out

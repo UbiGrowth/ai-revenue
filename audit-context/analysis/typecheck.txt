@@ -1,2 +1,0 @@
-src/pages/MondayLeadConverter.tsx(3,23): error TS2307: Cannot find module 'xlsx' or its corresponding type declarations.
-src/pages/VoiceAgents.tsx(711,65): error TS2589: Type instantiation is excessively deep and possibly infinite.
