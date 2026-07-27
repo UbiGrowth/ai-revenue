@@ -126,12 +126,12 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Created draft campaign ${campaign.id} for tenant ${tenantId}`);
+    console.log(`Created draft campaign ${campaign.id} for workspace ${workspaceId}`);
 
     // Step 2: Call kernel with campaign_id and payload
     const kernelPayload = {
       mode: "campaign-builder",
-      tenant_id: tenantId,
+      workspace_id: workspaceId,
       payload: {
         campaign_id: campaign.id,
         icp,

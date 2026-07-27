@@ -48,9 +48,12 @@ serve(async (req) => {
     const input: VoiceAgentBuilderInput = await req.json();
     const { tenant_id, tenant_id, brand_voice, icp, offer, constraints = [] } = input;
 
-    if (!tenant_id || !brand_voice || !icp || !offer) {
+    // Prefer workspace_id, fallback to tenant_id for backward compatibility
+    const workspaceId = workspace_id || tenant_id;
+    
+    if (!workspaceId || !brand_voice || !icp || !offer) {
       return new Response(JSON.stringify({ 
-        error: 'Missing required fields: tenant_id, brand_voice, icp, offer' 
+        error: 'Missing required fields: workspace_id (or tenant_id), brand_voice, icp, offer' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -65,14 +68,14 @@ serve(async (req) => {
     const { data: brandProfile } = await supabase
       .from('cmo_brand_profiles')
       .select('*')
-      .eq('tenant_id', tenant_id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     // Fetch existing voice settings
     const { data: voiceSettings } = await supabase
       .from('ai_settings_voice')
       .select('*')
-      .eq('tenant_id', tenant_id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     const brandContext = brandProfile ? `
@@ -245,7 +248,7 @@ Make the system_prompt comprehensive and ready to use directly with Vapi or Elev
       console.error('Failed to save agent config:', saveError);
     }
 
-    console.log(`Voice agent config created for tenant ${tenant_id}`);
+    console.log(`Voice agent config created for workspace ${workspaceId}`);
 
     return new Response(JSON.stringify({
       provider,
