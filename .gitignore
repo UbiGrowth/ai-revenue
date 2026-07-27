@@ -10,6 +10,7 @@
 # Node / build output
 node_modules/
 dist/
+.next/
 
 # OS / editor junk
 .DS_Store
